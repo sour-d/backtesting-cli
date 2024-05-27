@@ -39,9 +39,7 @@ const showInfo = (data, filename) => {
   summary.averageExpectancy = summary.totalProfitOrLoss / summary.totalRisk; // Assuming risk is the total risk
   summary.averageTradeTime =
     data.reduce((acc, trade) => acc + trade.duration, 0) / summary.totalTrades;
-  summary.maxDrawDown = Math.abs(
-    Math.min(...data.map((trade) => trade.drawDown))
-  ); // Drawdown is negative, so take absolute value
+  summary.maxDrawDown = Math.min(...data.map((trade) => trade.drawDown)); // Drawdown is negative, so take absolute value
   summary.maxDrawDownDuration = Math.max(
     ...data.map((trade) => trade.drawDownDuration)
   );
@@ -92,7 +90,11 @@ const main = () => {
 
   const data = JSON.parse(fs.readFileSync(filepath, "utf-8"));
 
-  const parsedResult = transformTradesData(data.tradeResults, "1");
+  const parsedResult = transformTradesData(
+    data.tradeResults,
+    data.capital,
+    "1"
+  );
   showInfo(parsedResult, filename);
 };
 
