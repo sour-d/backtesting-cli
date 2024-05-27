@@ -10,21 +10,21 @@ class FortyTwentyStrategy extends Strategy {
 
   static getDefaultConfig() {
     return {
-      buyWindow: 60,
-      sellWindow: 20,
+      buyWindow: 9,
+      sellWindow: 2,
       capital: 100,
-      riskPercentage: 0.1,
+      riskPercentage: 0.2,
     };
   }
 
   isHighBroken(today, highestDay) {
-    return today.High > highestDay.High;
+    return today.high > highestDay.high;
   }
 
   squareOff() {
     const today = this.stock.now();
-    const { Low: stopLoss } = this.stock.lowOfLast(this.config.sellWindow);
-    if (today.Low <= stopLoss) {
+    const { low: stopLoss } = this.stock.lowOfLast(this.config.sellWindow);
+    if (today.low <= stopLoss) {
       this.exitPosition(stopLoss);
     }
   }
@@ -37,8 +37,8 @@ class FortyTwentyStrategy extends Strategy {
     const lastFortyDayHigh = this.stock.highOfLast(buyWindow);
 
     if (this.isHighBroken(today, lastFortyDayHigh)) {
-      const { High: buyPrice } = this.stock.highOfLast(buyWindow);
-      const { Low: initialStopLoss } = this.stock.lowOfLast(sellWindow);
+      const { high: buyPrice } = this.stock.highOfLast(buyWindow);
+      const { low: initialStopLoss } = this.stock.lowOfLast(sellWindow);
       const riskForOneStock = buyPrice - initialStopLoss;
 
       this.takePosition(riskForOneStock, buyPrice);

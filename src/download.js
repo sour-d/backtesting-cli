@@ -4,12 +4,13 @@ import fs from "fs";
 import _ from "lodash";
 
 const getDateFormat = (date = dayjs().utc()) => {
-  return dayjs(date).toISOString();
+  return dayjs(date);
 };
 
 const todaysDate = () => dayjs().utc().format("YYYY-MM-DD");
-const getFilename = (symbol, interval) =>
-  `./.output/data/${symbol}_${interval}.json`;
+
+const getFilePath = (symbol, interval, isDefault = false) =>
+  `./.output/data/${symbol}_${interval}${isDefault ? "_DEFAULT" : ""}.json`;
 
 const downloadDefaultData = async () => {
   const symbol = process.env.DEFAULT_SYMBOL;
@@ -26,7 +27,12 @@ const downloadDefaultData = async () => {
   const start = getDateFormat(startDateString);
   const end = getDateFormat(endDateString);
 
-  downloader(symbol, interval, start, end, `${symbol}_${interval}_DEFAULT`);
+  if (fs.existsSync(getFilePath(symbol, interval, true))) {
+    console.log("Deleting existing file");
+    fs.unlinkSync(getFilePath(symbol, interval, true));
+  }
+
+  downloader(symbol, interval, start, end, getFilePath(symbol, interval, true));
 };
 
 const downloadFromLastDownloaded = async () => {

@@ -10,11 +10,9 @@ class Strategy extends EventEmitter {
   riskPercentage;
   trades;
   persistTradesFn;
-  // bought;
   currentTradeInfo;
   risk;
   stockName;
-  // isLive;
 
   constructor(
     stockName,
@@ -86,6 +84,7 @@ class Strategy extends EventEmitter {
   }
 
   takePosition(risk, price, transactionType = "buy") {
+    if (risk <= 0) return;
     const stockCanBeBought = this.stocksCanBeBought(risk, price);
     const position =
       transactionType === "buy" ? stockCanBeBought : stockCanBeBought * -1;

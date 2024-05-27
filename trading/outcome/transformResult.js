@@ -36,7 +36,7 @@ const aggregateLog = (trades) => {
         sellingDate: trade.transactionDate,
         sellingPrice: trade.price,
         quantity: trade.quantity,
-        risk: trade.Risk,
+        risk: trade.risk,
       });
     }
 

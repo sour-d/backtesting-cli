@@ -1,25 +1,25 @@
 import { HistoricalKline } from "broker";
 import fs from "fs";
-import dayjs from "dayjs";
 
-const downloader = async (symbol, interval, start, end, filename) => {
-  const startMs = new Date(start).getTime();
-  const endMs = new Date(end).getTime();
-  const OHCL = await HistoricalKline(symbol, interval, startMs, endMs);
+const downloader = async (symbol, interval, start, end, filePath) => {
+  const startMs = start.valueOf();
+  const endMs = end.valueOf();
+  const OHCL = await HistoricalKline(symbol, interval, startMs, endMs, false);
 
-  console.log({ start, end, startMs, endMs });
+  console.log({ start: start["$d"], end: end["$d"], startMs, endMs });
 
   console.log(`${OHCL.length} records downloaded from ${start} to ${end}}`);
 
   let newData = OHCL;
-  const filenamePath = filename
-    ? `./.output/data/${filename}.json`
-    : `./.output/data/${symbol}_${interval}.json`;
-  if (fs.existsSync(filenamePath)) {
-    const data = JSON.parse(fs.readFileSync(filenamePath));
+  const fileNameWithPath =
+    filePath || `./.output/data/${symbol}_${interval}.json`;
+
+  if (fs.existsSync(fileNameWithPath)) {
+    const data = JSON.parse(fs.readFileSync(fileNameWithPath));
+    console.log(`Existing data found, appending ${data.length} records`);
     newData = [...data, ...OHCL];
   }
-  fs.writeFileSync(filenamePath, JSON.stringify(newData));
+  fs.writeFileSync(fileNameWithPath, JSON.stringify(newData));
 };
 
 export default downloader;
