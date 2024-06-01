@@ -10,10 +10,10 @@ class FortyTwentyStrategy extends Strategy {
 
   static getDefaultConfig() {
     return {
-      buyWindow: 9,
-      sellWindow: 2,
+      buyWindow: 62,
+      sellWindow: 22,
       capital: 100,
-      riskPercentage: 0.2,
+      riskPercentage: 0.1,
     };
   }
 

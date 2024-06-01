@@ -73,6 +73,11 @@ const showInfo = (data, filename) => {
     summary.averageWinningReward !== 0
       ? summary.averageWinningReward / averageLosingReward
       : 0;
+  summary.fee = data.reduce((acc, trade) => acc + trade.fee, 0);
+  summary.profitOrLossAfterFee = data.reduce(
+    (acc, trade) => acc + trade.profitOrLossAfterFee,
+    0
+  );
 
   // Print the summary in a readable format
   console.log("Summary:");
