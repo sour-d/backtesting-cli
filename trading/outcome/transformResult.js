@@ -28,7 +28,7 @@ const aggregateLog = (trades) => {
         buyingPrice: trade.price,
         quantity: trade.quantity,
         risk: trade.risk,
-        fee: trade.price * trade.quantity * 0.0002,
+        fee: trade.price * trade.quantity * 0.00055,
       });
     }
     if (trade.transactionType === "sell") {
@@ -38,7 +38,7 @@ const aggregateLog = (trades) => {
         sellingPrice: trade.price,
         quantity: trade.quantity,
         risk: trade.risk,
-        fee: trade.price * trade.quantity * 0.0002,
+        fee: trade.price * trade.quantity * 0.00055,
       });
     }
 
@@ -49,7 +49,7 @@ const aggregateLog = (trades) => {
         lastTrade.sellingDate = trade.transactionDate;
         lastTrade.sellingPrice = trade.price;
         lastTrade.stockLeft = lastTrade.quantity - trade.quantity;
-        lastTrade.fee += lastTrade.sellingPrice * trade.quantity * 0.0002;
+        lastTrade.fee += lastTrade.sellingPrice * trade.quantity * 0.00055;
         return;
       }
 

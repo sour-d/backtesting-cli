@@ -43,7 +43,7 @@ export class ExistingQuoteStorage {
 
     let highestDay = stock.now();
     while (stock.move()) {
-      if (stock.now().High > highestDay.High) {
+      if (stock.now().high > highestDay.high) {
         highestDay = stock.now();
       }
     }
@@ -56,7 +56,7 @@ export class ExistingQuoteStorage {
 
     let lowestDay = stock.now();
     while (stock.move()) {
-      if (stock.now().Low < lowestDay.Low) {
+      if (stock.now().low < lowestDay.low) {
         lowestDay = stock.now();
       }
     }
@@ -67,9 +67,9 @@ export class ExistingQuoteStorage {
   simpleMovingAverage(days) {
     const stock = this.dataOfLast(days);
 
-    let sumOfDayCloses = this.now().Close;
+    let sumOfDayCloses = this.now().close;
     while (stock.move()) {
-      sumOfDayCloses += stock.now().Close;
+      sumOfDayCloses += stock.now().close;
     }
     return sumOfDayCloses / days;
   }
