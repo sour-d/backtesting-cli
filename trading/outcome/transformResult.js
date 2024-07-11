@@ -3,7 +3,7 @@ import _ from "lodash";
 
 const calculateDuration = (buyingDate, sellingDate, timeframe) => {
   switch (timeframe) {
-    case "1d":
+    case "D":
       return dayjs(buyingDate).diff(dayjs(sellingDate), "day");
     case "60":
       return dayjs(buyingDate).diff(dayjs(sellingDate), "hour");
@@ -21,7 +21,7 @@ const aggregateLog = (trades) => {
   const result = [];
 
   trades.forEach((trade) => {
-    if (trade.transactionType === "buy") {
+    if (trade.transactionType === "Buy") {
       if (trade.risk === 0) return;
       result.push({
         buyingDate: trade.transactionDate,
@@ -31,7 +31,7 @@ const aggregateLog = (trades) => {
         fee: trade.price * trade.quantity * 0.00055,
       });
     }
-    if (trade.transactionType === "sell") {
+    if (trade.transactionType === "Sell") {
       if (trade.risk === 0) return;
       result.push({
         sellingDate: trade.transactionDate,
@@ -62,15 +62,17 @@ const aggregateLog = (trades) => {
     }
   });
 
-  return _.last(result).sellingDate ? result : result.slice(0, -1);
+  return _.last(result)?.sellingDate && _.last(result)?.buyingDate
+    ? result
+    : result.slice(0, -1);
 };
 
 export const transformTradesData = (trades, capital, timeFrame) => {
   const aggregatedLog = aggregateLog(trades);
   const transformedData = aggregatedLog.map((trade, i) => {
     const duration = calculateDuration(
-      trade.sellingDate.DateUnix,
-      trade.buyingDate.DateUnix,
+      trade.sellingDate.dateUnix,
+      trade.buyingDate.dateUnix,
       timeFrame
     );
     const profitOrLoss =
@@ -79,12 +81,12 @@ export const transformTradesData = (trades, capital, timeFrame) => {
       duration,
       profitOrLoss,
       id: i + 1,
-      buyingDate: dayjs(trade.buyingDate.DateUnix).format("DD-MM-YY  HH:mm:ss"),
-      sellingDate: dayjs(trade.sellingDate.DateUnix).format(
+      buyingDate: dayjs(trade.buyingDate.dateUnix).format("DD-MM-YY  HH:mm:ss"),
+      sellingDate: dayjs(trade.sellingDate.dateUnix).format(
         "DD-MM-YY  HH:mm:ss"
       ),
-      buyingDateObj: dayjs(trade.buyingDate.DateUnix),
-      sellingDateObj: dayjs(trade.sellingDate.DateUnix),
+      buyingDateObj: dayjs(trade.buyingDate.dateUnix),
+      sellingDateObj: dayjs(trade.sellingDate.dateUnix),
       transactionAmount: trade.quantity * trade.buyingPrice,
       reward: profitOrLoss ? profitOrLoss / trade.risk : 0,
       risk: trade.risk,

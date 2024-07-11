@@ -3,6 +3,9 @@ import Papa from "papaparse";
 import * as fs from "fs";
 import _ from "lodash";
 import getIndicator from "../technicalIndicators/index.js";
+import { im } from "mathjs";
+import dotenv from "dotenv";
+dotenv.config();
 
 const removeNulls = (quotes) => {
   return quotes.filter((quote) =>
@@ -47,9 +50,8 @@ const transformStockData = (filename) => {
 };
 
 const getStockData = (stockName) => {
-  console.log("stockName", stockName);
-  const data_dir = "./.output/data/";
-  const technical_data_dir = "./.output/dataWithTechnicalIndicators/";
+  const data_dir = process.env.DATA_OUTPUT_DIR;
+  const technical_data_dir = process.env.TECH_DATA_OUTPUT_DIR;
 
   if (fs.existsSync(`${technical_data_dir}${stockName}.json`)) {
     return JSON.parse(

@@ -64,12 +64,12 @@ export class ExistingQuoteStorage {
     return lowestDay;
   }
 
-  simpleMovingAverage(days) {
+  simpleMovingAverage(days, key = "close") {
     const stock = this.dataOfLast(days);
 
-    let sumOfDayCloses = this.now().close;
+    let sumOfDayCloses = this.now()[key];
     while (stock.move()) {
-      sumOfDayCloses += stock.now().close;
+      sumOfDayCloses += stock.now()[key];
     }
     return sumOfDayCloses / days;
   }

@@ -10,10 +10,10 @@ class FortyTwentyStrategy extends Strategy {
 
   static getDefaultConfig() {
     return {
-      buyWindow: 62,
-      sellWindow: 22,
+      buyWindow: 40,
+      sellWindow: 20,
       capital: 100,
-      riskPercentage: 0.1,
+      riskPercentage: 5,
     };
   }
 
@@ -21,7 +21,20 @@ class FortyTwentyStrategy extends Strategy {
     return today.high > highestDay.high;
   }
 
+  isLowBroken(today, lowestDay) {
+    return today.low < lowestDay.low;
+  }
+
   squareOff() {
+    // if (this.currentTradeInfo === "sell") {
+    //   const today = this.stock.now();
+    //   const { high: stopLoss } = this.stock.highOfLast(this.config.sellWindow);
+
+    //   if (today.high >= stopLoss) {
+    //     this.exitPosition(stopLoss);
+    //   }
+    //   return;
+    // }
     const today = this.stock.now();
     const { low: stopLoss } = this.stock.lowOfLast(this.config.sellWindow);
     if (today.low <= stopLoss) {
@@ -29,18 +42,27 @@ class FortyTwentyStrategy extends Strategy {
     }
   }
 
-  sell() {}
+  sell() {
+    // const { buyWindow, sellWindow } = this.config;
+    // const today = this.stock.now();
+    // const lastFortyDayLow = this.stock.lowOfLast(buyWindow);
+    // if (this.isLowBroken(today, lastFortyDayLow)) {
+    //   const { low: sellPrice } = this.stock.highOfLast(buyWindow);
+    //   const { high: initialStopLoss } = this.stock.lowOfLast(sellWindow);
+    //   const riskForOneStock = initialStopLoss - sellPrice;
+    //   this.takePosition(riskForOneStock, sellPrice, "sell");
+    // }
+  }
 
   buy() {
     const { buyWindow, sellWindow } = this.config;
     const today = this.stock.now();
     const lastFortyDayHigh = this.stock.highOfLast(buyWindow);
-
-    if (this.isHighBroken(today, lastFortyDayHigh)) {
+    const avg = this.stock.simpleMovingAverage(200);
+    if (this.isHighBroken(today, lastFortyDayHigh) && today.close > avg) {
       const { high: buyPrice } = this.stock.highOfLast(buyWindow);
       const { low: initialStopLoss } = this.stock.lowOfLast(sellWindow);
       const riskForOneStock = buyPrice - initialStopLoss;
-
       this.takePosition(riskForOneStock, buyPrice);
     }
   }

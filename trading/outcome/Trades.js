@@ -14,6 +14,7 @@ export class Trades {
     this.capital = capital;
     this.risk = risk;
     this.stock = stockName;
+    this.timeFrame = process.env.DEFAULT_INTERVAL;
     this.flushedTill = 0;
   }
 
@@ -50,6 +51,7 @@ export class Trades {
       capital: this.capital,
       riskTaken: this.risk + "%",
       totalTrades: this.totalTrades(),
+      timeFrame: this.timeFrame,
     };
   }
 
@@ -74,6 +76,7 @@ export class Trades {
       Price: trade.price,
       Quantity: trade.quantity,
       Risk: trade.risk,
+      timeFrame: this.timeFrame,
       "Transaction Type": trade.transactionType,
     }));
 

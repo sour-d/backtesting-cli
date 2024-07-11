@@ -1,6 +1,6 @@
 import { Strategy } from "./Strategy.js";
 
-class TwoBreakingCandleNew extends Strategy {
+class TwoBreakingCandle extends Strategy {
   config;
 
   constructor(stockName, persistTradesFn, config = this.getDefaultConfig()) {
@@ -10,19 +10,19 @@ class TwoBreakingCandleNew extends Strategy {
 
   static getDefaultConfig() {
     return {
-      capital: 100000,
-      riskPercentage: 5,
+      capital: 100,
+      riskPercentage: 0.1,
     };
   }
 
   isGreenCandle(quote) {
-    return quote["CandleBody"] > 0;
+    return quote["Body"] > 0;
   }
 
   squareOff() {
-    const { Low: stopLoss } = this.stock.lowOfLast(3);
+    const { low: stopLoss } = this.stock.lowOfLast(3);
     const today = this.stock.now();
-    if (today.Low <= stopLoss) {
+    if (today.low <= stopLoss) {
       this.exitPosition(stopLoss, this.currentTradeInfo.position);
     }
   }
@@ -36,8 +36,8 @@ class TwoBreakingCandleNew extends Strategy {
     const today = this.stock.now();
 
     if (this.isGreenCandle(prev) && this.isGreenCandle(today)) {
-      const { Close: buyingPrice } = today;
-      const { Low: initialStopLoss } = this.stock.lowOfLast(3);
+      const { close: buyingPrice } = today;
+      const { low: initialStopLoss } = this.stock.lowOfLast(3);
       const riskForOneStock = buyingPrice - initialStopLoss;
 
       if (riskForOneStock > 0) {
@@ -49,4 +49,4 @@ class TwoBreakingCandleNew extends Strategy {
   }
 }
 
-export default TwoBreakingCandleNew;
+export default TwoBreakingCandle;

@@ -1,10 +1,16 @@
-import { HistoricalKline } from "broker";
 import fs from "fs";
+import broker from "../broker/index.js";
 
 const downloader = async (symbol, interval, start, end, filePath) => {
   const startMs = start.valueOf();
   const endMs = end.valueOf();
-  const OHCL = await HistoricalKline(symbol, interval, startMs, endMs, false);
+  const OHCL = await broker.HistoricalKline(
+    symbol,
+    interval,
+    startMs,
+    endMs,
+    false
+  );
 
   console.log({ start: start["$d"], end: end["$d"], startMs, endMs });
 

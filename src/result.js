@@ -37,12 +37,12 @@ const showInfo = (data, filename) => {
     0
   );
   summary.averageExpectancy = summary.totalProfitOrLoss / summary.totalRisk; // Assuming risk is the total risk
-  summary.averageTradeTime =
-    data.reduce((acc, trade) => acc + trade.duration, 0) / summary.totalTrades;
   summary.maxDrawDown = Math.min(...data.map((trade) => trade.drawDown)); // Drawdown is negative, so take absolute value
   summary.maxDrawDownDuration = Math.max(
     ...data.map((trade) => trade.drawDownDuration)
   );
+  summary.averageTradeTime =
+    data.reduce((acc, trade) => acc + trade.duration, 0) / summary.totalTrades;
   summary.totalProfitOrLoss = data.reduce(
     (acc, trade) => acc + trade.profitOrLoss,
     0
@@ -98,7 +98,7 @@ const main = () => {
   const parsedResult = transformTradesData(
     data.tradeResults,
     data.capital,
-    "1"
+    "D"
   );
   showInfo(parsedResult, filename);
 };

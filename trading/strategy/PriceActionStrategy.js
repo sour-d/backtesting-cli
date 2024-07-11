@@ -12,21 +12,21 @@ class PriceActionStrategy extends Strategy {
 
   static getDefaultConfig() {
     return {
-      capital: 100000,
-      riskPercentage: 2,
+      capital: 100,
+      riskPercentage: 0.1,
     };
   }
 
   isProfessionalCandle(candle, prevCandle) {
-    const prevCandleTotalHeight = prevCandle.High - prevCandle.Low;
-    const isBodyLarge = candle.Close - candle.Open > prevCandleTotalHeight;
+    const prevCandleTotalHeight = prevCandle.high - prevCandle.low;
+    const isBodyLarge = candle.close - candle.open > prevCandleTotalHeight;
 
     return isBodyLarge;
   }
 
   squareOff() {
-    const sellingPrice = this.stock.lowOfLast(4).Low;
-    if (this.stock.now().Low < sellingPrice) {
+    const sellingPrice = this.stock.lowOfLast(4).low;
+    if (this.stock.now().low < sellingPrice) {
       this.exitPosition(sellingPrice);
     }
   }
@@ -37,7 +37,7 @@ class PriceActionStrategy extends Strategy {
     return (
       this.demandZones.reverse().find((zone) => {
         if (!zone) return false;
-        return today.Low < zone?.High && today.Low > zone?.Low;
+        return today.low < zone?.high && today.low > zone?.low;
       }) || null
     );
   }
@@ -46,8 +46,8 @@ class PriceActionStrategy extends Strategy {
     const zone = this.anyZoneTested(today);
 
     if (zone && !this.currentTradeInfo?.position) {
-      const buyingPrice = zone.High;
-      const riskForOneStock = buyingPrice - zone.Low;
+      const buyingPrice = zone.high;
+      const riskForOneStock = buyingPrice - zone.low;
       this.takePosition(riskForOneStock, buyingPrice);
       return;
     }
@@ -58,8 +58,8 @@ class PriceActionStrategy extends Strategy {
     if (this.isProfessionalCandle(today, prev)) {
       newZone = {
         professionalCandle: today,
-        High: this.stock.highOfLast(3).High,
-        Low: this.stock.lowOfLast(3).Low,
+        high: this.stock.highOfLast(3).high,
+        low: this.stock.lowOfLast(3).low,
       };
     }
     this.demandZones.push(newZone);

@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "setup": "mkdir -p .output/data .output/result .output/dataWithTechnicalIndicators"
+    "setup": "mkdir -p .output/data .output/result .output/dataWithTechnicalIndicators",
+    "clean": "rm -rf .output/*/*"
   },
   "dependencies": {
     "broker": "https://github.com/sour-d/broker.git",

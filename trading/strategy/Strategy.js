@@ -10,7 +10,7 @@ class Strategy extends EventEmitter {
   riskPercentage;
   trades;
   persistTradesFn;
-  currentTradeInfo;
+  currentTrade;
   risk;
   stockName;
 
@@ -27,9 +27,9 @@ class Strategy extends EventEmitter {
     this.risk = this.capital * (this.riskPercentage / 100);
     this.stockName = stockName;
 
-    this.currentTradeInfo = null;
+    this.currentTrade = null;
 
-    this.stock = new ExistingQuoteStorage(getStockData(stockName));
+    this.stock = new ExistingQuoteStorage(getStockData(stockName), 20);
     this.trades = new Trades(this);
     // this.isLive = stock instanceof LiveQuoteStorage;
   }
@@ -83,14 +83,13 @@ class Strategy extends EventEmitter {
     throw new Error("Method not implemented.");
   }
 
-  takePosition(risk, price, transactionType = "buy") {
+  takePosition(risk, price, transactionType = "Buy") {
     if (risk <= 0) return;
     const stockCanBeBought = this.stocksCanBeBought(risk, price);
-    const position =
-      transactionType === "buy" ? stockCanBeBought : stockCanBeBought * -1;
+    const position = stockCanBeBought;
     this.capital -= stockCanBeBought * price;
 
-    this.currentTradeInfo = {
+    this.currentTrade = {
       transactionDate: this.stock.now(),
       price,
       position,
@@ -101,7 +100,7 @@ class Strategy extends EventEmitter {
     this.updateTrades(
       this.stock.now(),
       price,
-      position,
+      Math.abs(position),
       risk * position,
       transactionType
     );
@@ -109,22 +108,28 @@ class Strategy extends EventEmitter {
 
   exitPosition(
     price,
-    position = this.currentTradeInfo?.position || 0,
+    position = this.currentTrade?.position || 0,
     type = "square-off"
   ) {
-    if (!this.currentTradeInfo) return;
+    if (!this.currentTrade) throw new Error("No position to square off");
+    if (position > this.currentTrade.position)
+      throw new Error("Invalid position to square off");
 
     this.capital += position * price;
-    this.updateTrades(this.stock.now(), price, position, 0, type);
+    this.updateTrades(this.stock.now(), price, Math.abs(position), 0, type);
+    if (position !== this.currentTrade.position) {
+      this.currentTrade.position -= position;
+      return;
+    }
 
-    this.currentTradeInfo = null;
+    this.currentTrade = null;
   }
 
   trade() {
     this.emit("data", this.stock.now());
 
-    if (this.currentTradeInfo?.position > 0) return this.squareOff();
-    if (this.currentTradeInfo?.position < 0) return this.squareOff();
+    if (this.currentTrade?.type === "Buy") return this.longSquareOff();
+    if (this.currentTrade?.type === "Sell") return this.shortSquareOff();
 
     if (this.sell()) return;
     if (this.buy()) return;
@@ -146,6 +151,10 @@ class Strategy extends EventEmitter {
       }
       this.persistTradesFn(this.trades);
     }
+  }
+
+  static indicators() {
+    throw new Error("Method not implemented.");
   }
 }
 
