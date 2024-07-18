@@ -45,7 +45,7 @@ class PriceActionStrategy extends Strategy {
   buyIfAnyZoneTested = (today) => {
     const zone = this.anyZoneTested(today);
 
-    if (zone && !this.currentTradeInfo?.position) {
+    if (zone && !this.currentTradeInfo?.quantity) {
       const buyingPrice = zone.high;
       const riskForOneStock = buyingPrice - zone.low;
       this.takePosition(riskForOneStock, buyingPrice);

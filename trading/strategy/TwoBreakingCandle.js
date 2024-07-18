@@ -23,7 +23,7 @@ class TwoBreakingCandle extends Strategy {
     const { low: stopLoss } = this.stock.lowOfLast(3);
     const today = this.stock.now();
     if (today.low <= stopLoss) {
-      this.exitPosition(stopLoss, this.currentTradeInfo.position);
+      this.exitPosition(stopLoss, this.currentTradeInfo.quantity);
     }
   }
 

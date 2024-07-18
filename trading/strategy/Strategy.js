@@ -1,10 +1,8 @@
 import { ExistingQuoteStorage } from "../quoteStorage/ExistingQuoteStorage.js";
 import { Trades } from "../outcome/Trades.js";
-import { EventEmitter } from "events";
 import { getStockData, transformStockData } from "../parser/restructureData.js";
-import { type } from "os";
 
-class Strategy extends EventEmitter {
+class Strategy {
   stock;
   capital;
   riskPercentage;
@@ -19,8 +17,6 @@ class Strategy extends EventEmitter {
     persistTradesFn,
     config = Strategy.getDefaultConfig()
   ) {
-    super();
-
     this.capital = config.capital;
     this.riskPercentage = config.riskPercentage;
     this.persistTradesFn = persistTradesFn;
@@ -92,9 +88,10 @@ class Strategy extends EventEmitter {
     this.currentTrade = {
       transactionDate: this.stock.now(),
       price,
-      position,
+      quantity: position,
       risk,
       type: transactionType,
+      stopLoss: transactionType === "Buy" ? price - risk : price + risk,
     };
 
     this.updateTrades(
@@ -108,17 +105,17 @@ class Strategy extends EventEmitter {
 
   exitPosition(
     price,
-    position = this.currentTrade?.position || 0,
+    position = this.currentTrade?.quantity || 0,
     type = "square-off"
   ) {
     if (!this.currentTrade) throw new Error("No position to square off");
-    if (position > this.currentTrade.position)
+    if (position > this.currentTrade.quantity)
       throw new Error("Invalid position to square off");
 
     this.capital += position * price;
     this.updateTrades(this.stock.now(), price, Math.abs(position), 0, type);
-    if (position !== this.currentTrade.position) {
-      this.currentTrade.position -= position;
+    if (position !== this.currentTrade.quantity) {
+      this.currentTrade.quantity -= position;
       return;
     }
 
@@ -126,8 +123,6 @@ class Strategy extends EventEmitter {
   }
 
   trade() {
-    this.emit("data", this.stock.now());
-
     if (this.currentTrade?.type === "Buy") return this.longSquareOff();
     if (this.currentTrade?.type === "Sell") return this.shortSquareOff();
 
@@ -136,21 +131,15 @@ class Strategy extends EventEmitter {
   }
 
   execute() {
-    // if (this.stock instanceof LiveQuoteStorage) {
-    //   this.stock.subscribe(() => this.trade());
-    //   const intervalId = setInterval(() => {
-    //     const trades = this.trades.flush();
-    //     if (trades) this.persistTradesFn(trades);
-    //   }, 5000);
-    //   return;
-    // }
-
-    if (this.stock instanceof ExistingQuoteStorage) {
-      while (this.stock.hasData() && this.stock.move()) {
-        this.trade();
-      }
-      this.persistTradesFn(this.trades);
+    while (this.stock.hasData() && this.stock.move()) {
+      this.trade();
     }
+
+    const result = {
+      ...this.trades.getReport(),
+      tradeResults: this.trades.tradeResults,
+    };
+    this.persistTradesFn(result);
   }
 
   static indicators() {

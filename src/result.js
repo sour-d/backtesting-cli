@@ -13,76 +13,91 @@ const showInfo = (data, filename) => {
     "utf-8"
   );
 
-  const summary = {};
-  summary.totalTrades = data.length;
-  summary.win = data.filter((trade) => trade.profitOrLoss > 0).length;
-  summary.loss = data.filter((trade) => trade.profitOrLoss < 0).length;
-  summary.accuracy = (summary.win / summary.totalTrades) * 100;
+  const trades = {};
+  trades.totalTrades = data.length;
+  trades.win = data.filter((trade) => trade.profitOrLoss > 0).length;
+  trades.loss = data.filter((trade) => trade.profitOrLoss < 0).length;
+  trades.accuracy = (trades.win / trades.totalTrades) * 100;
+  trades.maxConsecutiveWins = data.reduce(
+    (acc, trade) => {
+      if (trade.profitOrLoss > 0) {
+        acc.current++;
+        acc.max = Math.max(acc.current, acc.max);
+      } else {
+        acc.current = 0;
+      }
+      return acc;
+    },
+    { current: 0, max: 0 }
+  ).max;
+  trades.maxConsecutiveLosses = data.reduce(
+    (acc, trade) => {
+      if (trade.profitOrLoss < 0) {
+        acc.current++;
+        acc.max = Math.max(acc.current, acc.max);
+      } else {
+        acc.current = 0;
+      }
+      return acc;
+    },
+    { current: 0, max: 0 }
+  ).max;
+  trades.shorts = data.filter((trade) => trade.type === "Short").length;
+  trades.longs = data.filter((trade) => trade.type === "Long").length;
 
-  summary.totalReward = data.reduce((acc, trade) => acc + trade.reward, 0);
-  summary.maxReward = Math.max(...data.map((trade) => trade.reward));
-  summary.minReward = Math.min(...data.map((trade) => trade.reward));
-  summary.averageWinReward =
+  const performance = {};
+  performance.totalReward = data.reduce((acc, trade) => acc + trade.reward, 0);
+  performance.maxReward = Math.max(...data.map((trade) => trade.reward));
+  performance.minReward = Math.min(...data.map((trade) => trade.reward));
+  performance.averageWinReward =
     data
       .filter((trade) => trade.profitOrLoss > 0)
-      .reduce((acc, trade) => acc + trade.reward, 0) / summary.win;
-  summary.averageLossReward =
+      .reduce((acc, trade) => acc + trade.reward, 0) / trades.win;
+  performance.averageLossReward =
     data
       .filter((trade) => trade.profitOrLoss < 0)
-      .reduce((acc, trade) => acc + trade.reward, 0) / summary.loss;
-  summary.averageReward = summary.totalReward / summary.totalTrades;
-  summary.totalRisk = data.reduce((acc, trade) => acc + trade.risk, 0);
-  summary.totalProfitOrLoss = data.reduce(
+      .reduce((acc, trade) => acc + trade.reward, 0) / trades.loss;
+  performance.totalReward = data.reduce((acc, trade) => acc + trade.reward, 0);
+  performance.averageReward = performance.totalReward / performance.totalTrades;
+  performance.totalProfitOrLoss = data.reduce(
     (acc, trade) => acc + trade.profitOrLoss,
     0
   );
-  summary.averageExpectancy = summary.totalProfitOrLoss / summary.totalRisk; // Assuming risk is the total risk
-  summary.maxDrawDown = Math.min(...data.map((trade) => trade.drawDown)); // Drawdown is negative, so take absolute value
-  summary.maxDrawDownDuration = Math.max(
-    ...data.map((trade) => trade.drawDownDuration)
-  );
-  summary.averageTradeTime =
-    data.reduce((acc, trade) => acc + trade.duration, 0) / summary.totalTrades;
-  summary.totalProfitOrLoss = data.reduce(
-    (acc, trade) => acc + trade.profitOrLoss,
-    0
-  );
-
-  summary.totalReward = data.reduce((acc, trade) => acc + trade.reward, 0);
-  summary.averageReward = summary.totalReward / summary.totalTrades;
-  summary.rewardStandardDeviation = std(data.map((trade) => trade.reward)); // Assuming reward data is normally distributed
-  summary.sharpeRatio =
-    (summary.averageReward - 0) / summary.rewardStandardDeviation || 0; // Assuming risk-free rate of 0
-
-  // Profit Factor calculation
-  const winningTrades = data.filter((trade) => trade.profitOrLoss > 0);
-  summary.averageWinningReward =
-    winningTrades.length > 0
-      ? winningTrades.reduce((acc, trade) => acc + trade.reward, 0) /
-        winningTrades.length
-      : 0;
-  const losingTrades = data.filter((trade) => trade.profitOrLoss < 0);
-  const averageLosingReward =
-    losingTrades.length > 0
-      ? Math.abs(
-          losingTrades.reduce((acc, trade) => acc + trade.reward, 0) /
-            losingTrades.length
-        )
-      : 0;
-  summary.profitFactor =
-    summary.averageWinningReward !== 0
-      ? summary.averageWinningReward / averageLosingReward
-      : 0;
-  summary.fee = data.reduce((acc, trade) => acc + trade.fee, 0);
-  summary.profitOrLossAfterFee = data.reduce(
+  performance.totalRisk = data.reduce((acc, trade) => acc + trade.risk, 0);
+  performance.fee = data.reduce((acc, trade) => acc + trade.fee, 0);
+  performance.profitOrLossAfterFee = data.reduce(
     (acc, trade) => acc + trade.profitOrLossAfterFee,
     0
   );
 
+  const ratios = {};
+  ratios.averageExpectancy =
+    performance.totalProfitOrLoss / performance.totalRisk; // Assuming risk is the total risk
+  ratios.maxDrawDown = Math.min(...data.map((trade) => trade.drawDown)); // Drawdown is negative, so take absolute value
+  ratios.maxDrawDownDuration = Math.max(
+    ...data.map((trade) => trade.drawDownDuration)
+  );
+  ratios.averageTradeTime =
+    data.reduce((acc, trade) => acc + trade.duration, 0) / trades.totalTrades;
+  ratios.totalProfitOrLoss = data.reduce(
+    (acc, trade) => acc + trade.profitOrLoss,
+    0
+  );
+
   // Print the summary in a readable format
-  console.log("Summary:");
-  for (const key of Object.keys(summary)) {
-    console.log(`${key}: ${trimToTwoDecimal(summary[key])}`);
+  console.log("\nTrades:");
+  for (const key of Object.keys(trades)) {
+    console.log(`${key}: ${trimToTwoDecimal(trades[key])}`);
+  }
+
+  console.log("\nPerformance:");
+  for (const key of Object.keys(performance)) {
+    console.log(`${key}: ${trimToTwoDecimal(performance[key])}`);
+  }
+
+  console.log("\nRatios:");
+  for (const key of Object.keys(ratios)) {
+    console.log(`${key}: ${trimToTwoDecimal(ratios[key])}`);
   }
 };
 
@@ -98,7 +113,7 @@ const main = () => {
   const parsedResult = transformTradesData(
     data.tradeResults,
     data.capital,
-    "D"
+    data.timeFrame
   );
   showInfo(parsedResult, filename);
 };

@@ -22,16 +22,15 @@ class MovingAverageStrategy extends Strategy {
   buy() {
     const yesterday = this.stock.prev();
     const dayBeforeYesterday = this.stock.prev(2);
-    const towDaysBeforeYesterday = this.stock.prev(3);
     if (
-      yesterday.close > yesterday.ma60close &&
+      // yesterday.close > yesterday.ma60close &&
       yesterday.close > yesterday.ma20high &&
-      dayBeforeYesterday.close > dayBeforeYesterday.ma20high &&
-      towDaysBeforeYesterday.close > towDaysBeforeYesterday.ma20high
-      // true
+      yesterday.body > 0 &&
+      dayBeforeYesterday.body > 0 &&
+      yesterday.superTrendDirection === "Buy"
     ) {
       const { open: buyingPrice } = this.stock.now();
-      const { low: initialStopLoss } = dayBeforeYesterday;
+      const { ma20low: initialStopLoss } = yesterday;
       const riskForOneStock = buyingPrice - initialStopLoss;
       if (initialStopLoss >= buyingPrice) return;
       this.takePosition(riskForOneStock, buyingPrice);
@@ -39,18 +38,37 @@ class MovingAverageStrategy extends Strategy {
     }
   }
 
+  longSquareOff() {
+    const today = this.stock.now();
+
+    if (this.currentTrade.stopLoss > today.close) {
+      this.exitPosition(this.currentTrade.stopLoss, this.currentTrade.position);
+      return this.sell();
+    }
+
+    if (today.ma20low > today.close) {
+      this.exitPosition(today.ma20low, this.currentTrade.position);
+      return this.sell();
+    }
+
+    if (today.superTrendDirection === "Sell") {
+      this.exitPosition(today.close, this.currentTrade.position);
+      return this.sell();
+    }
+  }
+
   sell() {
     const yesterday = this.stock.prev();
     const dayBeforeYesterday = this.stock.prev(2);
-    const towDaysBeforeYesterday = this.stock.prev(3);
     if (
-      yesterday.close < yesterday.ma60close &&
+      // yesterday.close < yesterday.ma60close &&
       yesterday.close < yesterday.ma20low &&
-      dayBeforeYesterday.close < dayBeforeYesterday.ma20low &&
-      towDaysBeforeYesterday.close < towDaysBeforeYesterday.ma20low
+      yesterday.body < 0 &&
+      dayBeforeYesterday.body < 0 &&
+      yesterday.superTrendDirection === "Sell"
     ) {
       const { open: sellingPrice } = this.stock.now();
-      const { high: initialStopLoss } = dayBeforeYesterday;
+      const { ma20high: initialStopLoss } = yesterday;
       const riskForOneStock = initialStopLoss - sellingPrice;
       if (initialStopLoss <= sellingPrice) return;
       this.takePosition(riskForOneStock, sellingPrice, "Sell");
@@ -59,58 +77,21 @@ class MovingAverageStrategy extends Strategy {
   }
 
   shortSquareOff() {
-    const yesterday = this.stock.prev();
-    const dayBeforeYesterday = this.stock.prev(2);
     const today = this.stock.now();
-    const totalRisk = this.currentTrade.risk * this.currentTrade.position;
-    const priceDifference = today.close - this.currentTrade.price;
 
-    if (priceDifference >= totalRisk) {
-      return this.exitPosition(today.open, this.currentTrade.position);
+    if (today.close > this.currentTrade.stopLoss) {
+      this.exitPosition(this.currentTrade.stopLoss, this.currentTrade.position);
+      return this.buy();
     }
-    const holdingDays = dayjs(today.dateUnix).diff(
-      dayjs(this.currentTrade.transactionDate.dateUnix),
-      "day"
-    );
-    const stoplossHit =
-      this.currentTrade.price < today.high &&
-      today.high - this.currentTrade.price >= this.currentTrade.risk;
-    if (stoplossHit) {
-      return this.exitPosition(
-        this.currentTrade.price + this.currentTrade.risk,
-        this.currentTrade.position
-      );
-    }
-    if (holdingDays > 10) {
-      return this.exitPosition(today.open, this.currentTrade.position);
-    }
-  }
 
-  longSquareOff() {
-    const yesterday = this.stock.prev();
-    const dayBeforeYesterday = this.stock.prev(2);
-    const today = this.stock.now();
-    const priceUpPercent =
-      (yesterday.close - this.currentTrade.price) / this.currentTrade.price;
+    if (today.close > today.ma20high) {
+      this.exitPosition(today.ma20high, this.currentTrade.position);
+      return this.buy();
+    }
 
-    if (priceUpPercent >= 0.005) {
-      return this.exitPosition(today.open, this.currentTrade.position);
-    }
-    const holdingDays = dayjs(today.dateUnix).diff(
-      dayjs(this.currentTrade.transactionDate.dateUnix),
-      "day"
-    );
-    const stoplossHit =
-      this.currentTrade.price > today.low &&
-      this.currentTrade.price - today.low >= this.currentTrade.risk;
-    if (stoplossHit) {
-      return this.exitPosition(
-        this.currentTrade.price - this.currentTrade.risk,
-        this.currentTrade.position
-      );
-    }
-    if (holdingDays > 10) {
-      return this.exitPosition(today.open, this.currentTrade.position);
+    if (today.superTrendDirection === "Buy") {
+      this.exitPosition(today.close, this.currentTrade.position);
+      return this.buy();
     }
   }
 }

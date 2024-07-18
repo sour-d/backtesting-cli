@@ -1,8 +1,8 @@
 import dayjs from "dayjs";
 import _ from "lodash";
 
-const calculateDuration = (buyingDate, sellingDate, timeframe) => {
-  switch (timeframe) {
+const calculateDuration = (buyingDate, sellingDate, timeFrame) => {
+  switch (timeFrame) {
     case "D":
       return dayjs(buyingDate).diff(dayjs(sellingDate), "day");
     case "60":
@@ -70,30 +70,41 @@ const aggregateLog = (trades) => {
 export const transformTradesData = (trades, capital, timeFrame) => {
   const aggregatedLog = aggregateLog(trades);
   const transformedData = aggregatedLog.map((trade, i) => {
-    const duration = calculateDuration(
-      trade.sellingDate.dateUnix,
-      trade.buyingDate.dateUnix,
-      timeFrame
-    );
+    const tradeType =
+      trade.buyingDate.dateUnix > trade.sellingDate.dateUnix ? "Short" : "Long";
+    const duration =
+      tradeType === "Long"
+        ? calculateDuration(
+            trade.sellingDate.dateUnix,
+            trade.buyingDate.dateUnix,
+            timeFrame
+          )
+        : calculateDuration(
+            trade.buyingDate.dateUnix,
+            trade.sellingDate.dateUnix,
+            timeFrame
+          );
     const profitOrLoss =
       (trade.sellingPrice - trade.buyingPrice) * trade.quantity;
     return {
+      id: i + 1,
+      type: tradeType,
       duration,
       profitOrLoss,
-      id: i + 1,
+      profitOrLossAfterFee: profitOrLoss - trade.fee,
+      fee: trade.fee,
+      risk: trade.risk,
+      riskForOneStock: trade.risk / trade.quantity,
+      reward: profitOrLoss ? profitOrLoss / trade.risk : 0,
+      transactionAmount: trade.quantity * trade.buyingPrice,
+      result: profitOrLoss > 0 ? "Profit" : "Loss",
+      quantity: trade.quantity,
       buyingDate: dayjs(trade.buyingDate.dateUnix).format("DD-MM-YY  HH:mm:ss"),
       sellingDate: dayjs(trade.sellingDate.dateUnix).format(
         "DD-MM-YY  HH:mm:ss"
       ),
       buyingDateObj: dayjs(trade.buyingDate.dateUnix),
       sellingDateObj: dayjs(trade.sellingDate.dateUnix),
-      transactionAmount: trade.quantity * trade.buyingPrice,
-      reward: profitOrLoss ? profitOrLoss / trade.risk : 0,
-      risk: trade.risk,
-      result: profitOrLoss > 0 ? "Profit" : "Loss",
-      quantity: trade.quantity,
-      fee: trade.fee,
-      profitOrLossAfterFee: profitOrLoss - trade.fee,
     };
   });
 
