@@ -43,7 +43,15 @@ const showInfo = (data, filename) => {
     { current: 0, max: 0 }
   ).max;
   trades.shorts = data.filter((trade) => trade.type === "Short").length;
+  trades.shortsWon = data.filter(
+    (trade) => trade.type === "Short" && trade.profitOrLoss > 0
+  ).length;
   trades.longs = data.filter((trade) => trade.type === "Long").length;
+  trades.longsWon = data.filter(
+    (trade) => trade.type === "Long" && trade.profitOrLoss > 0
+  ).length;
+  trades.averageTradeTime =
+    data.reduce((acc, trade) => acc + trade.duration, 0) / trades.totalTrades;
 
   const performance = {};
   performance.totalReward = data.reduce((acc, trade) => acc + trade.reward, 0);
@@ -58,32 +66,20 @@ const showInfo = (data, filename) => {
       .filter((trade) => trade.profitOrLoss < 0)
       .reduce((acc, trade) => acc + trade.reward, 0) / trades.loss;
   performance.totalReward = data.reduce((acc, trade) => acc + trade.reward, 0);
-  performance.averageReward = performance.totalReward / performance.totalTrades;
+  performance.averageReward = performance.totalReward / trades.totalTrades;
   performance.totalProfitOrLoss = data.reduce(
     (acc, trade) => acc + trade.profitOrLoss,
     0
   );
-  performance.totalRisk = data.reduce((acc, trade) => acc + trade.risk, 0);
   performance.fee = data.reduce((acc, trade) => acc + trade.fee, 0);
   performance.profitOrLossAfterFee = data.reduce(
     (acc, trade) => acc + trade.profitOrLossAfterFee,
     0
   );
-
-  const ratios = {};
-  ratios.averageExpectancy =
-    performance.totalProfitOrLoss / performance.totalRisk; // Assuming risk is the total risk
-  ratios.maxDrawDown = Math.min(...data.map((trade) => trade.drawDown)); // Drawdown is negative, so take absolute value
-  ratios.maxDrawDownDuration = Math.max(
+  performance.maxDrawDown = Math.min(...data.map((trade) => trade.drawDown)); // Drawdown is negative, so take absolute value
+  performance.maxDrawDownDuration = Math.max(
     ...data.map((trade) => trade.drawDownDuration)
   );
-  ratios.averageTradeTime =
-    data.reduce((acc, trade) => acc + trade.duration, 0) / trades.totalTrades;
-  ratios.totalProfitOrLoss = data.reduce(
-    (acc, trade) => acc + trade.profitOrLoss,
-    0
-  );
-
   // Print the summary in a readable format
   console.log("\nTrades:");
   for (const key of Object.keys(trades)) {
@@ -93,11 +89,6 @@ const showInfo = (data, filename) => {
   console.log("\nPerformance:");
   for (const key of Object.keys(performance)) {
     console.log(`${key}: ${trimToTwoDecimal(performance[key])}`);
-  }
-
-  console.log("\nRatios:");
-  for (const key of Object.keys(ratios)) {
-    console.log(`${key}: ${trimToTwoDecimal(ratios[key])}`);
   }
 };
 
