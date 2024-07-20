@@ -37,8 +37,9 @@ const getNewEnd = (start, end, interval, addOneSecond = false) => {
     newStart = dayjs(start).add(1, "second").valueOf();
   }
   const timeFrame = getTimeFrame(interval);
+  const toAdd = interval < 60 ? 10 * interval : 10;
   const newEnd = dayjs(newStart)
-    .add(10, timeFrame)
+    .add(toAdd, timeFrame)
     .subtract(1, "second")
     .valueOf();
   if (newEnd > end) {

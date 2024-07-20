@@ -123,6 +123,7 @@ class Strategy {
   }
 
   trade() {
+    if (this.capital <= 0) throw new Error("Capital exhausted");
     if (this.currentTrade?.type === "Buy") return this.longSquareOff();
     if (this.currentTrade?.type === "Sell") return this.shortSquareOff();
 

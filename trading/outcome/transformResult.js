@@ -10,7 +10,9 @@ const calculateDuration = (buyingDate, sellingDate, timeFrame) => {
     case "1":
       return dayjs(buyingDate).diff(dayjs(sellingDate), "minute");
     default:
-      return dayjs(buyingDate).diff(dayjs(sellingDate), "minute");
+      return (
+        dayjs(buyingDate).diff(dayjs(sellingDate), "minute") / Number(timeFrame)
+      );
   }
 };
 

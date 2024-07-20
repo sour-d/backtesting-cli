@@ -50,7 +50,7 @@ const showInfo = (data, filename) => {
   trades.longsWon = data.filter(
     (trade) => trade.type === "Long" && trade.profitOrLoss > 0
   ).length;
-  trades.averageTradeTime =
+  trades.averageTradeCandle =
     data.reduce((acc, trade) => acc + trade.duration, 0) / trades.totalTrades;
 
   const performance = {};
