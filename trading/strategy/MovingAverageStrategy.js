@@ -40,14 +40,28 @@ class MovingAverageStrategy extends Strategy {
 
   longSquareOff() {
     const today = this.stock.now();
+    const yesterday = this.stock.prev();
 
     if (this.currentTrade.stopLoss > today.close) {
       this.exitPosition(this.currentTrade.stopLoss, this.currentTrade.position);
       return this.sell();
     }
 
-    if (today.ma20low > today.close) {
-      this.exitPosition(today.ma20low, this.currentTrade.position);
+    if (
+      today.ma20high > today.close &&
+      today.ma20high > today.open &&
+      today.body < 0
+    ) {
+      this.exitPosition(today.close, this.currentTrade.position);
+      return this.sell();
+    }
+
+    if (
+      yesterday.ma20high > yesterday.close &&
+      today.ma20high > today.close &&
+      today.body < 0
+    ) {
+      this.exitPosition(today.close, this.currentTrade.position);
       return this.sell();
     }
 
@@ -78,14 +92,28 @@ class MovingAverageStrategy extends Strategy {
 
   shortSquareOff() {
     const today = this.stock.now();
+    const yesterday = this.stock.prev();
 
     if (today.close > this.currentTrade.stopLoss) {
       this.exitPosition(this.currentTrade.stopLoss, this.currentTrade.position);
       return this.buy();
     }
 
-    if (today.close > today.ma20high) {
-      this.exitPosition(today.ma20high, this.currentTrade.position);
+    if (
+      today.close > today.ma20low &&
+      today.open > today.ma20low &&
+      today.body > 0
+    ) {
+      this.exitPosition(today.close, this.currentTrade.position);
+      return this.buy();
+    }
+
+    if (
+      yesterday.close > yesterday.ma20low &&
+      today.close > today.ma20low &&
+      today.body > 0
+    ) {
+      this.exitPosition(today.close, this.currentTrade.position);
       return this.buy();
     }
 

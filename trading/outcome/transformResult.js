@@ -49,7 +49,7 @@ const aggregateLog = (trades) => {
     if (trade.transactionType === "square-off") {
       const lastTrade = _.last(result);
 
-      if (lastTrade.buyingDate && lastTrade.buyingPrice) {
+      if (lastTrade?.buyingDate && lastTrade?.buyingPrice) {
         lastTrade.sellingDate = trade.transactionDate;
         lastTrade.sellingPrice = trade.price;
         lastTrade.stockLeft = lastTrade.quantity - trade.quantity;
@@ -57,7 +57,7 @@ const aggregateLog = (trades) => {
         return;
       }
 
-      if (lastTrade.sellingDate && lastTrade.sellingPrice) {
+      if (lastTrade?.sellingDate && lastTrade?.sellingPrice) {
         lastTrade.buyingDate = trade.transactionDate;
         lastTrade.buyingPrice = trade.price;
         lastTrade.stockLeft = lastTrade.totalStocks - trade.quantity;

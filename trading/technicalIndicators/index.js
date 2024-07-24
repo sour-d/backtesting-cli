@@ -18,7 +18,7 @@ const Indicators = (quote, technicalQuotes) => {
   calculateCandleProperty(quote);
   movingAverageOf(quote, technicalQuotes, 20, "high");
   movingAverageOf(quote, technicalQuotes, 20, "low");
-  movingAverageOf(quote, technicalQuotes, 60, "close");
+  movingAverageOf(quote, technicalQuotes, 200, "close");
 
   calculateATR(quote, technicalQuotes, 10);
   calculateSuperTrendForQuote(quote, technicalQuotes, 2);
