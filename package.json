@@ -8,6 +8,7 @@
     "clean": "rm -rf .output/*/*"
   },
   "dependencies": {
+    "breezeconnect": "^1.0.29",
     "broker": "https://github.com/sour-d/broker.git",
     "dayjs": "^1.11.11",
     "lodash": "^4.17.21",

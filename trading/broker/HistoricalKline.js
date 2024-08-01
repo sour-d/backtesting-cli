@@ -1,14 +1,15 @@
-import { RestClientV5 } from "bybit-api";
 import dotenv from "dotenv";
-import fs from "fs";
 import _ from "lodash";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc.js";
 import timezone from "dayjs/plugin/timezone.js";
+import Client from "./Client.js";
+
+// console.log("client", client);
 
 dotenv.config();
-dayjs.extend(utc);
-dayjs.extend(timezone);
+// dayjs.extend(utc);
+// dayjs.extend(timezone);
 
 const restClient = (testnet) =>
   new RestClientV5({
@@ -49,24 +50,20 @@ const getNewEnd = (start, end, interval, addOneSecond = false) => {
 };
 
 const formatResponse = (response) => {
-  return response.result.list
-    .map((kline) => {
-      return {
-        date: dayjs(+kline[0])
-          .tz("Asia/Kolkata")
-          .format("YYYY-MM-DD"),
-        time: dayjs(+kline[0])
-          .tz("Asia/Kolkata")
-          .format("HH:mm:ss"),
-        dateUnix: +kline[0],
-        open: +kline[1],
-        high: +kline[2],
-        low: +kline[3],
-        close: +kline[4],
-        volume: +kline[5],
-      };
-    })
-    .reverse();
+  return response
+    ? response.map((kline) => {
+        return {
+          date: dayjs(kline.datetime).format("YYYY-MM-DD"),
+          time: dayjs(kline.datetime).format("HH:mm:ss"),
+          dateUnix: +kline[0],
+          open: +kline.open,
+          high: +kline.high,
+          low: +kline.low,
+          close: +kline.close,
+          volume: +kline.volume,
+        };
+      })
+    : [];
 };
 
 const HistoricalKline = async (
@@ -76,37 +73,24 @@ const HistoricalKline = async (
   end,
   testnet = false
 ) => {
-  let allData = [];
-  let fetchTill = getNewEnd(start, end, interval);
+  const breezeClient = await Client();
 
-  while (end >= fetchTill) {
-    console.log({ start, fetchTill });
-    await restClient(testnet)
-      .getKline({ symbol, interval, start, end: fetchTill, limit: 1000 })
-      .then((response) => {
-        const data = formatResponse(response);
-        allData = allData.concat(data);
-        start = fetchTill;
-        fetchTill = getNewEnd(start, end, interval, true);
-        if (fetchTill === start) {
-          fetchTill += 1;
-          return;
-        }
-      })
-      .catch((error) => {
-        console.log("error", JSON.stringify(error));
-      });
-  }
-  console.log("allData", allData.length);
-  return allData;
+  return await breezeClient
+    .getHistoricalData({
+      interval: interval, //'1minute', '5minute', '30minute','1day'
+      fromDate: dayjs(start).toISOString(),
+      toDate: dayjs(end).toISOString(),
+      stockCode: symbol,
+      exchangeCode: "NSE", // 'NSE','BSE','NFO'
+      productType: "cash",
+    })
+    .then(function (resp) {
+      console.log("resp", resp);
+      return formatResponse(resp?.Success);
+    })
+    .catch(function (err) {
+      console.log(err);
+    });
 };
 
 export default HistoricalKline;
-
-// const startMs = new Date("2024-05-09T00:00:00.000Z").getTime();
-// const endMs = new Date("2024-05-09T23:59:59.999Z").getTime();
-
-// console.log(startMs, endMs);
-
-// const data = await HistoricalKline("BTCUSD", "1", startMs, endMs);
-// fs.writeFileSync("data.json", JSON.stringify(data));

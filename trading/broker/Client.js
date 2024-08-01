@@ -1,21 +1,23 @@
-import { RestClientV5 } from "bybit-api";
+import { BreezeConnect } from "breezeconnect";
 import dotenv from "dotenv";
 dotenv.config();
 
-class Client {
-  static #client = null;
-  static async getClient() {
-    if (!this.#client) {
-      this.#client = new RestClientV5({
-        key: process.env.TESTNET_API_KEY,
-        secret: process.env.TESTNET_API_SECRET,
-        parseAPIRateLimits: true,
-        testnet: true,
-        // demoTrading: true,
-      });
-    }
-    return this.#client;
-  }
-}
+const client = async () => {
+  const apiKey = process.env.API_KEY;
+  const apiSecret = process.env.API_SECRET;
 
-export default Client;
+  console.log({ apiKey, apiSecret });
+
+  const breeze = new BreezeConnect({ appKey: apiKey });
+
+  return await breeze
+    .generateSession(apiSecret, "45299535")
+    .then(function (resp) {
+      return breeze;
+    })
+    .catch(function (err) {
+      console.log(err);
+    });
+};
+
+export default client;
