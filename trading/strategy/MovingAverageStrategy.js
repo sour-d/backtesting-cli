@@ -15,9 +15,17 @@ class MovingAverageStrategy extends Strategy {
       upperLimit: 20,
       lowerLimit: 10,
       stopLossWindow: 10,
-      capital: 100,
+      capital: 100000,
       riskPercentage: 1,
     };
+  }
+
+  shouldTrade() {
+    const { date, time } = this.stock.now();
+    const currentTime = dayjs(`${date} ${time}`, "YYYY-MM-DD HH:mm");
+    const startTime = dayjs(`${date} 09:45`, "YYYY-MM-DD HH:mm");
+    const endTime = dayjs(`${date} 15:15`, "YYYY-MM-DD HH:mm");
+    return currentTime.isAfter(startTime) && currentTime.isBefore(endTime);
   }
 
   buy() {
@@ -45,39 +53,48 @@ class MovingAverageStrategy extends Strategy {
     const yesterday = this.stock.prev();
 
     if (this.currentTrade.stopLoss > today.close) {
-      this.exitPosition(this.currentTrade.stopLoss, this.currentTrade.position);
+      this.exitPosition(this.currentTrade.stopLoss, this.currentTrade.quantity);
       return this.sell();
     }
 
     // const priceChange = today.high - this.currentTrade.price;
-    const risk = this.risk / this.currentTrade.quantity;
-    const target = this.currentTrade.price + risk * 1;
-    if (today.high >= target) {
-      console.log({ risk, tr: this.currentTrade.risk });
-      this.exitPosition(target, this.currentTrade.position);
+    // const risk = this.risk / this.currentTrade.quantity;
+    // const target = this.currentTrade.price + risk * 1;
+    // if (today.high >= target) {
+    //   console.log({ risk, tr: this.currentTrade.risk });
+    //   this.exitPosition(target, this.currentTrade.quantity);
+    //   return this.sell();
+    // }
+
+    const sessionEnd = dayjs(`${today.date} 15:15`, "YYYY-MM-DD HH:mm");
+    if (
+      dayjs(today.date).isSame(sessionEnd, "day") ||
+      dayjs(today.date).isAfter(sessionEnd, "day")
+    ) {
+      return this.exitPosition(today.close, this.currentTrade.quantity);
+      // return this.buy();
+    }
+
+    if (
+      today.ma20high > today.close &&
+      today.ma20high > today.open &&
+      today.body < 0
+    ) {
+      this.exitPosition(today.close, this.currentTrade.quantity);
       return this.sell();
     }
 
-    // if (
-    //   today.ma20high > today.close &&
-    //   today.ma20high > today.open &&
-    //   today.body < 0
-    // ) {
-    //   this.exitPosition(today.close, this.currentTrade.position);
-    //   return this.sell();
-    // }
-
-    // if (
-    //   yesterday.ma20high > yesterday.close &&
-    //   today.ma20high > today.close &&
-    //   today.body < 0
-    // ) {
-    //   this.exitPosition(today.close, this.currentTrade.position);
-    //   return this.sell();
-    // }
+    if (
+      yesterday.ma20high > yesterday.close &&
+      today.ma20high > today.close &&
+      today.body < 0
+    ) {
+      this.exitPosition(today.close, this.currentTrade.quantity);
+      return this.sell();
+    }
 
     if (today.superTrendDirection === "Sell") {
-      this.exitPosition(today.close, this.currentTrade.position);
+      this.exitPosition(today.close, this.currentTrade.quantity);
       return this.sell();
     }
   }
@@ -107,39 +124,47 @@ class MovingAverageStrategy extends Strategy {
     const yesterday = this.stock.prev();
 
     if (today.close > this.currentTrade.stopLoss) {
-      this.exitPosition(this.currentTrade.stopLoss, this.currentTrade.position);
+      this.exitPosition(this.currentTrade.stopLoss, this.currentTrade.quantity);
       return this.buy();
     }
 
     // const priceChange = this.currentTrade.price - today.low;
-    const risk = this.risk / this.currentTrade.quantity;
-    const target = this.currentTrade.price - risk * 1;
-    if (today.low <= target) {
-      console.log({ risk, tr: this.currentTrade.risk });
-      this.exitPosition(target, this.currentTrade.position);
+    // const risk = this.risk / this.currentTrade.quantity;
+    // const target = this.currentTrade.price - risk * 1;
+    // if (today.low <= target) {
+    //   console.log({ risk, tr: this.currentTrade.risk });
+    //   this.exitPosition(target, this.currentTrade.quantity);
+    //   return this.buy();
+    // }
+    const sessionEnd = dayjs(`${today.date} 15:15`, "YYYY-MM-DD HH:mm");
+    if (
+      dayjs(today.date).isSame(sessionEnd, "day") ||
+      dayjs(today.date).isAfter(sessionEnd, "day")
+    ) {
+      return this.exitPosition(today.close, this.currentTrade.quantity);
+      // return this.buy();
+    }
+
+    if (
+      today.close > today.ma20low &&
+      today.open > today.ma20low &&
+      today.body > 0
+    ) {
+      this.exitPosition(today.close, this.currentTrade.quantity);
       return this.buy();
     }
 
-    // if (
-    //   today.close > today.ma20low &&
-    //   today.open > today.ma20low &&
-    //   today.body > 0
-    // ) {
-    //   this.exitPosition(today.close, this.currentTrade.position);
-    //   return this.buy();
-    // }
-
-    // if (
-    //   yesterday.close > yesterday.ma20low &&
-    //   today.close > today.ma20low &&
-    //   today.body > 0
-    // ) {
-    //   this.exitPosition(today.close, this.currentTrade.position);
-    //   return this.buy();
-    // }
+    if (
+      yesterday.close > yesterday.ma20low &&
+      today.close > today.ma20low &&
+      today.body > 0
+    ) {
+      this.exitPosition(today.close, this.currentTrade.quantity);
+      return this.buy();
+    }
 
     if (today.superTrendDirection === "Buy") {
-      this.exitPosition(today.close, this.currentTrade.position);
+      this.exitPosition(today.close, this.currentTrade.quantity);
       return this.buy();
     }
   }

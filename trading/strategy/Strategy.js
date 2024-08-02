@@ -75,6 +75,14 @@ class Strategy {
     throw new Error("Method not implemented.");
   }
 
+  longSquareOff() {
+    throw new Error("Method not implemented.");
+  }
+
+  shortSquareOff() {
+    throw new Error("Method not implemented.");
+  }
+
   squareOff() {
     throw new Error("Method not implemented.");
   }
@@ -122,8 +130,13 @@ class Strategy {
     this.currentTrade = null;
   }
 
+  shouldTrade() {
+    return true;
+  }
+
   trade() {
     if (this.capital <= 0) throw new Error("Capital exhausted");
+    if (!this.shouldTrade()) return;
     if (this.currentTrade?.type === "Buy") return this.longSquareOff();
     if (this.currentTrade?.type === "Sell") return this.shortSquareOff();
 
