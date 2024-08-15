@@ -8,8 +8,8 @@ import Client from "./Client.js";
 // console.log("client", client);
 
 dotenv.config();
-// dayjs.extend(utc);
-// dayjs.extend(timezone);
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 const restClient = (testnet) =>
   new RestClientV5({
@@ -55,7 +55,7 @@ const formatResponse = (response) => {
         return {
           date: dayjs(kline.datetime).format("YYYY-MM-DD"),
           time: dayjs(kline.datetime).format("HH:mm:ss"),
-          dateUnix: +kline[0],
+          dateUnix: dayjs(kline.datetime).tz("asia/kolkata").valueOf(),
           open: +kline.open,
           high: +kline.high,
           low: +kline.low,
@@ -85,7 +85,6 @@ const HistoricalKline = async (
       productType: "cash",
     })
     .then(function (resp) {
-      console.log("resp", resp);
       return formatResponse(resp?.Success);
     })
     .catch(function (err) {
