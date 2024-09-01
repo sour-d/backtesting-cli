@@ -16,6 +16,10 @@ const calculateDuration = (buyingDate, sellingDate, timeFrame) => {
   }
 };
 
+const calculateAvgPrice = (p1, q1, p2, q2) => {
+  return (p1 * q1 + p2 * q2) / (q1 + q2);
+};
+
 const trimToTwoDecimal = (value) => {
   if (typeof value === "string" || typeof value === "object") return value;
   return +value.toFixed(2);
@@ -51,7 +55,12 @@ const aggregateLog = (trades) => {
 
       if (lastTrade?.buyingDate && lastTrade?.buyingPrice) {
         lastTrade.sellingDate = trade.transactionDate;
-        lastTrade.sellingPrice = trade.price;
+        lastTrade.sellingPrice = calculateAvgPrice(
+          lastTrade.sellingPrice || 0,
+          lastTrade.quantity - lastTrade.stockLeft || 0,
+          trade.price,
+          trade.quantity
+        );
         lastTrade.stockLeft = lastTrade.quantity - trade.quantity;
         lastTrade.fee += lastTrade.sellingPrice * trade.quantity * 0.00055;
         return;

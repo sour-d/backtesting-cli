@@ -25,7 +25,7 @@ class Strategy {
 
     this.currentTrade = null;
 
-    this.stock = new ExistingQuoteStorage(getStockData(stockName), 20);
+    this.stock = new ExistingQuoteStorage(getStockData(stockName));
     this.trades = new Trades(this);
     // this.isLive = stock instanceof LiveQuoteStorage;
   }

@@ -4,6 +4,7 @@ import MovingAverageStrategy from "./MovingAverageStrategy.js";
 import PriceActionStrategy from "./PriceActionStrategy.js";
 import SuperTrendStrategy from "./SuperTrendStrategy.js";
 import TwoBreakingCandle from "./TwoBreakingCandle.js";
+import VolatilityCompression from "./VolatilityCompression.js";
 
 const STRATEGIES = [
   FortyTwentyStrategy,
@@ -12,6 +13,7 @@ const STRATEGIES = [
   PriceActionStrategy,
   SuperTrendStrategy,
   BreakoutStrategy,
+  VolatilityCompression,
 ];
 
 export default STRATEGIES;

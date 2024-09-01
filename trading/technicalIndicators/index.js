@@ -6,6 +6,7 @@ import calculateCandleProperty from "./candleStick.js";
 import calculateSuperTrendForQuote from "./superTrend.js";
 import calculateATR from "./atr.js";
 import { highLow } from "./HighLow.js";
+import volatilityCompression from "./volatilityCompression.js";
 
 const fixTwoDecimal = (obj) => {
   const result = {};
@@ -16,15 +17,18 @@ const fixTwoDecimal = (obj) => {
 };
 
 const Indicators = (quote, technicalQuotes) => {
-  // calculateCandleProperty(quote);
+  calculateCandleProperty(quote);
   // movingAverageOf(quote, technicalQuotes, 20, "high");
   // movingAverageOf(quote, technicalQuotes, 20, "low");
-  // movingAverageOf(quote, technicalQuotes, 200, "close");
+  movingAverageOf(quote, technicalQuotes, 60, "close");
 
   calculateATR(quote, technicalQuotes, 10);
-  calculateSuperTrendForQuote(quote, technicalQuotes, 10);
+  calculateSuperTrendForQuote(quote, technicalQuotes, 2);
 
-  highLow(quote, technicalQuotes, 100, 50);
+  // highLow(quote, technicalQuotes, 100, 50);
+
+  volatilityCompression(quote, technicalQuotes, 10);
+  movingAverageOf(quote, technicalQuotes, 9, "close");
 
   return quote;
 };
