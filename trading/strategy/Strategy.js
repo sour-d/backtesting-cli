@@ -34,21 +34,21 @@ class Strategy {
     return {
       capital: 100000,
       riskPercentage: 5,
+      leverage: 1,
     };
   }
 
   stocksCanBeBought(riskForOneStock, buyingPrice) {
-    const maxStocksByCapital = this.capital / buyingPrice;
-    const maxStocksByRisk = this.risk / riskForOneStock;
+    console.log(this.risk, riskForOneStock, this.risk / riskForOneStock);
+    return this.risk / riskForOneStock;
+    // const maxStocksByCapital = this.capital * this.config.leverage / buyingPrice;
+    // const maxStocksByRisk = this.risk / riskForOneStock;
 
-    const totalCost = maxStocksByRisk * buyingPrice;
-    const affordableStocks =
-      totalCost <= this.capital ? maxStocksByRisk : maxStocksByCapital;
+    // const totalCost = maxStocksByRisk * buyingPrice;
+    // const affordableStocks =
+    //   totalCost <= this.capital ? maxStocksByRisk : maxStocksByCapital;
 
-    return +affordableStocks.toFixed(2) - 0.01;
-
-    // when fraction buy is not possible
-    // return Math.floor(affordableStocks);
+    // return +affordableStocks.toFixed(2);
   }
 
   updateTrades(
@@ -123,7 +123,7 @@ class Strategy {
   }
 
   trade() {
-    if (this.capital <= 0) throw new Error("Capital exhausted");
+    // if (this.capital * this.config.leverage <= 0) throw new Error("Capital exhausted");
     if (this.currentTrade?.type === "Buy") return this.longSquareOff();
     if (this.currentTrade?.type === "Sell") return this.shortSquareOff();
 
