@@ -39,7 +39,6 @@ class Strategy {
   }
 
   stocksCanBeBought(riskForOneStock, buyingPrice) {
-    console.log(this.risk, riskForOneStock, this.risk / riskForOneStock);
     return this.risk / riskForOneStock;
     // const maxStocksByCapital = this.capital * this.config.leverage / buyingPrice;
     // const maxStocksByRisk = this.risk / riskForOneStock;

@@ -6,6 +6,7 @@ import calculateCandleProperty from "./candleStick.js";
 import calculateSuperTrendForQuote from "./superTrend.js";
 import calculateATR from "./atr.js";
 import volatilityCompression from "./volatilityCompression.js";
+import { highLow } from "./highLow.js";
 
 const fixTwoDecimal = (obj) => {
   const result = {};
@@ -17,17 +18,18 @@ const fixTwoDecimal = (obj) => {
 
 const Indicators = (quote, technicalQuotes) => {
   calculateCandleProperty(quote);
-  movingAverageOf(quote, technicalQuotes, 20, "high");
-  movingAverageOf(quote, technicalQuotes, 20, "low");
-  movingAverageOf(quote, technicalQuotes, 200, "close");
-  movingAverageOf(quote, technicalQuotes, 100, "close");
-  movingAverageOf(quote, technicalQuotes, 50, "close");
-  movingAverageOf(quote, technicalQuotes, 10, "close");
+  movingAverageOf(quote, technicalQuotes, 20, "close");
+  // movingAverageOf(quote, technicalQuotes, 20, "low");
+  // movingAverageOf(quote, technicalQuotes, 200, "close");
+  // movingAverageOf(quote, technicalQuotes, 100, "close");
+  // movingAverageOf(quote, technicalQuotes, 50, "close");
+  // movingAverageOf(quote, technicalQuotes, 10, "close");
 
-  calculateATR(quote, technicalQuotes, 10);
-  calculateSuperTrendForQuote(quote, technicalQuotes, 2);
+  // calculateATR(quote, technicalQuotes, 10);
+  // calculateSuperTrendForQuote(quote, technicalQuotes, 2);
 
-  movingAverageOf(quote, technicalQuotes, 5, "close");
+  // movingAverageOf(quote, technicalQuotes, 5, "close");
+  // highLow(quote, technicalQuotes);
   return quote;
 };
 

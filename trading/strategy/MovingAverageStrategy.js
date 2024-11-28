@@ -11,9 +11,6 @@ class MovingAverageStrategy extends Strategy {
 
   static getDefaultConfig() {
     return {
-      upperLimit: 20,
-      lowerLimit: 10,
-      stopLossWindow: 10,
       capital: 100,
       riskPercentage: 5,
     };
@@ -22,15 +19,14 @@ class MovingAverageStrategy extends Strategy {
   buy() {
     const yesterday = this.stock.prev();
     const dayBeforeYesterday = this.stock.prev(2);
+
     if (
-      // yesterday.close > yesterday.ma60close &&
-      yesterday.close > yesterday.ma20high &&
-      yesterday.body > 0 &&
-      dayBeforeYesterday.body > 0 &&
-      yesterday.superTrendDirection === "Buy"
+      dayBeforeYesterday.close < dayBeforeYesterday.ma20close &&
+      yesterday.close > yesterday.ma20close &&
+      yesterday.body > 0
     ) {
       const { open: buyingPrice } = this.stock.now();
-      const { ma20low: initialStopLoss } = yesterday;
+      const initialStopLoss = Math.max(yesterday.low, dayBeforeYesterday.low);
       const riskForOneStock = buyingPrice - initialStopLoss;
       if (initialStopLoss >= buyingPrice) return;
       this.takePosition(riskForOneStock, buyingPrice);
@@ -40,33 +36,15 @@ class MovingAverageStrategy extends Strategy {
 
   longSquareOff() {
     const today = this.stock.now();
-    const yesterday = this.stock.prev();
+
+    const target = this.currentTrade.price + this.currentTrade.risk * 1.2;
+    if (today.high > target) {
+      this.exitPosition(target, this.currentTrade.position);
+      return this.sell();
+    }
 
     if (this.currentTrade.stopLoss > today.close) {
       this.exitPosition(this.currentTrade.stopLoss, this.currentTrade.position);
-      return this.sell();
-    }
-
-    if (
-      today.ma20high > today.close &&
-      today.ma20high > today.open &&
-      today.body < 0
-    ) {
-      this.exitPosition(today.close, this.currentTrade.position);
-      return this.sell();
-    }
-
-    if (
-      yesterday.ma20high > yesterday.close &&
-      today.ma20high > today.close &&
-      today.body < 0
-    ) {
-      this.exitPosition(today.close, this.currentTrade.position);
-      return this.sell();
-    }
-
-    if (today.superTrendDirection === "Sell") {
-      this.exitPosition(today.close, this.currentTrade.position);
       return this.sell();
     }
   }
@@ -74,15 +52,14 @@ class MovingAverageStrategy extends Strategy {
   sell() {
     const yesterday = this.stock.prev();
     const dayBeforeYesterday = this.stock.prev(2);
+
     if (
-      // yesterday.close < yesterday.ma60close &&
-      yesterday.close < yesterday.ma20low &&
-      yesterday.body < 0 &&
-      dayBeforeYesterday.body < 0 &&
-      yesterday.superTrendDirection === "Sell"
+      dayBeforeYesterday.close > dayBeforeYesterday.ma20close &&
+      yesterday.close < yesterday.ma20close &&
+      yesterday.body < 0
     ) {
       const { open: sellingPrice } = this.stock.now();
-      const { ma20high: initialStopLoss } = yesterday;
+      const initialStopLoss = Math.min(yesterday.high, dayBeforeYesterday.high);
       const riskForOneStock = initialStopLoss - sellingPrice;
       if (initialStopLoss <= sellingPrice) return;
       this.takePosition(riskForOneStock, sellingPrice, "Sell");
@@ -92,33 +69,16 @@ class MovingAverageStrategy extends Strategy {
 
   shortSquareOff() {
     const today = this.stock.now();
-    const yesterday = this.stock.prev();
 
-    if (today.close > this.currentTrade.stopLoss) {
+    const target = this.currentTrade.price - this.currentTrade.risk * 1.2;
+    console.log("target", target, today.low, this.currentTrade);
+    if (today.low < target) {
+      this.exitPosition(target, this.currentTrade.position);
+      return this.buy();
+    }
+
+    if (this.currentTrade.stopLoss < today.close) {
       this.exitPosition(this.currentTrade.stopLoss, this.currentTrade.position);
-      return this.buy();
-    }
-
-    if (
-      today.close > today.ma20low &&
-      today.open > today.ma20low &&
-      today.body > 0
-    ) {
-      this.exitPosition(today.close, this.currentTrade.position);
-      return this.buy();
-    }
-
-    if (
-      yesterday.close > yesterday.ma20low &&
-      today.close > today.ma20low &&
-      today.body > 0
-    ) {
-      this.exitPosition(today.close, this.currentTrade.position);
-      return this.buy();
-    }
-
-    if (today.superTrendDirection === "Buy") {
-      this.exitPosition(today.close, this.currentTrade.position);
       return this.buy();
     }
   }
