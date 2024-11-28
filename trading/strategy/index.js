@@ -1,4 +1,5 @@
 import BreakoutStrategy from "./BreakoutStrategy.js";
+import StopLossHunter from "./FiveEma.js";
 import FortyTwentyStrategy from "./FortyTwentyStrategy.js";
 import MovingAverageStrategy from "./MovingAverageStrategy.js";
 import PriceActionStrategy from "./PriceActionStrategy.js";
@@ -14,6 +15,7 @@ const STRATEGIES = [
   SuperTrendStrategy,
   BreakoutStrategy,
   VolatilityCompression,
+  StopLossHunter
 ];
 
 export default STRATEGIES;

@@ -10,6 +10,7 @@
   "dependencies": {
     "breezeconnect": "^1.0.29",
     "dayjs": "^1.11.11",
+    "dotenv": "^16.4.5",
     "lodash": "^4.17.21",
     "mathjs": "^12.4.2",
     "next": "14.2.3",
