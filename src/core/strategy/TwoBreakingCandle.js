@@ -3,14 +3,14 @@ import { Strategy } from "./Strategy.js";
 class TwoBreakingCandle extends Strategy {
   config;
 
-  constructor(stockName, persistTradesFn, config = this.getDefaultConfig()) {
-    super(stockName, persistTradesFn, config);
+  constructor(symbol, interval, persistTradesFn, config = TwoBreakingCandle.getDefaultConfig()) {
+    super(symbol, interval, persistTradesFn, config);
     this.config = config;
   }
 
   static getDefaultConfig() {
     return {
-      capital: 100,
+      capital: 100000,
       riskPercentage: 0.1,
     };
   }
@@ -47,6 +47,8 @@ class TwoBreakingCandle extends Strategy {
     }
     return false;
   }
+
+  static name = "TwoBreakingCandle";
 }
 
 export default TwoBreakingCandle;

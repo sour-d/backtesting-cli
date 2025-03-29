@@ -94,6 +94,7 @@ program
       await runStrategy(filename, strategyName);
     } catch (error) {
       console.error('Error running strategy:', error.message);
+      throw error;
       process.exit(1);
     }
   });

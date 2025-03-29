@@ -4,20 +4,22 @@
   "private": true,
   "type": "module",
   "bin": {
-    "backtesting": "./src/cli.js"
+    "backtesting": "./src/cli/index.js"
   },
   "scripts": {
-    "setup": "mkdir -p .output/data .output/result .output/dataWithTechnicalIndicators",
-    "clean": "rm -rf .output/*/*",
-    "cli": "node src/cli.js"
+    "setup": "mkdir -p .data/{market,technical,results,optimization}",
+    "clean": "rm -rf .data/*/*",
+    "cli": "node src/cli/index.js"
   },
   "dependencies": {
     "broker": "https://github.com/sour-d/broker.git",
+    "chalk": "^4.1.2",
+    "commander": "^13.1.0",
     "dayjs": "^1.11.11",
     "lodash": "^4.17.21",
     "mathjs": "^12.4.2",
     "next": "14.2.3",
-    "papaparse": "^5.4.1",
+    "ora": "^8.2.0",
     "react": "^18",
     "react-dom": "^18",
     "uuid": "^9.0.1"

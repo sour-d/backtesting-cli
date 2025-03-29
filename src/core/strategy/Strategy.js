@@ -1,6 +1,6 @@
-import { ExistingQuoteStorage } from "../quoteStorage/ExistingQuoteStorage.js";
-import { Trades } from "../outcome/Trades.js";
-import { getStockData, transformStockData } from "../parser/restructureData.js";
+import { ExistingQuoteStorage } from "../storage/ExistingQuoteStorage.js";
+import { Trades } from "../../utils/Trades.js";
+import { getStockData } from "../../utils/restructureData.js";
 
 class Strategy {
   stock;
@@ -10,10 +10,12 @@ class Strategy {
   persistTradesFn;
   currentTrade;
   risk;
-  stockName;
+  symbol;
+  interval;
 
   constructor(
-    stockName,
+    symbol,
+    interval,
     persistTradesFn,
     config = Strategy.getDefaultConfig()
   ) {
@@ -21,11 +23,12 @@ class Strategy {
     this.riskPercentage = config.riskPercentage;
     this.persistTradesFn = persistTradesFn;
     this.risk = this.capital * (this.riskPercentage / 100);
-    this.stockName = stockName;
+    this.symbol = symbol;
+    this.interval = interval;
 
     this.currentTrade = null;
 
-    this.stock = new ExistingQuoteStorage(getStockData(stockName), 20);
+    this.stock = new ExistingQuoteStorage(getStockData(symbol, interval), 20);
     this.trades = new Trades(this);
     // this.isLive = stock instanceof LiveQuoteStorage;
   }
@@ -139,6 +142,12 @@ class Strategy {
     const result = {
       ...this.trades.getReport(),
       tradeResults: this.trades.tradeResults,
+      metadata: {
+        symbol: this.symbol,
+        interval: this.interval,
+        capital: this.capital,
+        riskPercentage: this.riskPercentage
+      }
     };
     this.persistTradesFn(result);
   }

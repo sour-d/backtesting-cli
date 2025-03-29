@@ -4,8 +4,8 @@ import { Strategy } from "./Strategy.js";
 class MovingAverageStrategy extends Strategy {
   config;
 
-  constructor(stockName, persistTradesFn, config = this.getDefaultConfig()) {
-    super(stockName, persistTradesFn, config);
+  constructor(symbol, interval, persistTradesFn, config = MovingAverageStrategy.getDefaultConfig()) {
+    super(symbol, interval, persistTradesFn, config);
     this.config = config;
   }
 
@@ -14,7 +14,7 @@ class MovingAverageStrategy extends Strategy {
       upperLimit: 20,
       lowerLimit: 10,
       stopLossWindow: 10,
-      capital: 100,
+      capital: 100000,
       riskPercentage: 5,
     };
   }
@@ -122,6 +122,8 @@ class MovingAverageStrategy extends Strategy {
       return this.buy();
     }
   }
+
+  static name = "MovingAverage";
 }
 
 export default MovingAverageStrategy;

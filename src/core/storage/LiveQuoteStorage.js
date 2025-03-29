@@ -1,30 +1,24 @@
-import LiveQuoteProvider, {
-  LiveQuoteObj,
-} from "../../services/LiveQuoteProvider";
-import { calculateTechnical } from "../parser/restructureData";
-import { ExistingQuoteStorage } from "./ExistingQuoteStorage";
+import LiveQuoteProvider from "../../services/LiveQuoteProvider.js";
+import { calculateTechnical } from "../../utils/restructureData.js";
+import { ExistingQuoteStorage } from "./ExistingQuoteStorage.js";
 
 export class LiveQuoteStorage extends ExistingQuoteStorage {
-  protected listeners: Function[] = [];
-  protected id: string;
-  protected symbol: string;
-  protected timeFrame: string;
-
   constructor(
-    quotes: LiveQuoteProvider,
-    startingQuoteDay: number = 1,
-    id: string,
-    symbol: string,
-    timeFrame: string,
-    name: string = ""
+    quotes,
+    startingQuoteDay = 1,
+    id,
+    symbol,
+    timeFrame,
+    name = ""
   ) {
     super([], startingQuoteDay, name);
     this.currentQuoteIndex = -1;
     this.id = id;
     this.symbol = symbol;
     this.timeFrame = timeFrame;
+    this.listeners = [];
 
-    quotes.on("Quote", ({ id, symbol, timeFrame, tick }: LiveQuoteObj) => {
+    quotes.on("Quote", ({ id, symbol, timeFrame, tick }) => {
       if (symbol !== this.symbol || timeFrame !== this.timeFrame) return;
       const technicalQuote = calculateTechnical(tick, this.quotes);
       this.quotes.push(technicalQuote);
@@ -36,7 +30,7 @@ export class LiveQuoteStorage extends ExistingQuoteStorage {
     });
   }
 
-  subscribe(listener: Function): void {
+  subscribe(listener) {
     this.listeners.push(listener);
   }
 }

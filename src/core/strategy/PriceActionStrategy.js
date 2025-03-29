@@ -4,15 +4,15 @@ class PriceActionStrategy extends Strategy {
   config;
   demandZones;
 
-  constructor(stockName, persistTradesFn, config = this.getDefaultConfig()) {
-    super(stockName, persistTradesFn, config);
+  constructor(symbol, interval, persistTradesFn, config = PriceActionStrategy.getDefaultConfig()) {
+    super(symbol, interval, persistTradesFn, config);
     this.config = config;
     this.demandZones = Array(15).fill(null);
   }
 
   static getDefaultConfig() {
     return {
-      capital: 100,
+      capital: 100000,
       riskPercentage: 0.1,
     };
   }
@@ -45,7 +45,7 @@ class PriceActionStrategy extends Strategy {
   buyIfAnyZoneTested = (today) => {
     const zone = this.anyZoneTested(today);
 
-    if (zone && !this.currentTradeInfo?.quantity) {
+    if (zone && !this.currentTrade?.quantity) {
       const buyingPrice = zone.high;
       const riskForOneStock = buyingPrice - zone.low;
       this.takePosition(riskForOneStock, buyingPrice);
@@ -76,6 +76,8 @@ class PriceActionStrategy extends Strategy {
     // checking and adding new demand zones
     this.addIfNewZoneCreated(today, prev);
   }
+
+  static name = "PriceAction";
 }
 
 export default PriceActionStrategy;

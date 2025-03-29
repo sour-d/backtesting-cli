@@ -4,8 +4,8 @@ import { Strategy } from "./Strategy.js";
 class SuperTrendStrategy extends Strategy {
   config;
 
-  constructor(stockName, persistTradesFn, config = this.getDefaultConfig()) {
-    super(stockName, persistTradesFn, config);
+  constructor(symbol, interval, persistTradesFn, config = SuperTrendStrategy.getDefaultConfig()) {
+    super(symbol, interval, persistTradesFn, config);
     this.config = config;
   }
 
@@ -14,7 +14,7 @@ class SuperTrendStrategy extends Strategy {
       // upperLimit: 20,
       // lowerLimit: 10,
       // stopLossWindow: 10,
-      capital: 100,
+      capital: 100000,
       riskPercentage: 1,
     };
   }
@@ -89,6 +89,8 @@ class SuperTrendStrategy extends Strategy {
       return;
     }
   }
+
+  static name = "SuperTrend";
 }
 
 export default SuperTrendStrategy;
