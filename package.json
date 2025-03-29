@@ -3,9 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "bin": {
+    "backtesting": "./src/cli.js"
+  },
   "scripts": {
     "setup": "mkdir -p .output/data .output/result .output/dataWithTechnicalIndicators",
-    "clean": "rm -rf .output/*/*"
+    "clean": "rm -rf .output/*/*",
+    "cli": "node src/cli.js"
   },
   "dependencies": {
     "broker": "https://github.com/sour-d/broker.git",

@@ -53,30 +53,13 @@ const downloadFromLastDownloaded = async () => {
   downloader(symbol, interval, start, end);
 };
 
-const downloadFromStartEnd = () => {
-  const filename = process.argv[6];
-  const symbol = process.argv[2];
-  const interval = process.argv[3];
-  const start = process.argv[4] + "T00:00:00.000Z";
-  let end = process.argv[5] + "T23:59:59.999Z";
-  if (!end) {
-    end = start;
-  }
+const downloadFromStartEnd = (symbol, interval, startDate, endDate, filename) => {
+  const start = getDateFormat(startDate + "T00:00:00.000Z");
+  const end = getDateFormat((endDate || startDate) + "T23:59:59.999Z");
+  const outputFilename = filename || getFilePath(symbol, interval);
 
-  downloader(symbol, interval, start, end, filename);
+  return downloader(symbol, interval, start, end, outputFilename);
 };
 
-const main = () => {
-  if (process.argv[2] === "--default") {
-    if (!process.env.DEFAULT_START_DATE) throw "need env";
-    return downloadDefaultData();
-  }
-  if (process.argv[2] === "--continue") {
-    return downloadFromLastDownloaded();
-  }
-  if (process.argv.length > 2) {
-    return downloadFromStartEnd();
-  }
-};
-
-main();
+// Export the functions to be used by the CLI
+export { downloadDefaultData, downloadFromLastDownloaded, downloadFromStartEnd };
