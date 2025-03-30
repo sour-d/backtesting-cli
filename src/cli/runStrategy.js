@@ -3,6 +3,7 @@ import chalk from "chalk";
 import ora from "ora";
 import dataManager from "../utils/dataManager.js";
 import { saveResults } from "../utils/results.js";
+import { transformStockData } from "../utils/restructureData.js";
 
 const findStrategy = (strategies, name) => {
   return strategies.find((s) => s.name === name);
@@ -60,6 +61,13 @@ const executeStrategy = async (strategyClass, symbol, interval, marketPath, stra
   }).start();
 
   try {
+    // Ensure data directories exist
+    dataManager.ensureDirectories();
+
+    // Transform data and add technical indicators
+    const technicalData = await transformStockData(symbol, interval);
+    spinner.succeed(chalk.green(`✔ Loaded ${technicalData.length} quotes from technical data`));
+
     const config = strategyClass.getDefaultConfig();
     displayStrategyConfig(strategyName, symbol, interval, marketPath, config);
 

@@ -100,6 +100,7 @@ const getStockData = (symbol, interval) => {
     const technicalPath = dataManager.getTechnicalDataPath(symbol, interval);
     if (dataManager.exists(technicalPath)) {
       const data = dataManager.readJSON(technicalPath);
+      console.log("-----", data.length, technicalPath, symbol, interval);
       spinner.succeed(chalk.green(`Loaded ${data.length.toLocaleString()} quotes from technical data`));
       return data;
     }

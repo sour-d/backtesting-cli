@@ -2,6 +2,7 @@ import chalk from "chalk";
 import RLStrategy from "../core/strategy/RLStrategy.js";
 import RLTrainer from "../core/strategy/RLTrainer.js";
 import dataManager from "../utils/dataManager.js";
+import { transformStockData } from "../utils/restructureData.js";
 
 export const trainStrategy = async (filename, options = {}) => {
   try {
@@ -23,6 +24,13 @@ export const trainStrategy = async (filename, options = {}) => {
     console.log(chalk.bold("Symbol:     ") + chalk.green(symbol));
     console.log(chalk.bold("Interval:   ") + chalk.green(interval));
     console.log(chalk.bold("Input:      ") + chalk.green(marketPath));
+
+    // Ensure data directories exist
+    dataManager.ensureDirectories();
+
+    // Transform data and add technical indicators
+    const technicalData = await transformStockData(symbol, interval);
+    console.log(chalk.green(`✔ Loaded ${technicalData.length} quotes from technical data`));
 
     // Initialize strategy
     const strategy = new RLStrategy(
