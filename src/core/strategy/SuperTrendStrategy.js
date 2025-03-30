@@ -1,4 +1,3 @@
-import dayjs from "dayjs";
 import { Strategy } from "./Strategy.js";
 
 class SuperTrendStrategy extends Strategy {
@@ -11,9 +10,6 @@ class SuperTrendStrategy extends Strategy {
 
   static getDefaultConfig() {
     return {
-      // upperLimit: 20,
-      // lowerLimit: 10,
-      // stopLossWindow: 10,
       capital: 100000,
       riskPercentage: 1,
     };
@@ -25,9 +21,10 @@ class SuperTrendStrategy extends Strategy {
     const dayBeforeYesterday = this.stock.prev(2);
 
     if (
-      today.superTrendDirection === "Buy" &&
       today.close > today.ma60close &&
-      yesterday.superTrendDirection === "Sell"
+      today.superTrendDirection === "Buy" &&
+      yesterday.superTrendDirection === "Sell" &&
+      dayBeforeYesterday.superTrendDirection === "Sell"
     ) {
       const { close: buyingPrice } = today;
       const initialStopLoss = Math.min(
@@ -50,6 +47,7 @@ class SuperTrendStrategy extends Strategy {
     const yesterday = this.stock.prev();
     const dayBeforeYesterday = this.stock.prev(2);
     if (
+      today.close < today.ma60close &&
       today.superTrendDirection === "Sell" &&
       yesterday.superTrendDirection === "Buy" &&
       dayBeforeYesterday.superTrendDirection === "Buy"
