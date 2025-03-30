@@ -12,14 +12,16 @@
     "cli": "node src/cli/index.js"
   },
   "dependencies": {
-    "broker": "https://github.com/sour-d/broker.git",
+    "bybit-api": "^4.1.0",
     "chalk": "^4.1.2",
     "commander": "^13.1.0",
     "dayjs": "^1.11.11",
+    "dotenv": "^16.4.7",
     "lodash": "^4.17.21",
     "mathjs": "^12.4.2",
     "next": "14.2.3",
     "ora": "^8.2.0",
+    "papaparse": "^5.5.2",
     "react": "^18",
     "react-dom": "^18",
     "uuid": "^9.0.1"
