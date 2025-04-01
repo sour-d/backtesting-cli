@@ -1,0 +1,351 @@
+{
+  "trades": [
+    {
+      "type": "BUY",
+      "date": 1736467200000,
+      "readableDate": "1/10/2025, 12:00:00 AM",
+      "price": 187.6,
+      "quantity": 479.7441364605544
+    },
+    {
+      "type": "SELL",
+      "date": 1736640000000,
+      "readableDate": "1/12/2025, 12:00:00 AM",
+      "price": 188.43,
+      "quantity": 479.7441364605544
+    },
+    {
+      "type": "BUY",
+      "date": 1736726400000,
+      "readableDate": "1/13/2025, 12:00:00 AM",
+      "price": 182.75,
+      "quantity": 494.4370389599783
+    },
+    {
+      "type": "SELL",
+      "date": 1737590400000,
+      "readableDate": "1/23/2025, 12:00:00 AM",
+      "price": 252.99,
+      "quantity": 494.4370389599783
+    },
+    {
+      "type": "BUY",
+      "date": 1737676800000,
+      "readableDate": "1/24/2025, 12:00:00 AM",
+      "price": 253.21,
+      "quantity": 480.2918554750208
+    },
+    {
+      "type": "SELL",
+      "date": 1737849600000,
+      "readableDate": "1/26/2025, 12:00:00 AM",
+      "price": 240.36,
+      "quantity": 480.2918554750208
+    },
+    {
+      "type": "BUY",
+      "date": 1737936000000,
+      "readableDate": "1/27/2025, 12:00:00 AM",
+      "price": 234.75,
+      "quantity": 494.3988303142126
+    },
+    {
+      "type": "SELL",
+      "date": 1738022400000,
+      "readableDate": "1/28/2025, 12:00:00 AM",
+      "price": 226.91,
+      "quantity": 494.3988303142126
+    },
+    {
+      "type": "BUY",
+      "date": 1738108800000,
+      "readableDate": "1/29/2025, 12:00:00 AM",
+      "price": 228.05,
+      "quantity": 493.6270434973221
+    },
+    {
+      "type": "SELL",
+      "date": 1738281600000,
+      "readableDate": "1/31/2025, 12:00:00 AM",
+      "price": 231.61,
+      "quantity": 493.6270434973221
+    },
+    {
+      "type": "BUY",
+      "date": 1738454400000,
+      "readableDate": "2/2/2025, 12:00:00 AM",
+      "price": 203.38,
+      "quantity": 561.2805011157918
+    },
+    {
+      "type": "SELL",
+      "date": 1738627200000,
+      "readableDate": "2/4/2025, 12:00:00 AM",
+      "price": 206.49,
+      "quantity": 561.2805011157918
+    },
+    {
+      "type": "BUY",
+      "date": 1738886400000,
+      "readableDate": "2/7/2025, 12:00:00 AM",
+      "price": 191.83,
+      "quantity": 603.2646220067395
+    },
+    {
+      "type": "SELL",
+      "date": 1739232000000,
+      "readableDate": "2/11/2025, 12:00:00 AM",
+      "price": 197.87,
+      "quantity": 603.2646220067395
+    },
+    {
+      "type": "BUY",
+      "date": 1739318400000,
+      "readableDate": "2/12/2025, 12:00:00 AM",
+      "price": 196.67,
+      "quantity": 605.0927895702522
+    },
+    {
+      "type": "SELL",
+      "date": 1739404800000,
+      "readableDate": "2/13/2025, 12:00:00 AM",
+      "price": 194.12,
+      "quantity": 605.0927895702522
+    },
+    {
+      "type": "BUY",
+      "date": 1739491200000,
+      "readableDate": "2/14/2025, 12:00:00 AM",
+      "price": 199.33,
+      "quantity": 590.051226472271
+    },
+    {
+      "type": "SELL",
+      "date": 1739577600000,
+      "readableDate": "2/15/2025, 12:00:00 AM",
+      "price": 194.36,
+      "quantity": 590.051226472271
+    },
+    {
+      "type": "BUY",
+      "date": 1739923200000,
+      "readableDate": "2/19/2025, 12:00:00 AM",
+      "price": 168.85,
+      "quantity": 680.9334429180178
+    },
+    {
+      "type": "SELL",
+      "date": 1740096000000,
+      "readableDate": "2/21/2025, 12:00:00 AM",
+      "price": 169.45,
+      "quantity": 680.9334429180178
+    },
+    {
+      "type": "BUY",
+      "date": 1740182400000,
+      "readableDate": "2/22/2025, 12:00:00 AM",
+      "price": 172.02,
+      "quantity": 670.5227060567552
+    },
+    {
+      "type": "SELL",
+      "date": 1740268800000,
+      "readableDate": "2/23/2025, 12:00:00 AM",
+      "price": 167.9,
+      "quantity": 670.5227060567552
+    },
+    {
+      "type": "BUY",
+      "date": 1740441600000,
+      "readableDate": "2/25/2025, 12:00:00 AM",
+      "price": 144.25,
+      "quantity": 782.3710065984374
+    },
+    {
+      "type": "SELL",
+      "date": 1740528000000,
+      "readableDate": "2/26/2025, 12:00:00 AM",
+      "price": 135.31,
+      "quantity": 782.3710065984374
+    },
+    {
+      "type": "BUY",
+      "date": 1740614400000,
+      "readableDate": "2/27/2025, 12:00:00 AM",
+      "price": 137.62,
+      "quantity": 774.3210331545819
+    },
+    {
+      "type": "SELL",
+      "date": 1740787200000,
+      "readableDate": "3/1/2025, 12:00:00 AM",
+      "price": 143.57,
+      "quantity": 774.3210331545819
+    },
+    {
+      "type": "BUY",
+      "date": 1740873600000,
+      "readableDate": "3/2/2025, 12:00:00 AM",
+      "price": 178.74,
+      "quantity": 619.3831806829827
+    },
+    {
+      "type": "SELL",
+      "date": 1740960000000,
+      "readableDate": "3/3/2025, 12:00:00 AM",
+      "price": 142.03,
+      "quantity": 619.3831806829827
+    },
+    {
+      "type": "BUY",
+      "date": 1741046400000,
+      "readableDate": "3/4/2025, 12:00:00 AM",
+      "price": 144.69,
+      "quantity": 623.7110291567576
+    },
+    {
+      "type": "SELL",
+      "date": 1741219200000,
+      "readableDate": "3/6/2025, 12:00:00 AM",
+      "price": 143.22,
+      "quantity": 623.7110291567576
+    },
+    {
+      "type": "BUY",
+      "date": 1741305600000,
+      "readableDate": "3/7/2025, 12:00:00 AM",
+      "price": 139.33,
+      "quantity": 641.7826678900227
+    },
+    {
+      "type": "SELL",
+      "date": 1741392000000,
+      "readableDate": "3/8/2025, 12:00:00 AM",
+      "price": 136.93,
+      "quantity": 641.7826678900227
+    },
+    {
+      "type": "BUY",
+      "date": 1741651200000,
+      "readableDate": "3/11/2025, 12:00:00 AM",
+      "price": 125.27,
+      "quantity": 702.7486912626681
+    },
+    {
+      "type": "SELL",
+      "date": 1741824000000,
+      "readableDate": "3/13/2025, 12:00:00 AM",
+      "price": 123.31,
+      "quantity": 702.7486912626681
+    },
+    {
+      "type": "BUY",
+      "date": 1741910400000,
+      "readableDate": "3/14/2025, 12:00:00 AM",
+      "price": 133.46,
+      "quantity": 650.3347809312684
+    },
+    {
+      "type": "SELL",
+      "date": 1742083200000,
+      "readableDate": "3/16/2025, 12:00:00 AM",
+      "price": 126.02,
+      "quantity": 650.3347809312684
+    },
+    {
+      "type": "BUY",
+      "date": 1742169600000,
+      "readableDate": "3/17/2025, 12:00:00 AM",
+      "price": 127.93,
+      "quantity": 644.407395997587
+    },
+    {
+      "type": "SELL",
+      "date": 1742256000000,
+      "readableDate": "3/18/2025, 12:00:00 AM",
+      "price": 125.25,
+      "quantity": 644.407395997587
+    },
+    {
+      "type": "BUY",
+      "date": 1742342400000,
+      "readableDate": "3/19/2025, 12:00:00 AM",
+      "price": 135.28,
+      "quantity": 597.9060284655907
+    },
+    {
+      "type": "SELL",
+      "date": 1742428800000,
+      "readableDate": "3/20/2025, 12:00:00 AM",
+      "price": 127.53,
+      "quantity": 597.9060284655907
+    },
+    {
+      "type": "BUY",
+      "date": 1742515200000,
+      "readableDate": "3/21/2025, 12:00:00 AM",
+      "price": 128.41,
+      "quantity": 597.4171246965004
+    },
+    {
+      "type": "SELL",
+      "date": 1742601600000,
+      "readableDate": "3/22/2025, 12:00:00 AM",
+      "price": 128.44,
+      "quantity": 597.4171246965004
+    },
+    {
+      "type": "BUY",
+      "date": 1742688000000,
+      "readableDate": "3/23/2025, 12:00:00 AM",
+      "price": 132.78,
+      "quantity": 577.8766624841425
+    },
+    {
+      "type": "SELL",
+      "date": 1742947200000,
+      "readableDate": "3/26/2025, 12:00:00 AM",
+      "price": 137.29,
+      "quantity": 577.8766624841425
+    },
+    {
+      "type": "BUY",
+      "date": 1743033600000,
+      "readableDate": "3/27/2025, 12:00:00 AM",
+      "price": 138.36,
+      "quantity": 571.5240287486813
+    },
+    {
+      "type": "SELL",
+      "date": 1743120000000,
+      "readableDate": "3/28/2025, 12:00:00 AM",
+      "price": 129.4,
+      "quantity": 571.5240287486813
+    },
+    {
+      "type": "BUY",
+      "date": 1743292800000,
+      "readableDate": "3/30/2025, 12:00:00 AM",
+      "price": 124.73,
+      "quantity": 250.82302427608147
+    },
+    {
+      "type": "SELL",
+      "date": 1743379200000,
+      "readableDate": "3/31/2025, 12:00:00 AM",
+      "price": 124.45,
+      "quantity": 250.82302427608147
+    },
+    {
+      "type": "BUY",
+      "date": 1743465600000,
+      "readableDate": "4/1/2025, 12:00:00 AM",
+      "price": 127.55,
+      "quantity": 583.3327122518276
+    }
+  ],
+  "finalCapital": 82671.20827524512,
+  "totalReturns": "-17.3",
+  "timestamp": "2025-04-01T17:45:45.284Z",
+  "readableTime": "4/1/2025, 5:45:45 PM"
+}

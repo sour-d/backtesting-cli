@@ -1,67 +1,70 @@
 import { AIDataLoader } from './core/data_loader.js';
-import { NeuralNetwork } from './core/model.js';
-import chalk from 'chalk';
-import ora from 'ora';
+    import { LinearModel } from './core/model.js';
+    import chalk from 'chalk';
+    import ora from 'ora';
 
-const spinner = ora('Starting AI training pipeline').start();
+    const spinner = ora('Starting AI training').start();
 
-try {
-  // 1. Data loading
-  spinner.text = 'Loading market data';
-  const loader = new AIDataLoader();
-  const rawData = loader.loadRawData();
-  spinner.succeed(`📂 Loaded ${rawData.data.length} historical records`);
+    (async () => {
+      try {
+        // Load and prepare data
+        const symbol = process.env.DEFAULT_SYMBOL || 'BTCUSDT';
+        const interval = process.env.DEFAULT_INTERVAL || 'D';
+        const loader = new AIDataLoader(symbol, interval);
+        const processedData = loader.loadRawData().preprocess();
+        spinner.info(`Found ${processedData.length} valid processed data points.`); // Log count
+        if (processedData.length < 10) {
+          throw new Error(`Need at least 10 valid records (found ${processedData.length})`);
+        }
 
-  // 2. Preprocessing
-  spinner.start('Processing raw data');
-  const processedData = loader.preprocess();
-  spinner.succeed(`🛠️  Created ${processedData.length} normalized samples`);
-  console.log(chalk.dim(`First sample preview: ${JSON.stringify(processedData[0], null, 2)}`));
+        // Create training data
+        const features = [];
+        const labels = [];
+        for (let i = 0; i < processedData.length - 1; i++) {
+          features.push(processedData[i]);
+          labels.push(processedData[i + 1].close > processedData[i].close ? 1 : 0);
+        }
 
-  // 3. Prepare training data
-  spinner.start('Creating training dataset');
-  const features = [];
-  const labels = [];
-  
-  for (let i = 0; i < processedData.length - 1; i++) {
-    features.push(processedData[i]);
-    labels.push(processedData[i + 1].close > processedData[i].close ? 1 : 0);
-  }
-  spinner.succeed(`🎯 Created training set (${features.length} samples)`);
+        // Final validation before training
+        const validFeatures = features.filter(f => f && typeof f.price_change === 'number' && typeof f.volatility === 'number');
+        const validLabels = labels.filter(l => typeof l === 'number');
 
-  // 4. Model initialization
-  spinner.start('Initializing neural network');
-  const model = new NeuralNetwork([16, 8]); // Explicit hidden layers
-  spinner.succeed(`🧠 Created NN with ${model.hiddenLayers.join('→')} hidden units`);
+        if (validFeatures.length !== features.length || validLabels.length !== labels.length) {
+            console.warn(`Data validation removed some entries. Features: ${features.length} -> ${validFeatures.length}, Labels: ${labels.length} -> ${validLabels.length}`);
+        }
+        if (validFeatures.length !== validLabels.length) {
+            // Adjust labels to match valid features if lengths differ due to filtering
+            const validIndices = features.map((f, idx) => f && typeof f.price_change === 'number' && typeof f.volatility === 'number' ? idx : -1).filter(idx => idx !== -1);
+            const adjustedLabels = validIndices.map(idx => labels[idx]).filter(l => typeof l === 'number');
 
-  // 5. Training
-  spinner.start('Training model').info();
-  model.train(features, labels);
-  
-  // 6. Evaluation
-  spinner.start('Evaluating model performance');
-  let correct = 0;
-  features.forEach((sample, idx) => {
-    const prediction = model.predict(sample);
-    if ((prediction > 0.5 && labels[idx] === 1) || (prediction <= 0.5 && labels[idx] === 0)) {
-      correct++;
-    }
-  });
-  const accuracy = (correct / features.length * 100).toFixed(1);
-  
-  const testSample = features[features.length - 1];
-  const prediction = model.predict(testSample);
-  const confidence = (prediction * 100).toFixed(1);
-  const actual = labels[labels.length - 1];
-  
-  spinner.succeed(chalk.green('✅ Training complete'));
-  console.log(chalk.dim('════════════════════════════════════════'));
-  console.log(`📈 ${chalk.bold('Training Accuracy:')} ${chalk.yellow(accuracy + '%')}`);
-  console.log(`🔮 ${chalk.bold('Final Prediction:')} ${chalk.cyan(confidence + '% confidence')}`);
-  console.log(`📉 ${chalk.bold('Actual Movement:')} ${actual === 1 ? chalk.green('Up') : chalk.red('Down')}`);
-  console.log(chalk.dim('════════════════════════════════════════'));
+            if (validFeatures.length !== adjustedLabels.length) {
+                 throw new Error(`Post-validation feature/label mismatch after adjustment: ${validFeatures.length} vs ${adjustedLabels.length}`);
+            }
+            console.warn(`Adjusted labels array to match valid features. New length: ${adjustedLabels.length}`);
+             if (validFeatures.length < 10) {
+                throw new Error(`Need at least 10 valid records after final validation (found ${validFeatures.length})`);
+            }
+            spinner.info(`Proceeding to train with ${validFeatures.length} valid feature/label pairs.`);
+            // Train model using validated and adjusted data
+            const model = new LinearModel();
+            await model.train(validFeatures, adjustedLabels, 100); // Pass validated arrays
+            await model.save();
 
-} catch (error) {
-  spinner.fail(chalk.red(`💥 Training failed: ${error.message}`));
-  process.exit(1);
-}
+        } else {
+             if (validFeatures.length < 10) {
+                throw new Error(`Need at least 10 valid records after final validation (found ${validFeatures.length})`);
+            }
+            spinner.info(`Proceeding to train with ${validFeatures.length} valid feature/label pairs.`);
+            // Train model using validated data
+            const model = new LinearModel();
+            await model.train(validFeatures, validLabels, 100); // Pass validated arrays
+            await model.save();
+        }
+
+
+        spinner.succeed(chalk.green('Training completed successfully'));
+      } catch (error) {
+        spinner.fail(chalk.red(`Training failed: ${error.message}`));
+        process.exit(1);
+      }
+    })();

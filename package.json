@@ -12,6 +12,7 @@
     "cli": "node src/cli/index.js"
   },
   "dependencies": {
+    "@tensorflow/tfjs-node": "^4.22.0",
     "bybit-api": "^4.1.0",
     "chalk": "^4.1.2",
     "commander": "^13.1.0",
