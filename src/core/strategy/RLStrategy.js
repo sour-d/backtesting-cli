@@ -95,9 +95,11 @@ class RLStrategy extends Strategy {
       'inPosition', 'positionType', 'unrealizedPnL'
     ];
 
+    // Improved weight initialization with larger variance
     features.forEach(feature => {
-      this.qValues.weights[feature] = Math.random() * 0.2 - 0.1;
+      this.qValues.weights[feature] = (Math.random() - 0.5) * Math.sqrt(2 / features.length);
     });
+    this.qValues.bias = 0.1 * (Math.random() - 0.5);
   }
 
   getState() {

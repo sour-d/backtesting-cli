@@ -20,6 +20,7 @@ class RLTrainer {
       epoch: 0,
       totalReward: 0,
       avgReward: 0,
+
       winRate: 0,
       maxDrawdown: 0,
       sharpeRatio: 0,
@@ -98,7 +99,9 @@ class RLTrainer {
       current.tradeCount >= this.config.minTradeCount &&
       current.winRate >= this.config.minWinRate &&
       current.sharpeRatio >= this.config.minSharpeRatio &&
-      current.sharpeRatio > best.sharpeRatio * (1 + this.config.improvementThreshold)
+      current.sharpeRatio > best.sharpeRatio * (1 + this.config.improvementThreshold) &&
+      current.transformedTrades &&
+      current.transformedTrades.length > 0
     );
   }
 
@@ -235,7 +238,11 @@ class RLTrainer {
   }
 
   async saveModel() {
-    if (this.bestPerformance.saved) return;
+    if (this.bestPerformance.saved || 
+        !this.bestPerformance.transformedTrades ||
+        this.bestPerformance.transformedTrades.length === 0) {
+      return;
+    }
 
     const modelData = {
       weights: this.strategy.qValues.weights,
@@ -248,19 +255,26 @@ class RLTrainer {
         winRate: this.bestPerformance.winRate,
         epoch: this.bestPerformance.epoch,
         profitFactor: this.bestPerformance.profitFactor
-      }
+      },
+      trades: this.bestPerformance.transformedTrades
     };
 
-    await this.strategy.persistTradesFn({
+    const savePayload = {
       ...modelData,
       metadata: {
         modelType: "RL-Strategy",
         version: "1.0",
         timestamp: new Date().toISOString()
       }
-    });
+    };
 
-    this.bestPerformance.saved = true;
+    try {
+      await this.strategy.persistTradesFn(savePayload);
+      this.bestPerformance.saved = true;
+      console.log(chalk.green(`Model saved with ${this.bestPerformance.transformedTrades.length} trades`));
+    } catch (error) {
+      console.log(chalk.red(`Failed to save model: ${error.message}`));
+    }
   }
 }
 
