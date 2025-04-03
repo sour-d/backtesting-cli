@@ -68,8 +68,8 @@ export function printTradeSummary(collatedTrades, report) {
   
   // Display overall report summary using report object
   console.log(chalk.green(`Amount Started With: ${report.initialCapital.toFixed(2)}`));
-  console.log(chalk.green(`Amount Left After Trades: ${report.finalCapital.toFixed(2)}`));
-  const overallProfitPct = ((report.finalCapital - report.initialCapital) / report.initialCapital * 100).toFixed(2);
+  console.log(chalk.green(`Amount Left After Trades: ${(report.finalCapital - totalFees).toFixed(2)}`));
+  const overallProfitPct = ((report.finalCapital - totalFees - report.initialCapital) / report.initialCapital * 100).toFixed(2);
   console.log(chalk.green(`Overall Profit: ${overallProfitPct}%`));
   console.log(chalk.blue("--------------------------------------------------------------------------------"));
 }

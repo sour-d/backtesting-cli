@@ -1,16 +1,16 @@
 {
   "weights": {
-    "price_change": 21.386662321635093,
-    "volatility": 10.762206714919742,
-    "bias": 11.649643932885226
+    "price_change": 12.028757701735026,
+    "volatility": 64.57660094083482,
+    "bias": 32.15357120538974
   },
   "featureMean": {
-    "price_change": -0.0005306316396766134,
-    "volatility": 0.20379374373945594
+    "price_change": 0.00496067647914709,
+    "volatility": 0.14459347900911632
   },
   "featureStd": {
-    "price_change": 0.1750582687331386,
-    "volatility": 0.11765642940370884
+    "price_change": 0.1279439004274578,
+    "volatility": 0.09850753191182003
   },
-  "timestamp": "2025-04-01T17:42:30.735Z"
+  "timestamp": "2025-04-03T18:04:05.817Z"
 }

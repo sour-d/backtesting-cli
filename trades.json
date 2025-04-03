@@ -2,1701 +2,1757 @@
   "trades": [
     {
       "type": "BUY",
-      "date": 1704672000000,
-      "readableDate": "1/8/2024, 12:00:00 AM",
-      "price": 0.02649,
-      "quantity": 3395.469988674972,
-      "stopLoss": 0.0259602,
+      "date": 1704585600000,
+      "readableDate": "1/7/2024, 12:00:00 AM",
+      "price": 0.4945,
+      "quantity": 181.8928210313448,
+      "stopLoss": 0.48461,
       "amountSpent": 90
     },
     {
       "type": "SELL",
       "date": 1704758400000,
       "readableDate": "1/9/2024, 12:00:00 AM",
-      "price": 0.02467,
-      "quantity": 3395.469988674972,
+      "price": 0.5124,
+      "quantity": 181.8928210313448,
       "note": "Stop-loss triggered",
-      "amountReceived": 83.71598487383919
+      "amountReceived": 93.14596036756319
     },
     {
       "type": "BUY",
       "date": 1704844800000,
       "readableDate": "1/10/2024, 12:00:00 AM",
-      "price": 0.02736,
-      "quantity": 3080.9130027274637,
-      "stopLoss": 0.026812799999999998,
-      "amountSpent": 84.34438638645527
+      "price": 0.5663,
+      "quantity": 163.8277688719908,
+      "stopLoss": 0.554974,
+      "amountSpent": 92.83136433080688
     },
     {
       "type": "SELL",
       "date": 1705017600000,
       "readableDate": "1/12/2024, 12:00:00 AM",
-      "price": 0.02598,
-      "quantity": 3080.9130027274637,
+      "price": 0.5478,
+      "quantity": 163.8277688719908,
       "note": "Stop-loss triggered",
-      "amountReceived": 79.99409453897299
+      "amountReceived": 89.69100487700369
     },
     {
       "type": "BUY",
-      "date": 1705104000000,
-      "readableDate": "1/13/2024, 12:00:00 AM",
-      "price": 0.02679,
-      "quantity": 3000.4056084168337,
-      "stopLoss": 0.026254200000000002,
-      "amountSpent": 80.42912372372122
-    },
-    {
-      "type": "SELL",
-      "date": 1705190400000,
-      "readableDate": "1/14/2024, 12:00:00 AM",
-      "price": 0.02524,
-      "quantity": 3000.4056084168337,
-      "note": "Stop-loss triggered",
-      "amountReceived": 75.68479941390702
-    },
-    {
-      "type": "BUY",
-      "date": 1705276800000,
-      "readableDate": "1/15/2024, 12:00:00 AM",
-      "price": 0.02525,
-      "quantity": 3014.397477456693,
-      "stopLoss": 0.024745,
-      "amountSpent": 76.15923184488844
+      "date": 1705363200000,
+      "readableDate": "1/16/2024, 12:00:00 AM",
+      "price": 0.5358,
+      "quantity": 167.88174281054603,
+      "stopLoss": 0.525084,
+      "amountSpent": 90.005040822384
     },
     {
       "type": "SELL",
       "date": 1705449600000,
       "readableDate": "1/17/2024, 12:00:00 AM",
-      "price": 0.02554,
-      "quantity": 3014.397477456693,
-      "amountReceived": 76.9415189472994
+      "price": 0.5283,
+      "quantity": 167.88174281054603,
+      "amountReceived": 88.63870957197538
     },
     {
       "type": "BUY",
-      "date": 1705622400000,
-      "readableDate": "1/19/2024, 12:00:00 AM",
-      "price": 0.02376,
-      "quantity": 3233.045970661451,
-      "stopLoss": 0.023284799999999998,
-      "amountSpent": 76.86329023705831
+      "date": 1705536000000,
+      "readableDate": "1/18/2024, 12:00:00 AM",
+      "price": 0.5024,
+      "quantity": 176.59649182205024,
+      "stopLoss": 0.49235199999999996,
+      "amountSpent": 88.77534269701624
     },
     {
       "type": "SELL",
       "date": 1705708800000,
       "readableDate": "1/20/2024, 12:00:00 AM",
-      "price": 0.02376,
-      "quantity": 3233.045970661451,
-      "amountReceived": 76.77108195955833
+      "price": 0.5161,
+      "quantity": 176.59649182205024,
+      "amountReceived": 91.0867645597025
     },
     {
       "type": "BUY",
-      "date": 1705795200000,
-      "readableDate": "1/21/2024, 12:00:00 AM",
-      "price": 0.02409,
-      "quantity": 3185.3148445677016,
-      "stopLoss": 0.0236082,
-      "amountSpent": 76.78030278730832
-    },
-    {
-      "type": "SELL",
       "date": 1705881600000,
       "readableDate": "1/22/2024, 12:00:00 AM",
-      "price": 0.02232,
-      "quantity": 3185.3148445677016,
-      "note": "Stop-loss triggered",
-      "amountReceived": 71.05356959435264
-    },
-    {
-      "type": "BUY",
-      "date": 1705968000000,
-      "readableDate": "1/23/2024, 12:00:00 AM",
-      "price": 0.02186,
-      "quantity": 3274.623383709973,
-      "stopLoss": 0.021422800000000002,
-      "amountSpent": 71.62624291364821
+      "price": 0.4787,
+      "quantity": 189.68270106540595,
+      "stopLoss": 0.469126,
+      "amountSpent": 90.85562237343389
     },
     {
       "type": "SELL",
+      "date": 1706054400000,
+      "readableDate": "1/24/2024, 12:00:00 AM",
+      "price": 0.4766,
+      "quantity": 189.68270106540595,
+      "amountReceived": 90.3485336625758
+    },
+    {
+      "type": "BUY",
       "date": 1706140800000,
       "readableDate": "1/25/2024, 12:00:00 AM",
-      "price": 0.02209,
-      "quantity": 3274.623383709973,
-      "amountReceived": 72.2930286878256
-    },
-    {
-      "type": "BUY",
-      "date": 1706227200000,
-      "readableDate": "1/26/2024, 12:00:00 AM",
-      "price": 0.02302,
-      "quantity": 3135.6652606577595,
-      "stopLoss": 0.0225596,
-      "amountSpent": 72.22635011040786
+      "price": 0.4667,
+      "quantity": 193.58260764547117,
+      "stopLoss": 0.457366,
+      "amountSpent": 90.3992425336616
     },
     {
       "type": "SELL",
-      "date": 1706400000000,
-      "readableDate": "1/28/2024, 12:00:00 AM",
-      "price": 0.02276,
-      "quantity": 3135.6652606577595,
-      "note": "Stop-loss triggered",
-      "amountReceived": 71.32492068777105
+      "date": 1706313600000,
+      "readableDate": "1/27/2024, 12:00:00 AM",
+      "price": 0.4861,
+      "quantity": 193.58260764547117,
+      "amountReceived": 94.04404527311766
     },
     {
       "type": "BUY",
       "date": 1706486400000,
       "readableDate": "1/29/2024, 12:00:00 AM",
-      "price": 0.02345,
-      "quantity": 3043.5912405909044,
-      "stopLoss": 0.022980999999999998,
-      "amountSpent": 71.41506363003472
+      "price": 0.5262,
+      "quantity": 177.92352196916107,
+      "stopLoss": 0.515676,
+      "amountSpent": 93.67956499917206
     },
     {
       "type": "SELL",
       "date": 1706572800000,
       "readableDate": "1/30/2024, 12:00:00 AM",
-      "price": 0.02269,
-      "quantity": 3043.5912405909044,
+      "price": 0.5138,
+      "quantity": 177.92352196916107,
       "note": "Stop-loss triggered",
-      "amountReceived": 69.0176497978582
+      "amountReceived": 91.36225532440231
     },
     {
       "type": "BUY",
+      "date": 1706659200000,
+      "readableDate": "1/31/2024, 12:00:00 AM",
+      "price": 0.4973,
+      "quantity": 184.07204886407433,
+      "stopLoss": 0.487354,
+      "amountSpent": 91.59398629187929
+    },
+    {
+      "type": "SELL",
       "date": 1706832000000,
       "readableDate": "2/2/2024, 12:00:00 AM",
-      "price": 0.02189,
-      "quantity": 3161.9843191579357,
-      "stopLoss": 0.021452199999999998,
-      "amountSpent": 69.25739118107586
-    },
-    {
-      "type": "SELL",
-      "date": 1706918400000,
-      "readableDate": "2/3/2024, 12:00:00 AM",
-      "price": 0.02167,
-      "quantity": 3161.9843191579357,
-      "amountReceived": 68.47908807603477
-    },
-    {
-      "type": "BUY",
-      "date": 1707091200000,
-      "readableDate": "2/5/2024, 12:00:00 AM",
-      "price": 0.02185,
-      "quantity": 3135.7338322886476,
-      "stopLoss": 0.021413,
-      "amountSpent": 68.55691838653888
-    },
-    {
-      "type": "SELL",
-      "date": 1707177600000,
-      "readableDate": "2/6/2024, 12:00:00 AM",
-      "price": 0.02175,
-      "quantity": 3135.7338322886476,
-      "amountReceived": 68.16128952576672
+      "price": 0.5142,
+      "quantity": 184.07204886407433,
+      "amountReceived": 94.59305761739148
     },
     {
       "type": "BUY",
       "date": 1707264000000,
       "readableDate": "2/7/2024, 12:00:00 AM",
-      "price": 0.0229,
-      "quantity": 2976.4162401920007,
-      "stopLoss": 0.022442,
-      "amountSpent": 68.20085241184393
+      "price": 0.502,
+      "quantity": 187.7222601485047,
+      "stopLoss": 0.49196,
+      "amountSpent": 94.29315048484025
     },
     {
       "type": "SELL",
-      "date": 1707350400000,
-      "readableDate": "2/8/2024, 12:00:00 AM",
-      "price": 0.02256,
-      "quantity": 2976.4162401920007,
-      "amountReceived": 67.1076616085043
-    },
-    {
-      "type": "BUY",
       "date": 1707436800000,
       "readableDate": "2/9/2024, 12:00:00 AM",
-      "price": 0.02411,
-      "quantity": 2786.2567606978414,
-      "stopLoss": 0.023627799999999997,
-      "amountSpent": 67.21698068883826
+      "price": 0.5408,
+      "quantity": 187.7222601485047,
+      "amountReceived": 101.45928616933833
     },
     {
-      "type": "SELL",
+      "type": "BUY",
       "date": 1707523200000,
       "readableDate": "2/10/2024, 12:00:00 AM",
-      "price": 0.02393,
-      "quantity": 2786.2567606978414,
-      "amountReceived": 66.63511920892924
-    },
-    {
-      "type": "BUY",
-      "date": 1707696000000,
-      "readableDate": "2/12/2024, 12:00:00 AM",
-      "price": 0.02456,
-      "quantity": 2713.8961471378666,
-      "stopLoss": 0.024068799999999998,
-      "amountSpent": 66.69330535692015
+      "price": 0.5517,
+      "quantity": 182.49452056793183,
+      "stopLoss": 0.540666,
+      "amountSpent": 100.74267260088853
     },
     {
       "type": "SELL",
-      "date": 1708041600000,
-      "readableDate": "2/16/2024, 12:00:00 AM",
-      "price": 0.02653,
-      "quantity": 2713.8961471378666,
+      "date": 1707782400000,
+      "readableDate": "2/13/2024, 12:00:00 AM",
+      "price": 0.5451,
+      "quantity": 182.49452056793183,
       "note": "Stop-loss triggered",
-      "amountReceived": 71.95646498469748
+      "amountReceived": 99.4180765036827
     },
     {
       "type": "BUY",
-      "date": 1708128000000,
-      "readableDate": "2/17/2024, 12:00:00 AM",
-      "price": 0.02648,
-      "quantity": 2695.8946726777413,
-      "stopLoss": 0.0259504,
-      "amountSpent": 71.43014902191975
+      "date": 1707868800000,
+      "readableDate": "2/14/2024, 12:00:00 AM",
+      "price": 0.5774,
+      "quantity": 172.30828852049746,
+      "stopLoss": 0.565852,
+      "amountSpent": 99.55053611340328
+    },
+    {
+      "type": "SELL",
+      "date": 1708300800000,
+      "readableDate": "2/19/2024, 12:00:00 AM",
+      "price": 0.6316,
+      "quantity": 172.30828852049746,
+      "amountReceived": 108.76461708052847
+    },
+    {
+      "type": "BUY",
+      "date": 1708387200000,
+      "readableDate": "2/20/2024, 12:00:00 AM",
+      "price": 0.6224,
+      "quantity": 173.16597535094098,
+      "stopLoss": 0.6099519999999999,
+      "amountSpent": 107.84320898381594
     },
     {
       "type": "SELL",
       "date": 1708473600000,
       "readableDate": "2/21/2024, 12:00:00 AM",
-      "price": 0.02735,
-      "quantity": 2695.8946726777413,
+      "price": 0.5989,
+      "quantity": 173.16597535094098,
       "note": "Stop-loss triggered",
-      "amountReceived": 73.68847966615758
+      "amountReceived": 103.64687717609594
     },
     {
       "type": "BUY",
-      "date": 1708560000000,
-      "readableDate": "2/22/2024, 12:00:00 AM",
-      "price": 0.02863,
-      "quantity": 2564.392910016513,
-      "stopLoss": 0.0280574,
-      "amountSpent": 73.4626466017338
+      "date": 1708732800000,
+      "readableDate": "2/24/2024, 12:00:00 AM",
+      "price": 0.5976,
+      "quantity": 174.03626246762687,
+      "stopLoss": 0.5856480000000001,
+      "amountSpent": 104.06651035686794
     },
     {
       "type": "SELL",
+      "date": 1708819200000,
+      "readableDate": "2/25/2024, 12:00:00 AM",
+      "price": 0.5923,
+      "quantity": 174.03626246762687,
+      "amountReceived": 103.01982925261966
+    },
+    {
+      "type": "BUY",
+      "date": 1708905600000,
+      "readableDate": "2/26/2024, 12:00:00 AM",
+      "price": 0.6201,
+      "quantity": 166.20322958333603,
+      "stopLoss": 0.607698,
+      "amountSpent": 103.1244973630445
+    },
+    {
+      "type": "SELL",
+      "date": 1708992000000,
+      "readableDate": "2/27/2024, 12:00:00 AM",
+      "price": 0.6246,
+      "quantity": 166.20322958333603,
+      "amountReceived": 103.74825087543303
+    },
+    {
+      "type": "BUY",
       "date": 1709078400000,
       "readableDate": "2/28/2024, 12:00:00 AM",
-      "price": 0.03772,
-      "quantity": 2564.392910016513,
-      "note": "Stop-loss triggered",
-      "amountReceived": 96.67086322548336
-    },
-    {
-      "type": "BUY",
-      "date": 1709164800000,
-      "readableDate": "2/29/2024, 12:00:00 AM",
-      "price": 0.03982,
-      "quantity": 2367.9917513352716,
-      "stopLoss": 0.0390236,
-      "amountSpent": 94.35004156310839
-    },
-    {
-      "type": "SELL",
-      "date": 1709424000000,
-      "readableDate": "3/3/2024, 12:00:00 AM",
-      "price": 0.04497,
-      "quantity": 2367.9917513352716,
-      "note": "Stop-loss triggered",
-      "amountReceived": 106.42469590411264
-    },
-    {
-      "type": "BUY",
-      "date": 1709510400000,
-      "readableDate": "3/4/2024, 12:00:00 AM",
-      "price": 0.04554,
-      "quantity": 2309.0491904200753,
-      "stopLoss": 0.044629199999999994,
-      "amountSpent": 105.21723047001223
+      "price": 0.6297,
+      "quantity": 164.56036842763166,
+      "stopLoss": 0.617106,
+      "amountSpent": 103.68587552419417
     },
     {
       "type": "SELL",
       "date": 1709596800000,
       "readableDate": "3/5/2024, 12:00:00 AM",
-      "price": 0.03981,
-      "quantity": 2309.0491904200753,
+      "price": 0.6924,
+      "quantity": 164.56036842763166,
       "note": "Stop-loss triggered",
-      "amountReceived": 91.86809432166082
+      "amountReceived": 113.87323413983259
     },
     {
       "type": "BUY",
       "date": 1709683200000,
       "readableDate": "3/6/2024, 12:00:00 AM",
-      "price": 0.04266,
-      "quantity": 2183.4759993374137,
-      "stopLoss": 0.0418068,
-      "amountSpent": 93.20300793649595
+      "price": 0.7355,
+      "quantity": 153.34709120231378,
+      "stopLoss": 0.72079,
+      "amountSpent": 112.85449827826875
     },
     {
       "type": "SELL",
-      "date": 1710115200000,
-      "readableDate": "3/11/2024, 12:00:00 AM",
-      "price": 0.07394,
-      "quantity": 2183.4759993374137,
+      "date": 1709856000000,
+      "readableDate": "3/8/2024, 12:00:00 AM",
+      "price": 0.7238,
+      "quantity": 153.34709120231378,
       "note": "Stop-loss triggered",
-      "amountReceived": 161.34934766177375
+      "amountReceived": 110.92602903746736
     },
     {
       "type": "BUY",
+      "date": 1710028800000,
+      "readableDate": "3/10/2024, 12:00:00 AM",
+      "price": 0.7174,
+      "quantity": 154.79816648448642,
+      "stopLoss": 0.703052,
+      "amountSpent": 111.11887596154749
+    },
+    {
+      "type": "SELL",
       "date": 1710201600000,
       "readableDate": "3/12/2024, 12:00:00 AM",
-      "price": 0.07018,
-      "quantity": 2200.655355671593,
-      "stopLoss": 0.0687764,
-      "amountSpent": 154.53471368924596
-    },
-    {
-      "type": "SELL",
-      "date": 1710374400000,
-      "readableDate": "3/14/2024, 12:00:00 AM",
-      "price": 0.0705,
-      "quantity": 2200.655355671593,
+      "price": 0.749,
+      "quantity": 154.79816648448642,
       "note": "Stop-loss triggered",
-      "amountReceived": 155.0531148533024
+      "amountReceived": 115.8742604008622
     },
     {
       "type": "BUY",
+      "date": 1710288000000,
+      "readableDate": "3/13/2024, 12:00:00 AM",
+      "price": 0.7647,
+      "quantity": 150.8166375359704,
+      "stopLoss": 0.749406,
+      "amountSpent": 115.39872195693071
+    },
+    {
+      "type": "SELL",
       "date": 1710460800000,
       "readableDate": "3/15/2024, 12:00:00 AM",
-      "price": 0.06511,
-      "quantity": 2379.177913869676,
-      "stopLoss": 0.0638078,
-      "amountSpent": 155.00127473689676
-    },
-    {
-      "type": "SELL",
-      "date": 1710547200000,
-      "readableDate": "3/16/2024, 12:00:00 AM",
-      "price": 0.05985,
-      "quantity": 2379.177913869676,
+      "price": 0.7283,
+      "quantity": 150.8166375359704,
       "note": "Stop-loss triggered",
-      "amountReceived": 142.30836186621303
+      "amountReceived": 109.77385326317675
     },
     {
       "type": "BUY",
-      "date": 1710633600000,
-      "readableDate": "3/17/2024, 12:00:00 AM",
-      "price": 0.06301,
-      "quantity": 2277.281488039826,
-      "stopLoss": 0.061749799999999994,
-      "amountSpent": 143.5776531532814
+      "date": 1710547200000,
+      "readableDate": "3/16/2024, 12:00:00 AM",
+      "price": 0.6596,
+      "quantity": 167.17728673206886,
+      "stopLoss": 0.646408,
+      "amountSpent": 110.33634013255215
     },
     {
       "type": "SELL",
       "date": 1710720000000,
       "readableDate": "3/18/2024, 12:00:00 AM",
-      "price": 0.05873,
-      "quantity": 2277.281488039826,
+      "price": 0.6607,
+      "quantity": 167.17728673206886,
       "note": "Stop-loss triggered",
-      "amountReceived": 133.6644949475034
+      "amountReceived": 110.38776092387157
     },
     {
       "type": "BUY",
-      "date": 1710892800000,
-      "readableDate": "3/20/2024, 12:00:00 AM",
-      "price": 0.05874,
-      "quantity": 2291.0285543347013,
-      "stopLoss": 0.0575652,
-      "amountSpent": 134.6558107680812
+      "date": 1710806400000,
+      "readableDate": "3/19/2024, 12:00:00 AM",
+      "price": 0.5866,
+      "quantity": 188.0606704286273,
+      "stopLoss": 0.574868,
+      "amountSpent": 110.38261884473962
     },
     {
       "type": "SELL",
       "date": 1710979200000,
       "readableDate": "3/21/2024, 12:00:00 AM",
-      "price": 0.05688,
-      "quantity": 2291.0285543347013,
-      "note": "Stop-loss triggered",
-      "amountReceived": 130.23551594805545
+      "price": 0.6324,
+      "quantity": 188.0606704286273,
+      "amountReceived": 118.85821023827647
     },
     {
       "type": "BUY",
       "date": 1711065600000,
       "readableDate": "3/22/2024, 12:00:00 AM",
-      "price": 0.05632,
-      "quantity": 2318.876756086647,
-      "stopLoss": 0.0551936,
-      "amountSpent": 130.67754543005802
+      "price": 0.6152,
+      "quantity": 191.7097605791018,
+      "stopLoss": 0.602896,
+      "amountSpent": 118.01065109892278
     },
     {
       "type": "SELL",
       "date": 1711497600000,
       "readableDate": "3/27/2024, 12:00:00 AM",
-      "price": 0.0654,
-      "quantity": 2318.876756086647,
+      "price": 0.6487,
+      "quantity": 191.7097605791018,
       "note": "Stop-loss triggered",
-      "amountReceived": 151.56354712415788
+      "amountReceived": 124.28750441465077
     },
     {
       "type": "BUY",
-      "date": 1711584000000,
-      "readableDate": "3/28/2024, 12:00:00 AM",
-      "price": 0.06803,
-      "quantity": 2195.873320396517,
-      "stopLoss": 0.06666939999999999,
-      "amountSpent": 149.4749469547479
-    },
-    {
-      "type": "SELL",
       "date": 1711670400000,
       "readableDate": "3/29/2024, 12:00:00 AM",
-      "price": 0.0655,
-      "quantity": 2195.873320396517,
-      "note": "Stop-loss triggered",
-      "amountReceived": 143.7434046644803
-    },
-    {
-      "type": "BUY",
-      "date": 1711756800000,
-      "readableDate": "3/30/2024, 12:00:00 AM",
-      "price": 0.06749,
-      "quantity": 2137.05688188133,
-      "stopLoss": 0.0661402,
-      "amountSpent": 144.31655889350705
+      "price": 0.6651,
+      "quantity": 185.81510027308397,
+      "stopLoss": 0.651798,
+      "amountSpent": 123.65981908307799
     },
     {
       "type": "SELL",
+      "date": 1711756800000,
+      "readableDate": "3/30/2024, 12:00:00 AM",
+      "price": 0.6443,
+      "quantity": 185.81510027308397,
+      "note": "Stop-loss triggered",
+      "amountReceived": 119.64883670448444
+    },
+    {
+      "type": "BUY",
       "date": 1711929600000,
       "readableDate": "4/1/2024, 12:00:00 AM",
-      "price": 0.06371,
-      "quantity": 2137.05688188133,
+      "price": 0.6218,
+      "quantity": 192.9525651035355,
+      "stopLoss": 0.609364,
+      "amountSpent": 120.0499349423438
+    },
+    {
+      "type": "SELL",
+      "date": 1712016000000,
+      "readableDate": "4/2/2024, 12:00:00 AM",
+      "price": 0.5807,
+      "quantity": 192.9525651035355,
       "note": "Stop-loss triggered",
-      "amountReceived": 136.07020280829272
+      "amountReceived": 111.9803260228897
     },
     {
       "type": "BUY",
       "date": 1712102400000,
       "readableDate": "4/3/2024, 12:00:00 AM",
-      "price": 0.05561,
-      "quantity": 2460.217613986047,
-      "stopLoss": 0.0544978,
-      "amountSpent": 136.89483841681417
+      "price": 0.5698,
+      "quantity": 197.82312134553564,
+      "stopLoss": 0.558404,
+      "amountSpent": 112.78728691483511
     },
     {
       "type": "SELL",
       "date": 1712275200000,
       "readableDate": "4/5/2024, 12:00:00 AM",
-      "price": 0.05593,
-      "quantity": 2460.217613986047,
-      "note": "Stop-loss triggered",
-      "amountReceived": 137.51741116754945
+      "price": 0.5746,
+      "quantity": 197.82312134553564,
+      "amountReceived": 113.6009640258297
     },
     {
       "type": "BUY",
-      "date": 1712361600000,
-      "readableDate": "4/6/2024, 12:00:00 AM",
-      "price": 0.05716,
-      "quantity": 2403.30092372534,
-      "stopLoss": 0.0560168,
-      "amountSpent": 137.45515389247592
+      "date": 1712534400000,
+      "readableDate": "4/8/2024, 12:00:00 AM",
+      "price": 0.6146,
+      "quantity": 184.59401978024957,
+      "stopLoss": 0.6023080000000001,
+      "amountSpent": 113.51959631473024
     },
     {
       "type": "SELL",
       "date": 1712620800000,
       "readableDate": "4/9/2024, 12:00:00 AM",
-      "price": 0.06084,
-      "quantity": 2403.30092372534,
+      "price": 0.5918,
+      "quantity": 184.59401978024957,
       "note": "Stop-loss triggered",
-      "amountReceived": 146.12909810253
+      "amountReceived": 109.17719526140812
     },
     {
       "type": "BUY",
       "date": 1712707200000,
       "readableDate": "4/10/2024, 12:00:00 AM",
-      "price": 0.06013,
-      "quantity": 2414.3446974773938,
-      "stopLoss": 0.058927400000000005,
-      "amountSpent": 145.2617036815246
+      "price": 0.5869,
+      "quantity": 186.65133498981135,
+      "stopLoss": 0.575162,
+      "amountSpent": 109.61143536674032
     },
     {
       "type": "SELL",
       "date": 1712793600000,
       "readableDate": "4/11/2024, 12:00:00 AM",
-      "price": 0.05878,
-      "quantity": 2414.3446974773938,
-      "note": "Stop-loss triggered",
-      "amountReceived": 141.83003220893056
+      "price": 0.5863,
+      "quantity": 186.65133498981135,
+      "amountReceived": 109.3680174979037
     },
     {
       "type": "BUY",
-      "date": 1712966400000,
-      "readableDate": "4/13/2024, 12:00:00 AM",
-      "price": 0.04056,
-      "quantity": 3503.153240546751,
-      "stopLoss": 0.0397488,
-      "amountSpent": 142.17319935618994
+      "date": 1712880000000,
+      "readableDate": "4/12/2024, 12:00:00 AM",
+      "price": 0.5025,
+      "quantity": 217.56561964023186,
+      "stopLoss": 0.49244999999999994,
+      "amountSpent": 109.39235928478736
     },
     {
       "type": "SELL",
-      "date": 1713139200000,
-      "readableDate": "4/15/2024, 12:00:00 AM",
-      "price": 0.04108,
-      "quantity": 3503.153240546751,
+      "date": 1712966400000,
+      "readableDate": "4/13/2024, 12:00:00 AM",
+      "price": 0.4449,
+      "quantity": 217.56561964023186,
       "note": "Stop-loss triggered",
-      "amountReceived": 143.82318940058752
+      "amountReceived": 96.7368672114324
     },
     {
       "type": "BUY",
-      "date": 1713225600000,
-      "readableDate": "4/16/2024, 12:00:00 AM",
-      "price": 0.04164,
-      "quantity": 3447.9345696904434,
-      "stopLoss": 0.0408072,
-      "amountSpent": 143.65819039614777
+      "date": 1713052800000,
+      "readableDate": "4/14/2024, 12:00:00 AM",
+      "price": 0.4671,
+      "quantity": 209.68446792746013,
+      "stopLoss": 0.457758,
+      "amountSpent": 98.0024164187679
     },
     {
       "type": "SELL",
       "date": 1713312000000,
       "readableDate": "4/17/2024, 12:00:00 AM",
-      "price": 0.04029,
-      "quantity": 3447.9345696904434,
+      "price": 0.4437,
+      "quantity": 209.68446792746013,
       "note": "Stop-loss triggered",
-      "amountReceived": 138.83393344254029
+      "amountReceived": 92.98117622036241
     },
     {
       "type": "BUY",
       "date": 1713398400000,
       "readableDate": "4/18/2024, 12:00:00 AM",
-      "price": 0.04451,
-      "quantity": 3128.1233278458385,
-      "stopLoss": 0.0436198,
-      "amountSpent": 139.31635913790103
+      "price": 0.4576,
+      "quantity": 204.16785458928942,
+      "stopLoss": 0.448448,
+      "amountSpent": 93.48330024020296
     },
     {
       "type": "SELL",
-      "date": 1713657600000,
-      "readableDate": "4/21/2024, 12:00:00 AM",
-      "price": 0.04891,
-      "quantity": 3128.1233278458385,
-      "amountReceived": 152.904714057761
+      "date": 1713830400000,
+      "readableDate": "4/23/2024, 12:00:00 AM",
+      "price": 0.4996,
+      "quantity": 204.16785458928942,
+      "note": "Stop-loss triggered",
+      "amountReceived": 101.9410587967173
     },
     {
       "type": "BUY",
-      "date": 1713744000000,
-      "readableDate": "4/22/2024, 12:00:00 AM",
-      "price": 0.0499,
-      "quantity": 3035.1693594916946,
-      "stopLoss": 0.048902,
-      "amountSpent": 151.545878565775
-    },
-    {
-      "type": "SELL",
       "date": 1713916800000,
       "readableDate": "4/24/2024, 12:00:00 AM",
-      "price": 0.04726,
-      "quantity": 3035.1693594916946,
-      "note": "Stop-loss triggered",
-      "amountReceived": 143.35603866721976
-    },
-    {
-      "type": "BUY",
-      "date": 1714003200000,
-      "readableDate": "4/25/2024, 12:00:00 AM",
-      "price": 0.0476,
-      "quantity": 3027.069698392459,
-      "stopLoss": 0.046648,
-      "amountSpent": 144.1750226570753
+      "price": 0.4743,
+      "quantity": 213.01839715644365,
+      "stopLoss": 0.464814,
+      "amountSpent": 101.09528294106586
     },
     {
       "type": "SELL",
-      "date": 1714089600000,
-      "readableDate": "4/26/2024, 12:00:00 AM",
-      "price": 0.046,
-      "quantity": 3027.069698392459,
-      "note": "Stop-loss triggered",
-      "amountReceived": 139.1616590023775
+      "date": 1714003200000,
+      "readableDate": "4/25/2024, 12:00:00 AM",
+      "price": 0.4703,
+      "quantity": 213.01839715644365,
+      "amountReceived": 100.12244265136584
     },
     {
       "type": "BUY",
       "date": 1714176000000,
       "readableDate": "4/27/2024, 12:00:00 AM",
-      "price": 0.04544,
-      "quantity": 3071.7252986493518,
-      "stopLoss": 0.0445312,
-      "amountSpent": 139.66299536784726
+      "price": 0.4673,
+      "quantity": 214.3368175568749,
+      "stopLoss": 0.45795399999999997,
+      "amountSpent": 100.21972668033584
     },
     {
       "type": "SELL",
-      "date": 1714435200000,
-      "readableDate": "4/30/2024, 12:00:00 AM",
-      "price": 0.04118,
-      "quantity": 3071.7252986493518,
-      "note": "Stop-loss triggered",
-      "amountReceived": 126.41775160970128
+      "date": 1714262400000,
+      "readableDate": "4/28/2024, 12:00:00 AM",
+      "price": 0.4599,
+      "quantity": 214.3368175568749,
+      "amountReceived": 98.51435829297012
     },
     {
       "type": "BUY",
-      "date": 1714521600000,
-      "readableDate": "5/1/2024, 12:00:00 AM",
-      "price": 0.04206,
-      "quantity": 3035.3216980486113,
-      "stopLoss": 0.0412188,
-      "amountSpent": 127.7422759855159
+      "date": 1714435200000,
+      "readableDate": "4/30/2024, 12:00:00 AM",
+      "price": 0.441,
+      "quantity": 223.64100724405367,
+      "stopLoss": 0.43218,
+      "amountSpent": 98.6848951317067
+    },
+    {
+      "type": "SELL",
+      "date": 1714780800000,
+      "readableDate": "5/4/2024, 12:00:00 AM",
+      "price": 0.4628,
+      "quantity": 223.64100724405367,
+      "amountReceived": 103.4389575176565
+    },
+    {
+      "type": "BUY",
+      "date": 1714953600000,
+      "readableDate": "5/6/2024, 12:00:00 AM",
+      "price": 0.4539,
+      "quantity": 226.70582319518414,
+      "stopLoss": 0.444822,
+      "amountSpent": 102.96355127906152
     },
     {
       "type": "SELL",
       "date": 1715040000000,
       "readableDate": "5/7/2024, 12:00:00 AM",
-      "price": 0.04389,
-      "quantity": 3035.3216980486113,
+      "price": 0.4412,
+      "quantity": 226.70582319518414,
       "note": "Stop-loss triggered",
-      "amountReceived": 133.14033716575713
+      "amountReceived": 99.96259562819901
     },
     {
       "type": "BUY",
+      "date": 1715126400000,
+      "readableDate": "5/8/2024, 12:00:00 AM",
+      "price": 0.4515,
+      "quantity": 221.93252176870274,
+      "stopLoss": 0.44247000000000003,
+      "amountSpent": 100.26269119328526
+    },
+    {
+      "type": "SELL",
       "date": 1715212800000,
       "readableDate": "5/9/2024, 12:00:00 AM",
-      "price": 0.0445,
-      "quantity": 2977.9993422270645,
-      "stopLoss": 0.043609999999999996,
-      "amountSpent": 132.600531047733
-    },
-    {
-      "type": "SELL",
-      "date": 1715299200000,
-      "readableDate": "5/10/2024, 12:00:00 AM",
-      "price": 0.04213,
-      "quantity": 2977.9993422270645,
-      "note": "Stop-loss triggered",
-      "amountReceived": 125.3878344206534
+      "price": 0.4633,
+      "quantity": 221.93252176870274,
+      "amountReceived": 102.75964453303871
     },
     {
       "type": "BUY",
-      "date": 1715385600000,
-      "readableDate": "5/11/2024, 12:00:00 AM",
-      "price": 0.04236,
-      "quantity": 2975.293640720287,
-      "stopLoss": 0.0415128,
-      "amountSpent": 126.10910408336137
+      "date": 1715299200000,
+      "readableDate": "5/10/2024, 12:00:00 AM",
+      "price": 0.4477,
+      "quantity": 228.83279702824197,
+      "stopLoss": 0.43874599999999997,
+      "amountSpent": 102.50994919906337
     },
     {
       "type": "SELL",
-      "date": 1715472000000,
-      "readableDate": "5/12/2024, 12:00:00 AM",
-      "price": 0.04152,
-      "quantity": 2975.293640720287,
-      "amountReceived": 123.46007144752869
+      "date": 1715385600000,
+      "readableDate": "5/11/2024, 12:00:00 AM",
+      "price": 0.4387,
+      "quantity": 228.83279702824197,
+      "note": "Stop-loss triggered",
+      "amountReceived": 100.32871468745597
     },
     {
       "type": "BUY",
       "date": 1715558400000,
       "readableDate": "5/13/2024, 12:00:00 AM",
-      "price": 0.04099,
-      "quantity": 3016.607458557826,
-      "stopLoss": 0.040170199999999996,
-      "amountSpent": 123.72497471111194
+      "price": 0.4366,
+      "quantity": 230.15691716842312,
+      "stopLoss": 0.42786799999999997,
+      "amountSpent": 100.5468381386167
     },
     {
       "type": "SELL",
       "date": 1715644800000,
       "readableDate": "5/14/2024, 12:00:00 AM",
-      "price": 0.03957,
-      "quantity": 3016.607458557826,
-      "note": "Stop-loss triggered",
-      "amountReceived": 119.2955368408521
+      "price": 0.4283,
+      "quantity": 230.15691716842312,
+      "amountReceived": 98.5170618986617
     },
     {
       "type": "BUY",
       "date": 1715731200000,
       "readableDate": "5/15/2024, 12:00:00 AM",
-      "price": 0.04334,
-      "quantity": 2761.1130027572995,
-      "stopLoss": 0.042473199999999996,
-      "amountSpent": 119.73848062787808
+      "price": 0.4524,
+      "quantity": 218.08312886592307,
+      "stopLoss": 0.443352,
+      "amountSpent": 98.72003952265719
     },
     {
       "type": "SELL",
-      "date": 1716076800000,
-      "readableDate": "5/19/2024, 12:00:00 AM",
-      "price": 0.04306,
-      "quantity": 2761.1130027572995,
-      "note": "Stop-loss triggered",
-      "amountReceived": 118.82218978319008
+      "date": 1715817600000,
+      "readableDate": "5/16/2024, 12:00:00 AM",
+      "price": 0.4596,
+      "quantity": 218.08312886592307,
+      "amountReceived": 100.17086742316218
+    },
+    {
+      "type": "BUY",
+      "date": 1715904000000,
+      "readableDate": "5/17/2024, 12:00:00 AM",
+      "price": 0.4821,
+      "quantity": 207.35484165594653,
+      "stopLoss": 0.472458,
+      "amountSpent": 100.02578463311168
+    },
+    {
+      "type": "SELL",
+      "date": 1715990400000,
+      "readableDate": "5/18/2024, 12:00:00 AM",
+      "price": 0.4819,
+      "quantity": 207.35484165594653,
+      "amountReceived": 99.86434361508422
     },
     {
       "type": "BUY",
       "date": 1716163200000,
       "readableDate": "5/20/2024, 12:00:00 AM",
-      "price": 0.04325,
-      "quantity": 2747.8027878922157,
-      "stopLoss": 0.042385,
-      "amountSpent": 118.9138188676589
+      "price": 0.5022,
+      "quantity": 198.76654604591167,
+      "stopLoss": 0.492156,
+      "amountSpent": 99.88048771688698
     },
     {
       "type": "SELL",
+      "date": 1716249600000,
+      "readableDate": "5/21/2024, 12:00:00 AM",
+      "price": 0.4949,
+      "quantity": 198.76654604591167,
+      "amountReceived": 98.31054189993881
+    },
+    {
+      "type": "BUY",
       "date": 1716422400000,
       "readableDate": "5/23/2024, 12:00:00 AM",
-      "price": 0.04375,
-      "quantity": 2747.8027878922157,
-      "note": "Stop-loss triggered",
-      "amountReceived": 120.14424214710226
+      "price": 0.4658,
+      "quantity": 211.26761691658362,
+      "stopLoss": 0.456484,
+      "amountSpent": 98.46753648163363
     },
     {
-      "type": "BUY",
+      "type": "SELL",
       "date": 1716508800000,
       "readableDate": "5/24/2024, 12:00:00 AM",
-      "price": 0.04394,
-      "quantity": 2729.8403982536743,
-      "stopLoss": 0.0430612,
-      "amountSpent": 120.02119981915793
-    },
-    {
-      "type": "SELL",
-      "date": 1716681600000,
-      "readableDate": "5/26/2024, 12:00:00 AM",
-      "price": 0.04392,
-      "quantity": 2729.8403982536743,
-      "amountReceived": 119.82265353712658
+      "price": 0.4602,
+      "quantity": 211.26761691658362,
+      "amountReceived": 97.16702209062878
     },
     {
       "type": "BUY",
-      "date": 1716768000000,
-      "readableDate": "5/27/2024, 12:00:00 AM",
-      "price": 0.04575,
-      "quantity": 2617.9366701733447,
-      "stopLoss": 0.044835,
-      "amountSpent": 119.84250816532972
+      "date": 1717372800000,
+      "readableDate": "6/3/2024, 12:00:00 AM",
+      "price": 0.4578,
+      "quantity": 212.40431473484367,
+      "stopLoss": 0.448644,
+      "amountSpent": 97.29707352972926
     },
     {
       "type": "SELL",
-      "date": 1716940800000,
-      "readableDate": "5/29/2024, 12:00:00 AM",
-      "price": 0.04369,
-      "quantity": 2617.9366701733447,
+      "date": 1717459200000,
+      "readableDate": "6/4/2024, 12:00:00 AM",
+      "price": 0.4618,
+      "quantity": 212.40431473484367,
+      "amountReceived": 98.02945955702407
+    },
+    {
+      "type": "BUY",
+      "date": 1717718400000,
+      "readableDate": "6/7/2024, 12:00:00 AM",
+      "price": 0.4494,
+      "quantity": 217.84033649693367,
+      "stopLoss": 0.440412,
+      "amountSpent": 97.95622095429458
+    },
+    {
+      "type": "SELL",
+      "date": 1717804800000,
+      "readableDate": "6/8/2024, 12:00:00 AM",
+      "price": 0.4368,
+      "quantity": 217.84033649693367,
       "note": "Stop-loss triggered",
-      "amountReceived": 114.30902652800151
+      "amountReceived": 95.09556738647153
     },
     {
       "type": "BUY",
-      "date": 1717113600000,
-      "readableDate": "5/31/2024, 12:00:00 AM",
-      "price": 0.04354,
-      "quantity": 2636.505679074857,
-      "stopLoss": 0.042669200000000004,
-      "amountSpent": 114.86237469173433
-    },
-    {
-      "type": "SELL",
-      "date": 1717200000000,
-      "readableDate": "6/1/2024, 12:00:00 AM",
-      "price": 0.04303,
-      "quantity": 2636.505679074857,
-      "amountReceived": 113.38077006696875
-    },
-    {
-      "type": "BUY",
-      "date": 1717286400000,
-      "readableDate": "6/2/2024, 12:00:00 AM",
-      "price": 0.04368,
-      "quantity": 2597.5460890825925,
-      "stopLoss": 0.042806399999999994,
-      "amountSpent": 113.5289305294453
-    },
-    {
-      "type": "SELL",
-      "date": 1717632000000,
-      "readableDate": "6/6/2024, 12:00:00 AM",
-      "price": 0.04543,
-      "quantity": 2597.5460890825925,
-      "note": "Stop-loss triggered",
-      "amountReceived": 117.93571491572597
-    },
-    {
-      "type": "BUY",
-      "date": 1717891200000,
-      "readableDate": "6/9/2024, 12:00:00 AM",
-      "price": 0.03895,
-      "quantity": 3014.7506920465125,
-      "stopLoss": 0.038171,
-      "amountSpent": 117.49503647709791
-    },
-    {
-      "type": "SELL",
-      "date": 1717977600000,
-      "readableDate": "6/10/2024, 12:00:00 AM",
-      "price": 0.03695,
-      "quantity": 3014.7506920465125,
-      "note": "Stop-loss triggered",
-      "amountReceived": 111.32820104827596
-    },
-    {
-      "type": "BUY",
-      "date": 1718150400000,
-      "readableDate": "6/12/2024, 12:00:00 AM",
-      "price": 0.03588,
-      "quantity": 3118.108073032426,
-      "stopLoss": 0.0351624,
-      "amountSpent": 111.94488459115816
+      "date": 1718064000000,
+      "readableDate": "6/11/2024, 12:00:00 AM",
+      "price": 0.4217,
+      "quantity": 226.0479102765186,
+      "stopLoss": 0.413266,
+      "amountSpent": 95.38163274325385
     },
     {
       "type": "SELL",
       "date": 1718236800000,
       "readableDate": "6/13/2024, 12:00:00 AM",
-      "price": 0.03392,
-      "quantity": 3118.108073032426,
+      "price": 0.4208,
+      "quantity": 226.0479102765186,
       "note": "Stop-loss triggered",
-      "amountReceived": 105.70276610175753
+      "amountReceived": 95.06388806797241
     },
     {
       "type": "BUY",
       "date": 1718323200000,
       "readableDate": "6/14/2024, 12:00:00 AM",
-      "price": 0.033,
-      "quantity": 3220.0964170887023,
-      "stopLoss": 0.03234,
-      "amountSpent": 106.3269779506976
+      "price": 0.4117,
+      "quantity": 230.8443165848415,
+      "stopLoss": 0.403466,
+      "amountSpent": 95.09566253550055
     },
     {
       "type": "SELL",
       "date": 1718409600000,
       "readableDate": "6/15/2024, 12:00:00 AM",
-      "price": 0.03289,
-      "quantity": 3220.0964170887023,
-      "amountReceived": 105.8454257753526
+      "price": 0.4137,
+      "quantity": 230.8443165848415,
+      "amountReceived": 95.44299359488625
     },
     {
       "type": "BUY",
-      "date": 1718496000000,
-      "readableDate": "6/16/2024, 12:00:00 AM",
-      "price": 0.03308,
-      "quantity": 3199.2153822337173,
-      "stopLoss": 0.0324184,
-      "amountSpent": 105.8935809928871
+      "date": 1718582400000,
+      "readableDate": "6/17/2024, 12:00:00 AM",
+      "price": 0.401,
+      "quantity": 237.7830811288137,
+      "stopLoss": 0.39298,
+      "amountSpent": 95.40826048894768
     },
     {
       "type": "SELL",
-      "date": 1718582400000,
-      "readableDate": "6/17/2024, 12:00:00 AM",
-      "price": 0.02937,
-      "quantity": 3199.2153822337173,
+      "date": 1718668800000,
+      "readableDate": "6/18/2024, 12:00:00 AM",
+      "price": 0.3833,
+      "quantity": 237.7830811288137,
       "note": "Stop-loss triggered",
-      "amountReceived": 93.90457920273855
+      "amountReceived": 91.08756964367628
     },
     {
       "type": "BUY",
-      "date": 1718755200000,
-      "readableDate": "6/19/2024, 12:00:00 AM",
-      "price": 0.02802,
-      "quantity": 3392.091980518356,
-      "stopLoss": 0.0274596,
-      "amountSpent": 95.10347938175339
+      "date": 1718841600000,
+      "readableDate": "6/20/2024, 12:00:00 AM",
+      "price": 0.384,
+      "quantity": 238.18939308585027,
+      "stopLoss": 0.37632,
+      "amountSpent": 91.51963872820342
+    },
+    {
+      "type": "SELL",
+      "date": 1718928000000,
+      "readableDate": "6/21/2024, 12:00:00 AM",
+      "price": 0.3757,
+      "quantity": 238.18939308585027,
+      "note": "Stop-loss triggered",
+      "amountReceived": 89.43406232936454
+    },
+    {
+      "type": "BUY",
+      "date": 1719014400000,
+      "readableDate": "6/22/2024, 12:00:00 AM",
+      "price": 0.3845,
+      "quantity": 233.00086969380203,
+      "stopLoss": 0.37681,
+      "amountSpent": 89.64261996924843
     },
     {
       "type": "SELL",
       "date": 1719100800000,
       "readableDate": "6/23/2024, 12:00:00 AM",
-      "price": 0.02717,
-      "quantity": 3392.091980518356,
-      "note": "Stop-loss triggered",
-      "amountReceived": 92.10784122721732
+      "price": 0.3799,
+      "quantity": 233.00086969380203,
+      "amountReceived": 88.46392017843739
     },
     {
       "type": "BUY",
       "date": 1719187200000,
       "readableDate": "6/24/2024, 12:00:00 AM",
-      "price": 0.02798,
-      "quantity": 3300.6419084933996,
-      "stopLoss": 0.0274204,
-      "amountSpent": 92.40740504267093
+      "price": 0.3776,
+      "quantity": 234.45085032686436,
+      "stopLoss": 0.370048,
+      "amountSpent": 88.58179015751848
     },
     {
       "type": "SELL",
       "date": 1719360000000,
       "readableDate": "6/26/2024, 12:00:00 AM",
-      "price": 0.02771,
-      "quantity": 3300.6419084933996,
-      "note": "Stop-loss triggered",
-      "amountReceived": 91.40591081198149
+      "price": 0.3848,
+      "quantity": 234.45085032686436,
+      "amountReceived": 90.16255719345394
     },
     {
       "type": "BUY",
-      "date": 1719446400000,
-      "readableDate": "6/27/2024, 12:00:00 AM",
-      "price": 0.02808,
-      "quantity": 3256.807571186232,
-      "stopLoss": 0.027518400000000002,
-      "amountSpent": 91.50606023505043
+      "date": 1719619200000,
+      "readableDate": "6/29/2024, 12:00:00 AM",
+      "price": 0.3841,
+      "quantity": 234.18505025140973,
+      "stopLoss": 0.376418,
+      "amountSpent": 90.0044804898604
     },
     {
       "type": "SELL",
-      "date": 1719532800000,
-      "readableDate": "6/28/2024, 12:00:00 AM",
-      "price": 0.02672,
-      "quantity": 3256.807571186232,
-      "note": "Stop-loss triggered",
-      "amountReceived": 86.96968516311486
-    },
-    {
-      "type": "BUY",
       "date": 1719705600000,
       "readableDate": "6/30/2024, 12:00:00 AM",
-      "price": 0.02768,
-      "quantity": 3156.4620186671327,
-      "stopLoss": 0.0271264,
-      "amountSpent": 87.42332267030842
-    },
-    {
-      "type": "SELL",
-      "date": 1719792000000,
-      "readableDate": "7/1/2024, 12:00:00 AM",
-      "price": 0.02689,
-      "quantity": 3156.4620186671327,
-      "note": "Stop-loss triggered",
-      "amountReceived": 84.82633732375002
+      "price": 0.3921,
+      "quantity": 234.18505025140973,
+      "amountReceived": 91.76886382865561
     },
     {
       "type": "BUY",
-      "date": 1719878400000,
-      "readableDate": "7/2/2024, 12:00:00 AM",
-      "price": 0.02745,
-      "quantity": 3097.813633402216,
-      "stopLoss": 0.026900999999999998,
-      "amountSpent": 85.08603585840586
+      "date": 1719792000000,
+      "readableDate": "7/1/2024, 12:00:00 AM",
+      "price": 0.403,
+      "quantity": 227.14012416744222,
+      "stopLoss": 0.39494,
+      "amountSpent": 91.59242549477608
     },
     {
       "type": "SELL",
       "date": 1719964800000,
       "readableDate": "7/3/2024, 12:00:00 AM",
-      "price": 0.02547,
-      "quantity": 3097.813633402216,
+      "price": 0.4067,
+      "quantity": 227.14012416744222,
       "note": "Stop-loss triggered",
-      "amountReceived": 78.85397245480878
+      "amountReceived": 92.32246176579942
     },
     {
       "type": "BUY",
+      "date": 1720051200000,
+      "readableDate": "7/4/2024, 12:00:00 AM",
+      "price": 0.362,
+      "quantity": 254.67985763484498,
+      "stopLoss": 0.35475999999999996,
+      "amountSpent": 92.2494581386971
+    },
+    {
+      "type": "SELL",
       "date": 1720137600000,
       "readableDate": "7/5/2024, 12:00:00 AM",
-      "price": 0.02107,
-      "quantity": 3769.7908157518464,
-      "stopLoss": 0.0206486,
-      "amountSpent": 79.4771787951685
+      "price": 0.3496,
+      "quantity": 254.67985763484498,
+      "note": "Stop-loss triggered",
+      "amountReceived": 88.98265658220433
+    },
+    {
+      "type": "BUY",
+      "date": 1720224000000,
+      "readableDate": "7/6/2024, 12:00:00 AM",
+      "price": 0.3704,
+      "quantity": 240.97125036666006,
+      "stopLoss": 0.362992,
+      "amountSpent": 89.3093367378536
     },
     {
       "type": "SELL",
       "date": 1720310400000,
       "readableDate": "7/7/2024, 12:00:00 AM",
-      "price": 0.02098,
-      "quantity": 3769.7908157518464,
+      "price": 0.3464,
+      "quantity": 240.97125036666006,
       "note": "Stop-loss triggered",
-      "amountReceived": 79.04275718768505
+      "amountReceived": 83.42235766233483
     },
     {
       "type": "BUY",
       "date": 1720396800000,
       "readableDate": "7/8/2024, 12:00:00 AM",
-      "price": 0.02148,
-      "quantity": 3679.643744358675,
-      "stopLoss": 0.0210504,
-      "amountSpent": 79.0861993484334
+      "price": 0.3688,
+      "quantity": 227.65902640060946,
+      "stopLoss": 0.361424,
+      "amountSpent": 84.01105556988671
     },
     {
       "type": "SELL",
-      "date": 1720656000000,
-      "readableDate": "7/11/2024, 12:00:00 AM",
-      "price": 0.02089,
-      "quantity": 3679.643744358675,
+      "date": 1720915200000,
+      "readableDate": "7/14/2024, 12:00:00 AM",
+      "price": 0.4316,
+      "quantity": 227.65902640060946,
       "note": "Stop-loss triggered",
-      "amountReceived": 76.82163716496093
+      "amountReceived": 98.19868121302635
     },
     {
       "type": "BUY",
-      "date": 1720742400000,
-      "readableDate": "7/12/2024, 12:00:00 AM",
-      "price": 0.02145,
-      "quantity": 3589.830514092223,
-      "stopLoss": 0.021021,
-      "amountSpent": 77.04809338330817
+      "date": 1721088000000,
+      "readableDate": "7/16/2024, 12:00:00 AM",
+      "price": 0.438,
+      "quantity": 220.82614314503002,
+      "stopLoss": 0.42924,
+      "amountSpent": 96.77991864871238
     },
     {
       "type": "SELL",
+      "date": 1721174400000,
+      "readableDate": "7/17/2024, 12:00:00 AM",
+      "price": 0.4356,
+      "quantity": 220.82614314503002,
+      "amountReceived": 96.13415283320269
+    },
+    {
+      "type": "BUY",
       "date": 1721260800000,
       "readableDate": "7/18/2024, 12:00:00 AM",
-      "price": 0.0239,
-      "quantity": 3589.830514092223,
-      "note": "Stop-loss triggered",
-      "amountReceived": 85.74547111723206
+      "price": 0.4233,
+      "quantity": 227.12263212167449,
+      "stopLoss": 0.414834,
+      "amountSpent": 96.19872941475367
+    },
+    {
+      "type": "SELL",
+      "date": 1721433600000,
+      "readableDate": "7/20/2024, 12:00:00 AM",
+      "price": 0.4369,
+      "quantity": 227.12263212167449,
+      "amountReceived": 99.17034004717522
     },
     {
       "type": "BUY",
-      "date": 1721347200000,
-      "readableDate": "7/19/2024, 12:00:00 AM",
-      "price": 0.02539,
-      "quantity": 3340.8746712813454,
-      "stopLoss": 0.0248822,
-      "amountSpent": 84.87573334383967
+      "date": 1721520000000,
+      "readableDate": "7/21/2024, 12:00:00 AM",
+      "price": 0.4466,
+      "quantity": 221.2580722717033,
+      "stopLoss": 0.437668,
+      "amountSpent": 98.87317898393306
     },
     {
       "type": "SELL",
       "date": 1721606400000,
       "readableDate": "7/22/2024, 12:00:00 AM",
-      "price": 0.02451,
-      "quantity": 3340.8746712813454,
+      "price": 0.426,
+      "quantity": 221.2580722717033,
       "note": "Stop-loss triggered",
-      "amountReceived": 81.83570729018992
+      "amountReceived": 94.19938522447296
     },
     {
       "type": "BUY",
-      "date": 1721952000000,
-      "readableDate": "7/26/2024, 12:00:00 AM",
-      "price": 0.02368,
-      "quantity": 3466.6565063183093,
-      "stopLoss": 0.0232064,
-      "amountSpent": 82.1397098955549
+      "date": 1721692800000,
+      "readableDate": "7/23/2024, 12:00:00 AM",
+      "price": 0.4098,
+      "quantity": 230.86862992108036,
+      "stopLoss": 0.401604,
+      "amountSpent": 94.66676460041897
     },
     {
       "type": "SELL",
-      "date": 1722124800000,
-      "readableDate": "7/28/2024, 12:00:00 AM",
-      "price": 0.02298,
-      "quantity": 3466.6565063183093,
-      "note": "Stop-loss triggered",
-      "amountReceived": 79.61596825528564
+      "date": 1721779200000,
+      "readableDate": "7/24/2024, 12:00:00 AM",
+      "price": 0.406,
+      "quantity": 230.86862992108036,
+      "amountReceived": 93.67642414970985
+    },
+    {
+      "type": "BUY",
+      "date": 1721865600000,
+      "readableDate": "7/25/2024, 12:00:00 AM",
+      "price": 0.3947,
+      "quantity": 237.44411684789432,
+      "stopLoss": 0.386806,
+      "amountSpent": 93.77545819478075
+    },
+    {
+      "type": "SELL",
+      "date": 1722038400000,
+      "readableDate": "7/27/2024, 12:00:00 AM",
+      "price": 0.4174,
+      "quantity": 237.44411684789432,
+      "amountReceived": 99.0497088676877
     },
     {
       "type": "BUY",
       "date": 1722211200000,
       "readableDate": "7/29/2024, 12:00:00 AM",
-      "price": 0.02319,
-      "quantity": 3442.019034664121,
-      "stopLoss": 0.0227262,
-      "amountSpent": 79.86834241931255
+      "price": 0.4029,
+      "quantity": 244.38612665702846,
+      "stopLoss": 0.39484199999999997,
+      "amountSpent": 98.522283800397
     },
     {
       "type": "SELL",
       "date": 1722297600000,
       "readableDate": "7/30/2024, 12:00:00 AM",
-      "price": 0.02263,
-      "quantity": 3442.019034664121,
-      "note": "Stop-loss triggered",
-      "amountReceived": 77.8461550199964
+      "price": 0.401,
+      "quantity": 244.38612665702846,
+      "amountReceived": 97.94003748739473
     },
     {
       "type": "BUY",
       "date": 1722470400000,
       "readableDate": "8/1/2024, 12:00:00 AM",
-      "price": 0.02189,
-      "quantity": 3563.34146805263,
-      "stopLoss": 0.021452199999999998,
-      "amountSpent": 78.04837375992803
+      "price": 0.3923,
+      "quantity": 249.65450716651475,
+      "stopLoss": 0.38445399999999996,
+      "amountSpent": 97.99826211869495
     },
     {
       "type": "SELL",
       "date": 1722556800000,
       "readableDate": "8/2/2024, 12:00:00 AM",
-      "price": 0.01985,
-      "quantity": 3563.34146805263,
+      "price": 0.3636,
+      "quantity": 249.65450716651475,
       "note": "Stop-loss triggered",
-      "amountReceived": 70.6898887439602
+      "amountReceived": 90.71991417846131
+    },
+    {
+      "type": "BUY",
+      "date": 1722643200000,
+      "readableDate": "8/3/2024, 12:00:00 AM",
+      "price": 0.3644,
+      "quantity": 250.80373304912507,
+      "stopLoss": 0.357112,
+      "amountSpent": 91.44774897248467
+    },
+    {
+      "type": "SELL",
+      "date": 1722729600000,
+      "readableDate": "8/4/2024, 12:00:00 AM",
+      "price": 0.344,
+      "quantity": 250.80373304912507,
+      "note": "Stop-loss triggered",
+      "amountReceived": 86.22471827839767
     },
     {
       "type": "BUY",
       "date": 1722816000000,
       "readableDate": "8/5/2024, 12:00:00 AM",
-      "price": 0.01568,
-      "quantity": 4552.47970683735,
-      "stopLoss": 0.015366399999999999,
-      "amountSpent": 71.42573724555697
+      "price": 0.3118,
+      "quantity": 278.0467387267405,
+      "stopLoss": 0.305564,
+      "amountSpent": 86.74702134780638
     },
     {
       "type": "SELL",
       "date": 1722988800000,
       "readableDate": "8/7/2024, 12:00:00 AM",
-      "price": 0.01611,
-      "quantity": 4552.47970683735,
+      "price": 0.3239,
+      "quantity": 278.0467387267405,
       "note": "Stop-loss triggered",
-      "amountReceived": 73.29644380830341
+      "amountReceived": 90.0053030703871
     },
     {
       "type": "BUY",
       "date": 1723075200000,
       "readableDate": "8/8/2024, 12:00:00 AM",
-      "price": 0.01749,
-      "quantity": 4177.559035342341,
-      "stopLoss": 0.017140199999999998,
-      "amountSpent": 73.10937315202877
+      "price": 0.3513,
+      "quantity": 255.12572505889597,
+      "stopLoss": 0.34427399999999997,
+      "amountSpent": 89.67947489812903
     },
     {
       "type": "SELL",
-      "date": 1723161600000,
-      "readableDate": "8/9/2024, 12:00:00 AM",
-      "price": 0.01685,
-      "quantity": 4177.559035342341,
-      "note": "Stop-loss triggered",
-      "amountReceived": 70.34963462367114
+      "date": 1723248000000,
+      "readableDate": "8/10/2024, 12:00:00 AM",
+      "price": 0.3455,
+      "quantity": 255.12572505889597,
+      "amountReceived": 88.09305044504384
     },
     {
       "type": "BUY",
-      "date": 1723420800000,
-      "readableDate": "8/12/2024, 12:00:00 AM",
-      "price": 0.01673,
-      "quantity": 4218.961931346144,
-      "stopLoss": 0.016395399999999997,
-      "amountSpent": 70.6256084765069
+      "date": 1723334400000,
+      "readableDate": "8/11/2024, 12:00:00 AM",
+      "price": 0.3275,
+      "quantity": 269.30913549501724,
+      "stopLoss": 0.32095,
+      "amountSpent": 88.25169289035236
     },
     {
       "type": "SELL",
+      "date": 1723507200000,
+      "readableDate": "8/13/2024, 12:00:00 AM",
+      "price": 0.3397,
+      "quantity": 269.30913549501724,
+      "amountReceived": 91.42942273966077
+    },
+    {
+      "type": "BUY",
       "date": 1723680000000,
       "readableDate": "8/15/2024, 12:00:00 AM",
-      "price": 0.01618,
-      "quantity": 4218.961931346144,
-      "note": "Stop-loss triggered",
-      "amountReceived": 68.22184636675111
+      "price": 0.3247,
+      "quantity": 280.43419391708375,
+      "stopLoss": 0.318206,
+      "amountSpent": 91.11164975472992
     },
     {
-      "type": "BUY",
+      "type": "SELL",
       "date": 1723852800000,
       "readableDate": "8/17/2024, 12:00:00 AM",
-      "price": 0.01704,
-      "quantity": 4015.3254251279377,
-      "stopLoss": 0.0166992,
-      "amountSpent": 68.46222257772669
+      "price": 0.3372,
+      "quantity": 280.43419391708375,
+      "amountReceived": 94.50567274272734
+    },
+    {
+      "type": "BUY",
+      "date": 1724198400000,
+      "readableDate": "8/21/2024, 12:00:00 AM",
+      "price": 0.3686,
+      "quantity": 255.31679512116455,
+      "stopLoss": 0.361228,
+      "amountSpent": 94.1662704439276
     },
     {
       "type": "SELL",
+      "date": 1724284800000,
+      "readableDate": "8/22/2024, 12:00:00 AM",
+      "price": 0.376,
+      "quantity": 255.31679512116455,
+      "amountReceived": 95.94151549657853
+    },
+    {
+      "type": "BUY",
+      "date": 1724371200000,
+      "readableDate": "8/23/2024, 12:00:00 AM",
+      "price": 0.391,
+      "quantity": 244.77374065656943,
+      "stopLoss": 0.38318,
+      "amountSpent": 95.76399099131343
+    },
+    {
+      "type": "SELL",
+      "date": 1724457600000,
+      "readableDate": "8/24/2024, 12:00:00 AM",
+      "price": 0.3933,
+      "quantity": 244.77374065656943,
+      "amountReceived": 96.2117504929086
+    },
+    {
+      "type": "BUY",
       "date": 1724630400000,
       "readableDate": "8/26/2024, 12:00:00 AM",
-      "price": 0.02014,
-      "quantity": 4015.3254251279377,
-      "note": "Stop-loss triggered",
-      "amountReceived": 80.82013286963942
+      "price": 0.3659,
+      "quantity": 262.6654122930403,
+      "stopLoss": 0.358582,
+      "amountSpent": 96.16697454274909
     },
     {
-      "type": "BUY",
+      "type": "SELL",
       "date": 1724716800000,
       "readableDate": "8/27/2024, 12:00:00 AM",
-      "price": 0.01888,
-      "quantity": 4212.7431798381285,
-      "stopLoss": 0.018502400000000002,
-      "amountSpent": 79.58434184044815
-    },
-    {
-      "type": "SELL",
-      "date": 1725062400000,
-      "readableDate": "8/31/2024, 12:00:00 AM",
-      "price": 0.01897,
-      "quantity": 4212.7431798381285,
+      "price": 0.3501,
+      "quantity": 262.6654122930403,
       "note": "Stop-loss triggered",
-      "amountReceived": 79.86778867865638
+      "amountReceived": 91.90398534728713
     },
     {
       "type": "BUY",
+      "date": 1724803200000,
+      "readableDate": "8/28/2024, 12:00:00 AM",
+      "price": 0.3498,
+      "quantity": 263.7932707154752,
+      "stopLoss": 0.342804,
+      "amountSpent": 92.33028426683333
+    },
+    {
+      "type": "SELL",
+      "date": 1724976000000,
+      "readableDate": "8/30/2024, 12:00:00 AM",
+      "price": 0.3466,
+      "quantity": 263.7932707154752,
+      "note": "Stop-loss triggered",
+      "amountReceived": 91.37588918140573
+    },
+    {
+      "type": "BUY",
+      "date": 1725148800000,
+      "readableDate": "9/1/2024, 12:00:00 AM",
+      "price": 0.3306,
+      "quantity": 276.51677523513166,
+      "stopLoss": 0.323988,
+      "amountSpent": 91.47132868994849
+    },
+    {
+      "type": "SELL",
       "date": 1725235200000,
       "readableDate": "9/2/2024, 12:00:00 AM",
-      "price": 0.01849,
-      "quantity": 4315.388876605661,
-      "stopLoss": 0.0181202,
-      "amountSpent": 79.83944399483556
+      "price": 0.336,
+      "quantity": 276.51677523513166,
+      "amountReceived": 92.85389069711685
     },
     {
-      "type": "SELL",
+      "type": "BUY",
       "date": 1725321600000,
       "readableDate": "9/3/2024, 12:00:00 AM",
-      "price": 0.01752,
-      "quantity": 4315.388876605661,
-      "note": "Stop-loss triggered",
-      "amountReceived": 75.5602497502603
-    },
-    {
-      "type": "BUY",
-      "date": 1725408000000,
-      "readableDate": "9/4/2024, 12:00:00 AM",
-      "price": 0.01801,
-      "quantity": 4216.689409950748,
-      "stopLoss": 0.0176498,
-      "amountSpent": 75.98816917471781
+      "price": 0.3184,
+      "quantity": 291.0176040066023,
+      "stopLoss": 0.31203200000000003,
+      "amountSpent": 92.71563449640001
     },
     {
       "type": "SELL",
-      "date": 1725494400000,
-      "readableDate": "9/5/2024, 12:00:00 AM",
-      "price": 0.01735,
-      "quantity": 4216.689409950748,
-      "note": "Stop-loss triggered",
-      "amountReceived": 73.11566552588789
-    },
-    {
-      "type": "BUY",
       "date": 1725580800000,
       "readableDate": "9/6/2024, 12:00:00 AM",
-      "price": 0.01736,
-      "quantity": 4225.74159799749,
-      "stopLoss": 0.0170128,
-      "amountSpent": 73.40291589077088
-    },
-    {
-      "type": "SELL",
-      "date": 1725926400000,
-      "readableDate": "9/10/2024, 12:00:00 AM",
-      "price": 0.01862,
-      "quantity": 4225.74159799749,
-      "amountReceived": 78.63609856958045
+      "price": 0.3144,
+      "quantity": 291.0176040066023,
+      "note": "Stop-loss triggered",
+      "amountReceived": 91.44103713885596
     },
     {
       "type": "BUY",
+      "date": 1725667200000,
+      "readableDate": "9/7/2024, 12:00:00 AM",
+      "price": 0.3251,
+      "quantity": 281.4935582174272,
+      "stopLoss": 0.318598,
+      "amountSpent": 91.56849687461036
+    },
+    {
+      "type": "SELL",
+      "date": 1725840000000,
+      "readableDate": "9/9/2024, 12:00:00 AM",
+      "price": 0.3433,
+      "quantity": 281.4935582174272,
+      "amountReceived": 96.57875649292114
+    },
+    {
+      "type": "BUY",
+      "date": 1726012800000,
+      "readableDate": "9/11/2024, 12:00:00 AM",
+      "price": 0.3529,
+      "quantity": 272.0886480384568,
+      "stopLoss": 0.345842,
+      "amountSpent": 96.07773053109007
+    },
+    {
+      "type": "SELL",
       "date": 1726099200000,
       "readableDate": "9/12/2024, 12:00:00 AM",
-      "price": 0.01824,
-      "quantity": 4279.929420697285,
-      "stopLoss": 0.017875199999999997,
-      "amountSpent": 78.1127803016995
-    },
-    {
-      "type": "SELL",
-      "date": 1726272000000,
-      "readableDate": "9/14/2024, 12:00:00 AM",
-      "price": 0.01823,
-      "quantity": 4279.929420697285,
-      "amountReceived": 77.97629947130793
+      "price": 0.3562,
+      "quantity": 272.0886480384568,
+      "amountReceived": 96.85982564543954
     },
     {
       "type": "BUY",
-      "date": 1726531200000,
-      "readableDate": "9/17/2024, 12:00:00 AM",
-      "price": 0.0181,
-      "quantity": 4306.251579326766,
-      "stopLoss": 0.017738,
-      "amountSpent": 77.98994755434708
+      "date": 1726358400000,
+      "readableDate": "9/15/2024, 12:00:00 AM",
+      "price": 0.3382,
+      "quantity": 285.9951128454293,
+      "stopLoss": 0.331436,
+      "amountSpent": 96.7816161340046
     },
     {
       "type": "SELL",
-      "date": 1726963200000,
-      "readableDate": "9/22/2024, 12:00:00 AM",
-      "price": 0.02026,
-      "quantity": 4306.251579326766,
+      "date": 1726444800000,
+      "readableDate": "9/16/2024, 12:00:00 AM",
+      "price": 0.3301,
+      "quantity": 285.9951128454293,
       "note": "Stop-loss triggered",
-      "amountReceived": 87.19231020296198
+      "amountReceived": 94.35034255822603
+    },
+    {
+      "type": "BUY",
+      "date": 1726617600000,
+      "readableDate": "9/18/2024, 12:00:00 AM",
+      "price": 0.3441,
+      "quantity": 274.7361634230003,
+      "stopLoss": 0.337218,
+      "amountSpent": 94.5934699158039
+    },
+    {
+      "type": "SELL",
+      "date": 1726704000000,
+      "readableDate": "9/19/2024, 12:00:00 AM",
+      "price": 0.3508,
+      "quantity": 274.7361634230003,
+      "amountReceived": 96.31961966111122
     },
     {
       "type": "BUY",
       "date": 1727049600000,
       "readableDate": "9/23/2024, 12:00:00 AM",
-      "price": 0.02043,
-      "quantity": 4220.279524901499,
-      "stopLoss": 0.020021399999999998,
-      "amountSpent": 86.27207393810049
+      "price": 0.3635,
+      "quantity": 264.3447496114678,
+      "stopLoss": 0.35623,
+      "amountSpent": 96.14700468658049
     },
     {
       "type": "SELL",
       "date": 1727222400000,
       "readableDate": "9/25/2024, 12:00:00 AM",
-      "price": 0.02143,
-      "quantity": 4220.279524901499,
-      "note": "Stop-loss triggered",
-      "amountReceived": 90.38632586450795
+      "price": 0.3807,
+      "quantity": 264.3447496114678,
+      "amountReceived": 100.57566454937954
     },
     {
       "type": "BUY",
       "date": 1727308800000,
       "readableDate": "9/26/2024, 12:00:00 AM",
-      "price": 0.02317,
-      "quantity": 3880.9199711464858,
-      "stopLoss": 0.0227066,
-      "amountSpent": 89.9749006718672
+      "price": 0.4013,
+      "quantity": 249.37134035375473,
+      "stopLoss": 0.39327399999999996,
+      "amountSpent": 100.13279856309963
     },
     {
       "type": "SELL",
-      "date": 1727481600000,
-      "readableDate": "9/28/2024, 12:00:00 AM",
-      "price": 0.0242,
-      "quantity": 3880.9199711464858,
-      "amountReceived": 93.8619123437639
+      "date": 1727395200000,
+      "readableDate": "9/27/2024, 12:00:00 AM",
+      "price": 0.4015,
+      "quantity": 249.37134035375473,
+      "amountReceived": 100.06251959614131
     },
     {
       "type": "BUY",
-      "date": 1727568000000,
-      "readableDate": "9/29/2024, 12:00:00 AM",
-      "price": 0.02434,
-      "quantity": 3838.0085147850573,
-      "stopLoss": 0.0238532,
-      "amountSpent": 93.47321117657424
+      "date": 1727654400000,
+      "readableDate": "9/30/2024, 12:00:00 AM",
+      "price": 0.3731,
+      "quantity": 268.0501360609527,
+      "stopLoss": 0.36563799999999996,
+      "amountSpent": 100.06954749283715
     },
     {
       "type": "SELL",
-      "date": 1727654400000,
-      "readableDate": "9/30/2024, 12:00:00 AM",
-      "price": 0.02247,
-      "quantity": 3838.0085147850573,
+      "date": 1727740800000,
+      "readableDate": "10/1/2024, 12:00:00 AM",
+      "price": 0.3518,
+      "quantity": 268.0501360609527,
       "note": "Stop-loss triggered",
-      "amountReceived": 86.18830729642391
+      "amountReceived": 94.24345784352342
     },
     {
       "type": "BUY",
       "date": 1727827200000,
       "readableDate": "10/2/2024, 12:00:00 AM",
-      "price": 0.01963,
-      "quantity": 4425.096668661654,
-      "stopLoss": 0.0192374,
-      "amountSpent": 86.91679768443895
+      "price": 0.343,
+      "quantity": 276.2949596745472,
+      "stopLoss": 0.33614,
+      "amountSpent": 94.82606680845478
     },
     {
       "type": "SELL",
-      "date": 1727913600000,
-      "readableDate": "10/3/2024, 12:00:00 AM",
-      "price": 0.0191,
-      "quantity": 4425.096668661654,
-      "note": "Stop-loss triggered",
-      "amountReceived": 84.46863476361472
-    },
-    {
-      "type": "BUY",
       "date": 1728000000000,
       "readableDate": "10/4/2024, 12:00:00 AM",
-      "price": 0.0198,
-      "quantity": 4275.890049750693,
-      "stopLoss": 0.019404,
-      "amountSpent": 84.71345105569713
-    },
-    {
-      "type": "SELL",
-      "date": 1728086400000,
-      "readableDate": "10/5/2024, 12:00:00 AM",
-      "price": 0.01951,
-      "quantity": 4275.890049750693,
-      "amountReceived": 83.37256130171363
+      "price": 0.3514,
+      "quantity": 276.2949596745472,
+      "amountReceived": 97.0317948003381
     },
     {
       "type": "BUY",
-      "date": 1728172800000,
-      "readableDate": "10/6/2024, 12:00:00 AM",
-      "price": 0.0209,
-      "quantity": 3993.1361859782646,
-      "stopLoss": 0.020481999999999997,
-      "amountSpent": 83.50665027711199
+      "date": 1728259200000,
+      "readableDate": "10/7/2024, 12:00:00 AM",
+      "price": 0.3509,
+      "quantity": 275.7285131602995,
+      "stopLoss": 0.34388199999999997,
+      "amountSpent": 96.81122200114977
     },
     {
       "type": "SELL",
       "date": 1728345600000,
       "readableDate": "10/8/2024, 12:00:00 AM",
-      "price": 0.02048,
-      "quantity": 3993.1361859782646,
-      "note": "Stop-loss triggered",
-      "amountReceived": 81.73036143138155
+      "price": 0.3446,
+      "quantity": 275.7285131602995,
+      "amountReceived": 94.95903600765818
     },
     {
       "type": "BUY",
-      "date": 1728518400000,
-      "readableDate": "10/10/2024, 12:00:00 AM",
-      "price": 0.01998,
-      "quantity": 4097.039315403655,
-      "stopLoss": 0.0195804,
-      "amountSpent": 81.90799031595459
+      "date": 1728604800000,
+      "readableDate": "10/11/2024, 12:00:00 AM",
+      "price": 0.3515,
+      "quantity": 270.5182590447885,
+      "stopLoss": 0.34447,
+      "amountSpent": 95.14425460700735
     },
     {
       "type": "SELL",
-      "date": 1728950400000,
-      "readableDate": "10/15/2024, 12:00:00 AM",
-      "price": 0.02276,
-      "quantity": 4097.039315403655,
-      "note": "Stop-loss triggered",
-      "amountReceived": 93.19266564969602
+      "date": 1728691200000,
+      "readableDate": "10/12/2024, 12:00:00 AM",
+      "price": 0.3529,
+      "quantity": 270.5182590447885,
+      "amountReceived": 95.40861408073573
     },
     {
       "type": "BUY",
-      "date": 1729209600000,
-      "readableDate": "10/18/2024, 12:00:00 AM",
-      "price": 0.02279,
-      "quantity": 4037.2514084007053,
-      "stopLoss": 0.022334200000000002,
-      "amountSpent": 92.06419811632188
+      "date": 1728864000000,
+      "readableDate": "10/14/2024, 12:00:00 AM",
+      "price": 0.3642,
+      "quantity": 261.73791550379696,
+      "stopLoss": 0.356916,
+      "amountSpent": 95.38217813336288
     },
     {
       "type": "SELL",
-      "date": 1729468800000,
-      "readableDate": "10/21/2024, 12:00:00 AM",
-      "price": 0.0235,
-      "quantity": 4037.2514084007053,
+      "date": 1729036800000,
+      "readableDate": "10/16/2024, 12:00:00 AM",
+      "price": 0.352,
+      "quantity": 261.73791550379696,
       "note": "Stop-loss triggered",
-      "amountReceived": 94.81848285255812
+      "amountReceived": 92.07646720958212
     },
     {
       "type": "BUY",
+      "date": 1729382400000,
+      "readableDate": "10/20/2024, 12:00:00 AM",
+      "price": 0.3649,
+      "quantity": 253.0874049848699,
+      "stopLoss": 0.357602,
+      "amountSpent": 92.4070383019602
+    },
+    {
+      "type": "SELL",
       "date": 1729555200000,
       "readableDate": "10/22/2024, 12:00:00 AM",
-      "price": 0.02421,
-      "quantity": 3902.781022152298,
-      "stopLoss": 0.0237258,
-      "amountSpent": 94.5430543789345
+      "price": 0.3644,
+      "quantity": 253.0874049848699,
+      "amountReceived": 92.1697153462607
     },
     {
-      "type": "SELL",
+      "type": "BUY",
       "date": 1729641600000,
       "readableDate": "10/23/2024, 12:00:00 AM",
-      "price": 0.02244,
-      "quantity": 3902.781022152298,
-      "note": "Stop-loss triggered",
-      "amountReceived": 87.52585909341532
+      "price": 0.3496,
+      "quantity": 263.55300793262455,
+      "stopLoss": 0.342608,
+      "amountSpent": 92.19344764183066
     },
     {
-      "type": "BUY",
+      "type": "SELL",
       "date": 1729728000000,
       "readableDate": "10/24/2024, 12:00:00 AM",
-      "price": 0.0231,
-      "quantity": 3817.084072501908,
-      "stopLoss": 0.022638,
-      "amountSpent": 88.22757862196724
+      "price": 0.3464,
+      "quantity": 263.55300793262455,
+      "amountReceived": 91.23998509069243
     },
     {
-      "type": "SELL",
+      "type": "BUY",
       "date": 1729814400000,
       "readableDate": "10/25/2024, 12:00:00 AM",
-      "price": 0.02029,
-      "quantity": 3817.084072501908,
-      "note": "Stop-loss triggered",
-      "amountReceived": 77.40216664956507
-    },
-    {
-      "type": "BUY",
-      "date": 1729900800000,
-      "readableDate": "10/26/2024, 12:00:00 AM",
-      "price": 0.02034,
-      "quantity": 3856.3233540854085,
-      "stopLoss": 0.0199332,
-      "amountSpent": 78.48470784680529
+      "price": 0.3257,
+      "quantity": 280.25953376419636,
+      "stopLoss": 0.31918599999999997,
+      "amountSpent": 91.33533134580624
     },
     {
       "type": "SELL",
-      "date": 1730073600000,
-      "readableDate": "10/28/2024, 12:00:00 AM",
-      "price": 0.02036,
-      "quantity": 3856.3233540854085,
-      "amountReceived": 78.4676346430854
+      "date": 1729987200000,
+      "readableDate": "10/27/2024, 12:00:00 AM",
+      "price": 0.3397,
+      "quantity": 280.25953376419636,
+      "amountReceived": 95.14704112152569
     },
     {
       "type": "BUY",
-      "date": 1730160000000,
-      "readableDate": "10/29/2024, 12:00:00 AM",
-      "price": 0.02129,
-      "quantity": 3683.5256157012363,
-      "stopLoss": 0.0208642,
-      "amountSpent": 78.4693419634574
+      "date": 1730073600000,
+      "readableDate": "10/28/2024, 12:00:00 AM",
+      "price": 0.3435,
+      "quantity": 275.71764373178274,
+      "stopLoss": 0.33663000000000004,
+      "amountSpent": 94.76587014395375
     },
     {
       "type": "SELL",
       "date": 1730246400000,
       "readableDate": "10/30/2024, 12:00:00 AM",
-      "price": 0.02066,
-      "quantity": 3683.5256157012363,
-      "note": "Stop-loss triggered",
-      "amountReceived": 76.05597823685532
+      "price": 0.355,
+      "quantity": 275.71764373178274,
+      "amountReceived": 97.82103566666801
     },
     {
       "type": "BUY",
-      "date": 1730764800000,
-      "readableDate": "11/5/2024, 12:00:00 AM",
-      "price": 0.01891,
-      "quantity": 4032.33930305393,
-      "stopLoss": 0.0185318,
-      "amountSpent": 76.29731460951552
+      "date": 1730332800000,
+      "readableDate": "10/31/2024, 12:00:00 AM",
+      "price": 0.3414,
+      "quantity": 285.4628289482365,
+      "stopLoss": 0.334572,
+      "amountSpent": 97.51551911439658
     },
     {
       "type": "SELL",
-      "date": 1731456000000,
-      "readableDate": "11/13/2024, 12:00:00 AM",
-      "price": 0.02683,
-      "quantity": 4032.33930305393,
+      "date": 1730505600000,
+      "readableDate": "11/2/2024, 12:00:00 AM",
+      "price": 0.348,
+      "quantity": 285.4628289482365,
       "note": "Stop-loss triggered",
-      "amountReceived": 108.12275090283637
+      "amountReceived": 99.2814598353019
     },
     {
       "type": "BUY",
-      "date": 1731628800000,
-      "readableDate": "11/15/2024, 12:00:00 AM",
-      "price": 0.02636,
-      "quantity": 3978.6511058095666,
-      "stopLoss": 0.0258328,
-      "amountSpent": 104.94020727350429
+      "date": 1730592000000,
+      "readableDate": "11/3/2024, 12:00:00 AM",
+      "price": 0.3337,
+      "quantity": 296.80971784163455,
+      "stopLoss": 0.327026,
+      "amountSpent": 99.10486576321138
+    },
+    {
+      "type": "SELL",
+      "date": 1730678400000,
+      "readableDate": "11/4/2024, 12:00:00 AM",
+      "price": 0.3261,
+      "quantity": 296.80971784163455,
+      "note": "Stop-loss triggered",
+      "amountReceived": 96.73157519876413
+    },
+    {
+      "type": "BUY",
+      "date": 1730851200000,
+      "readableDate": "11/6/2024, 12:00:00 AM",
+      "price": 0.3632,
+      "quantity": 266.8246776229508,
+      "stopLoss": 0.35593600000000003,
+      "amountSpent": 96.96890425520886
+    },
+    {
+      "type": "SELL",
+      "date": 1731369600000,
+      "readableDate": "11/12/2024, 12:00:00 AM",
+      "price": 0.5713,
+      "quantity": 266.8246776229508,
+      "note": "Stop-loss triggered",
+      "amountReceived": 152.34547616299622
+    },
+    {
+      "type": "BUY",
+      "date": 1731456000000,
+      "readableDate": "11/13/2024, 12:00:00 AM",
+      "price": 0.5786,
+      "quantity": 253.5771418611029,
+      "stopLoss": 0.567028,
+      "amountSpent": 146.80781897221746
     },
     {
       "type": "SELL",
       "date": 1731801600000,
       "readableDate": "11/17/2024, 12:00:00 AM",
-      "price": 0.02827,
-      "quantity": 3978.6511058095666,
+      "price": 0.7029,
+      "quantity": 253.5771418611029,
       "note": "Stop-loss triggered",
-      "amountReceived": 112.40898088117972
+      "amountReceived": 178.13242939036073
     },
     {
       "type": "BUY",
       "date": 1731888000000,
       "readableDate": "11/18/2024, 12:00:00 AM",
-      "price": 0.03149,
-      "quantity": 3543.8268103620176,
-      "stopLoss": 0.030860199999999997,
-      "amountSpent": 111.66210352041217
+      "price": 0.7335,
+      "quantity": 238.43894801300243,
+      "stopLoss": 0.7188300000000001,
+      "amountSpent": 174.99996834854642
     },
     {
       "type": "SELL",
-      "date": 1731974400000,
-      "readableDate": "11/19/2024, 12:00:00 AM",
-      "price": 0.0294,
-      "quantity": 3543.8268103620176,
+      "date": 1732406400000,
+      "readableDate": "11/24/2024, 12:00:00 AM",
+      "price": 1.0235,
+      "quantity": 238.43894801300243,
       "note": "Stop-loss triggered",
-      "amountReceived": 104.12599511970853
+      "amountReceived": 243.89583793333324
     },
     {
       "type": "BUY",
-      "date": 1732147200000,
-      "readableDate": "11/21/2024, 12:00:00 AM",
-      "price": 0.02894,
-      "quantity": 3621.861720670457,
-      "stopLoss": 0.0283612,
-      "amountSpent": 104.8796059597789
-    },
-    {
-      "type": "SELL",
       "date": 1732492800000,
       "readableDate": "11/25/2024, 12:00:00 AM",
-      "price": 0.03667,
-      "quantity": 3621.861720670457,
+      "price": 0.9446,
+      "quantity": 250.75592549679192,
+      "stopLoss": 0.925708,
+      "amountSpent": 237.00625097485457
+    },
+    {
+      "type": "SELL",
+      "date": 1733356800000,
+      "readableDate": "12/5/2024, 12:00:00 AM",
+      "price": 1.161,
+      "quantity": 250.75592549679192,
       "note": "Stop-loss triggered",
-      "amountReceived": 132.73398109540747
+      "amountReceived": 290.95295292407434
     },
     {
       "type": "BUY",
-      "date": 1732579200000,
-      "readableDate": "11/26/2024, 12:00:00 AM",
-      "price": 0.03647,
-      "quantity": 3561.0247999916514,
-      "stopLoss": 0.035740600000000004,
-      "amountSpent": 129.94854358184463
+      "date": 1733443200000,
+      "readableDate": "12/6/2024, 12:00:00 AM",
+      "price": 1.2291,
+      "quantity": 232.1918051903953,
+      "stopLoss": 1.204518,
+      "amountSpent": 285.5582827291524
     },
     {
       "type": "SELL",
-      "date": 1733011200000,
-      "readableDate": "12/1/2024, 12:00:00 AM",
-      "price": 0.04411,
-      "quantity": 3561.0247999916514,
-      "amountReceived": 156.98255784527515
+      "date": 1733529600000,
+      "readableDate": "12/7/2024, 12:00:00 AM",
+      "price": 1.2116,
+      "quantity": 232.1918051903953,
+      "amountReceived": 281.15479701398175
     },
     {
       "type": "BUY",
-      "date": 1733097600000,
-      "readableDate": "12/2/2024, 12:00:00 AM",
-      "price": 0.04662,
-      "quantity": 3307.3056397486207,
-      "stopLoss": 0.0456876,
-      "amountSpent": 154.27915641893208
-    },
-    {
-      "type": "SELL",
       "date": 1733702400000,
       "readableDate": "12/9/2024, 12:00:00 AM",
-      "price": 0.04774,
-      "quantity": 3307.3056397486207,
-      "note": "Stop-loss triggered",
-      "amountReceived": 157.7960367788542
-    },
-    {
-      "type": "BUY",
-      "date": 1733788800000,
-      "readableDate": "12/10/2024, 12:00:00 AM",
-      "price": 0.0456,
-      "quantity": 3450.655309947725,
-      "stopLoss": 0.044688,
-      "amountSpent": 157.444348742862
+      "price": 1.0033,
+      "quantity": 280.50053672694855,
+      "stopLoss": 0.983234,
+      "amountSpent": 281.5951455854988
     },
     {
       "type": "SELL",
       "date": 1734134400000,
       "readableDate": "12/14/2024, 12:00:00 AM",
-      "price": 0.04934,
-      "quantity": 3450.655309947725,
+      "price": 1.0611,
+      "quantity": 280.50053672694855,
       "note": "Stop-loss triggered",
-      "amountReceived": 170.1531797930251
+      "amountReceived": 297.46053604925254
     },
     {
       "type": "BUY",
       "date": 1734220800000,
       "readableDate": "12/15/2024, 12:00:00 AM",
-      "price": 0.05092,
-      "quantity": 3314.630151413904,
-      "stopLoss": 0.0499016,
-      "amountSpent": 168.88229668800878
+      "price": 1.0998,
+      "quantity": 268.8638594332382,
+      "stopLoss": 1.077804,
+      "amountSpent": 295.87399700287716
     },
     {
       "type": "SELL",
       "date": 1734307200000,
       "readableDate": "12/16/2024, 12:00:00 AM",
-      "price": 0.04807,
-      "quantity": 3314.630151413904,
+      "price": 1.0776,
+      "quantity": 268.8638594332382,
       "note": "Stop-loss triggered",
-      "amountReceived": 159.2386708156393
+      "amountReceived": 289.55385830830227
     },
     {
       "type": "BUY",
-      "date": 1734652800000,
-      "readableDate": "12/20/2024, 12:00:00 AM",
-      "price": 0.03741,
-      "quantity": 4279.789136135646,
-      "stopLoss": 0.0366618,
-      "amountSpent": 160.20303340287623
+      "date": 1734393600000,
+      "readableDate": "12/17/2024, 12:00:00 AM",
+      "price": 1.052,
+      "quantity": 275.67657856887183,
+      "stopLoss": 1.03096,
+      "amountSpent": 290.1858721777598
+    },
+    {
+      "type": "SELL",
+      "date": 1734480000000,
+      "readableDate": "12/18/2024, 12:00:00 AM",
+      "price": 0.9681,
+      "quantity": 275.67657856887183,
+      "note": "Stop-loss triggered",
+      "amountReceived": 266.7223662150973
+    },
+    {
+      "type": "BUY",
+      "date": 1734566400000,
+      "readableDate": "12/19/2024, 12:00:00 AM",
+      "price": 0.8801,
+      "quantity": 305.54172887316975,
+      "stopLoss": 0.862498,
+      "amountSpent": 269.0687168113635
     },
     {
       "type": "SELL",
       "date": 1734739200000,
       "readableDate": "12/21/2024, 12:00:00 AM",
-      "price": 0.03505,
-      "quantity": 4279.789136135646,
+      "price": 0.9046,
+      "quantity": 305.54172887316975,
       "note": "Stop-loss triggered",
-      "amountReceived": 149.91660525602146
+      "amountReceived": 276.22721210990613
     },
     {
       "type": "BUY",
       "date": 1734825600000,
       "readableDate": "12/22/2024, 12:00:00 AM",
-      "price": 0.03485,
-      "quantity": 4328.68524883399,
-      "stopLoss": 0.034152999999999996,
-      "amountSpent": 150.94524807070695
+      "price": 0.8829,
+      "quantity": 311.86550658342264,
+      "stopLoss": 0.865242,
+      "amountSpent": 275.51136258005187
     },
     {
       "type": "SELL",
       "date": 1735084800000,
       "readableDate": "12/25/2024, 12:00:00 AM",
-      "price": 0.03848,
-      "quantity": 4328.68524883399,
-      "note": "Stop-loss triggered",
-      "amountReceived": 166.46786769010686
+      "price": 0.9172,
+      "quantity": 311.86550658342264,
+      "amountReceived": 285.87141681273226
     },
     {
       "type": "BUY",
-      "date": 1735257600000,
-      "readableDate": "12/27/2024, 12:00:00 AM",
-      "price": 0.0349,
-      "quantity": 4722.540296983667,
-      "stopLoss": 0.034202,
-      "amountSpent": 164.91560572816687
+      "date": 1735171200000,
+      "readableDate": "12/26/2024, 12:00:00 AM",
+      "price": 0.8606,
+      "quantity": 330.7744714648275,
+      "stopLoss": 0.843388,
+      "amountSpent": 284.83541138946424
     },
     {
       "type": "SELL",
+      "date": 1735344000000,
+      "readableDate": "12/28/2024, 12:00:00 AM",
+      "price": 0.8893,
+      "quantity": 330.7744714648275,
+      "amountReceived": 293.9812428311869
+    },
+    {
+      "type": "BUY",
       "date": 1735430400000,
       "readableDate": "12/29/2024, 12:00:00 AM",
-      "price": 0.03472,
-      "quantity": 4722.540296983667,
-      "note": "Stop-loss triggered",
-      "amountReceived": 163.86821915180616
-    },
-    {
-      "type": "BUY",
-      "date": 1735516800000,
-      "readableDate": "12/30/2024, 12:00:00 AM",
-      "price": 0.03449,
-      "quantity": 4751.364860387259,
-      "stopLoss": 0.0338002,
-      "amountSpent": 163.97295780944222
+      "price": 0.8583,
+      "quantity": 341.2452751849032,
+      "stopLoss": 0.8411339999999999,
+      "amountSpent": 293.06665968701463
     },
     {
       "type": "SELL",
       "date": 1735516800000,
       "readableDate": "12/30/2024, 12:00:00 AM",
-      "price": 0.03449,
-      "quantity": 4751.364860387259,
+      "price": 0.8607,
+      "quantity": 341.2452751849032,
       "note": "Final exit",
-      "amountReceived": 163.7762492903357
+      "amountReceived": 293.5335824666352
     }
   ],
-  "finalCapital": 181.99546682471816,
-  "totalReturns": "82.00",
-  "maxDrawdown": "3.01",
-  "totalFees": "11.90",
-  "timestamp": "2025-04-03T15:44:51.247Z",
-  "readableTime": "4/3/2025, 3:44:51 PM"
+  "finalCapital": 326.09654465408124,
+  "totalReturns": "226.10",
+  "maxDrawdown": "0.81",
+  "totalFees": "13.99",
+  "timestamp": "2025-04-03T18:07:22.071Z",
+  "readableTime": "4/3/2025, 6:07:22 PM"
 }
