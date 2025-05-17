@@ -1,9 +1,9 @@
 import strategies from "../core/strategy/index.js";
 import chalk from "chalk";
 import ora from "ora";
-import dataManager from "../utils/dataManager.js";
-import { saveResults } from "../utils/results.js";
-import { transformStockData } from "../utils/restructureData.js";
+import dataManager from "../core/data/dataManager.js";
+import { saveResults } from "../core/result/results.js";
+import { transformStockData } from "../core/parser/restructureData.js";
 
 const findStrategy = (strategies, name) => {
   return strategies.find((s) => s.name === name);

@@ -1,9 +1,9 @@
 import _ from "lodash";
-import getIndicator from "../core/indicators/index.js";
+import getIndicator from "../indicators/index.js";
 import { im } from "mathjs";
 import chalk from "chalk";
 import ora from "ora";
-import dataManager from "./dataManager.js";
+import dataManager from "../data/dataManager.js";
 
 const removeNulls = (quotes) => {
   return quotes.filter((quote) =>

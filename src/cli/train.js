@@ -1,8 +1,8 @@
 import chalk from "chalk";
 import RLStrategy from "../core/strategy/RLStrategy.js";
 import RLTrainer from "../core/strategy/RLTrainer.js";
-import dataManager from "../utils/dataManager.js";
-import { transformStockData } from "../utils/restructureData.js";
+import dataManager from "../core/data/dataManager.js";
+import { transformStockData } from "../core/parser/restructureData.js";
 
 export const trainStrategy = async (filename, options = {}) => {
   try {

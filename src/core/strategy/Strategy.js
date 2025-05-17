@@ -1,6 +1,6 @@
 import { ExistingQuoteStorage } from "../storage/ExistingQuoteStorage.js";
-import { Trades } from "../../utils/Trades.js";
-import { getStockData } from "../../utils/restructureData.js";
+import { Trades } from "../tradeSimulator/Trades.js";
+import { getStockData } from "../parser/restructureData.js";
 
 class Strategy {
   stock;

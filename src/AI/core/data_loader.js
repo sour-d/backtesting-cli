@@ -1,5 +1,5 @@
 import { readFileSync } from 'fs';
-    import dataManager from '../../utils/dataManager.js';
+    import dataManager from '../../core/data/dataManager.js';
 
     export class AIDataLoader {
       constructor(symbol = 'BTCUSDT', interval = 'D') {

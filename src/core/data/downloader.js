@@ -1,7 +1,7 @@
-import broker from "../core/broker/index.js";
 import chalk from "chalk";
 import ora from "ora";
-import dataManager from "../utils/dataManager.js";
+import dataManager from "./dataManager.js";
+import HistoricalKline from "./HistoricalKline.js";
 
 const formatBytes = (bytes) => {
   const sizes = ['Bytes', 'KB', 'MB', 'GB'];
@@ -20,7 +20,7 @@ const downloader = async (symbol, interval, start, end, filePath) => {
   }).start();
 
   try {
-    const OHCL = await broker.HistoricalKline(
+    const OHCL = await HistoricalKline(
       symbol,
       interval,
       startMs,

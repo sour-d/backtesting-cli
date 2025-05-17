@@ -1,6 +1,6 @@
 import chalk from "chalk";
 import ora from "ora";
-import dataManager from "./dataManager.js";
+import dataManager from "../data/dataManager.js";
 import { transformTradesData } from "./transformResult.js";
 
 const formatNumber = (amount) => {

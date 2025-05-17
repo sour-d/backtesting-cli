@@ -1,10 +1,10 @@
 import dayjs from "dayjs";
-import downloader from "../services/downloader.js";
+import downloader from "../core/data/downloader.js";
 import fs from "fs";
 import _ from "lodash";
 import chalk from "chalk";
 import ora from "ora";
-import dataManager from "../utils/dataManager.js";
+import dataManager from "../core/data/dataManager.js";
 
 const getDateFormat = (date = dayjs().utc()) => {
   return dayjs(date);

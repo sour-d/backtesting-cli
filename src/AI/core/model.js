@@ -1,112 +1,118 @@
-export class LinearModel {
+import * as tf from '@tensorflow/tfjs-node';
+
+export class TFBacktestModel {
   constructor() {
-    // Stable weight initialization
-    this.weights = {
-      price_change: (Math.random() * 0.02) - 0.01,
-      volatility: (Math.random() * 0.02) - 0.01,
-      bias: 0
-    };
+    this.model = tf.sequential({
+      layers: [
+        tf.layers.dense({
+          units: 8,
+          activation: 'relu',
+          inputShape: [2],
+          kernelInitializer: 'heNormal'
+        }),
+        tf.layers.dense({
+          units: 4,
+          activation: 'relu',
+          kernelInitializer: 'heNormal'
+        }),
+        tf.layers.dense({
+          units: 1,
+          activation: 'sigmoid'
+        })
+      ]
+    });
+
+    this.model.compile({
+      optimizer: tf.train.adam(0.001),
+      loss: 'meanSquaredError',
+      metrics: ['mae']
+    });
+
+    this.featureMean = { price_change: 0, volatility: 0 };
+    this.featureStd = { price_change: 1, volatility: 1 };
   }
 
-  async train(features, labels, learningRate = 0.01, epochs = 200) {
-    // Compute normalization parameters and store in model
-    const validSamples = features.filter(
-      s => typeof s.price_change === 'number' && typeof s.volatility === 'number'
+  async train(features, labels, epochs = 100, batchSize = 32) {
+    // Convert features to normalized tensors
+    const { normalizedFeatures, featureMean, featureStd } = this.normalizeFeatures(features);
+    this.featureMean = featureMean;
+    this.featureStd = featureStd;
+
+    const featureTensor = tf.tensor2d(
+      normalizedFeatures.map(f => [f.price_change, f.volatility])
     );
-    let sumPrice = 0, sumVol = 0;
-    validSamples.forEach(s => { sumPrice += s.price_change; sumVol += s.volatility; });
-    const meanPrice = sumPrice / validSamples.length;
-    const meanVol = sumVol / validSamples.length;
-    let squaredPrice = 0, squaredVol = 0;
-    validSamples.forEach(s => {
-      squaredPrice += (s.price_change - meanPrice) ** 2;
-      squaredVol += (s.volatility - meanVol) ** 2;
+    const labelTensor = tf.tensor2d(labels, [labels.length, 1]);
+
+    // Add early stopping
+    const earlyStopping = tf.callbacks.earlyStopping({
+      monitor: 'loss',
+      patience: 5,
+      minDelta: 0.001
     });
-    const stdPrice = Math.sqrt(squaredPrice / validSamples.length) || 1;
-    const stdVol = Math.sqrt(squaredVol / validSamples.length) || 1;
-    
-    this.featureMean = { price_change: meanPrice, volatility: meanVol };
-    this.featureStd = { price_change: stdPrice, volatility: stdVol };
-    
-    // Normalize training features
-    const normFeatures = features.map(s => ({
-      price_change: (s.price_change - meanPrice) / stdPrice,
-      volatility: (s.volatility - meanVol) / stdVol
-    }));
-    
-    let bestLoss = Infinity;
-    let epochsNoImprove = 0;
-    let patience = 20;
-    
-    for (let epoch = 0; epoch < epochs; epoch++) {
-      let totalError = 0;
-      let totalAbsoluteError = 0;
-      let validCount = 0;
-      let currentLR = learningRate * Math.pow(0.99, epoch);
-    
-      normFeatures.forEach((sample, idx) => {
-        const prediction = this.predict(sample);
-        const error = labels[idx] - prediction;
-    
-        // Update weights without gradient clipping for stronger learning signal
-        this.weights.price_change += currentLR * error * sample.price_change;
-        this.weights.volatility += currentLR * error * sample.volatility;
-        this.weights.bias += currentLR * error;
-    
-        totalError += error ** 2;
-        totalAbsoluteError += Math.abs(error);
-        validCount++;
-      });
-    
-      if (validCount > 0) {
-        const mse = totalError / validCount;
-        const mae = totalAbsoluteError / validCount;
-        if (epoch % 20 === 0) {
-          console.log(`Epoch ${epoch} - MSE: ${mse.toFixed(4)} - MAE: ${mae.toFixed(4)} - LR: ${currentLR.toFixed(5)}`);
-        }
-        if (mse < bestLoss) {
-          bestLoss = mse;
-          epochsNoImprove = 0;
-        } else {
-          epochsNoImprove++;
-        }
-        if (epochsNoImprove >= patience) {
-          console.log(`Early stopping at epoch ${epoch} with MSE: ${mse.toFixed(4)}`);
-          break;
-        }
-      }
-    }
-    return this;
+
+    await this.model.fit(featureTensor, labelTensor, {
+      epochs,
+      batchSize,
+      validationSplit: 0.2,
+      callbacks: [earlyStopping],
+      verbose: 1
+    });
+
+    // Cleanup tensors
+    featureTensor.dispose();
+    labelTensor.dispose();
   }
 
   predict(feature) {
     if (!feature || typeof feature.price_change !== 'number' || typeof feature.volatility !== 'number') {
       return 0.5;
     }
-    const raw = feature.price_change * this.weights.price_change +
-                feature.volatility * this.weights.volatility +
-                this.weights.bias;
-    // Amplify the raw output further to obtain a more sensitive prediction
-    const clamped = Math.max(-20, Math.min(20, raw));
-    return 1 / (1 + Math.exp(- (clamped * 20)));
-  }
-
-  async save(path = 'ai_model_v1.json') {
-    const fs = await import('fs/promises');
-    const modelData = {
-      weights: this.weights,
-      featureMean: this.featureMean || null,
-      featureStd: this.featureStd || null,
-      timestamp: new Date().toISOString()
+    
+    // Normalize input
+    const normalized = {
+      price_change: (feature.price_change - this.featureMean.price_change) / this.featureStd.price_change,
+      volatility: (feature.volatility - this.featureMean.volatility) / this.featureStd.volatility
     };
-    await fs.writeFile(path, JSON.stringify(modelData, null, 2));
+
+    const tensor = tf.tensor2d([[normalized.price_change, normalized.volatility]]);
+    const prediction = this.model.predict(tensor).dataSync()[0];
+    tensor.dispose();
+    
+    return prediction;
   }
 
-  async load(path = 'ai_model_v1.json') {
-    const fs = await import('fs/promises');
-    const data = JSON.parse(await fs.readFile(path, 'utf-8'));
-    this.weights = data.weights;
-    this.featureMean = data.featureMean;
-    this.featureStd = data.featureStd;
+  async save(path = 'ai_model_v1') {
+    await this.model.save(`file://${path}`);
+  }
+
+  async load(path = 'ai_model_v1') {
+    this.model = await tf.loadLayersModel(`file://${path}/model.json`);
+  }
+
+  normalizeFeatures(features) {
+    const validFeatures = features.filter(
+      f => typeof f.price_change === 'number' && typeof f.volatility === 'number'
+    );
+
+    // Calculate mean and std
+    const priceChanges = validFeatures.map(f => f.price_change);
+    const volatilities = validFeatures.map(f => f.volatility);
+    
+    const priceMean = tf.mean(priceChanges).dataSync()[0];
+    const priceStd = tf.moments(priceChanges).variance.sqrt().dataSync()[0] || 1;
+    const volMean = tf.mean(volatilities).dataSync()[0];
+    const volStd = tf.moments(volatilities).variance.sqrt().dataSync()[0] || 1;
+
+    // Normalize features
+    const normalized = validFeatures.map(f => ({
+      price_change: (f.price_change - priceMean) / priceStd,
+      volatility: (f.volatility - volMean) / volStd
+    }));
+
+    return {
+      normalizedFeatures: normalized,
+      featureMean: { price_change: priceMean, volatility: volMean },
+      featureStd: { price_change: priceStd, volatility: volStd }
+    };
   }
 }

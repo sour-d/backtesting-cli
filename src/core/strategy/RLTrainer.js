@@ -1,6 +1,6 @@
 import chalk from "chalk";
 import ora from "ora";
-import { transformTradesData } from "../../utils/transformResult.js";
+import { transformTradesData } from "../result/transformResult.js";
 
 class RLTrainer {
   constructor(strategy, config = {}) {
