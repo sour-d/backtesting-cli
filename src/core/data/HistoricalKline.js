@@ -1,12 +1,10 @@
 import { RestClientV5 } from "bybit-api";
-import dotenv from "dotenv";
-import fs from "fs";
+// import dotenv from "dotenv";
 import _ from "lodash";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc.js";
 import timezone from "dayjs/plugin/timezone.js";
 
-dotenv.config();
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
@@ -80,7 +78,6 @@ const HistoricalKline = async (
   let fetchTill = getNewEnd(start, end, interval);
 
   while (end >= fetchTill) {
-    console.log({ start, fetchTill });
     await restClient(testnet)
       .getKline({ symbol, interval, start, end: fetchTill, limit: 1000 })
       .then((response) => {
@@ -97,16 +94,7 @@ const HistoricalKline = async (
         console.log("error", JSON.stringify(error));
       });
   }
-  console.log("allData", allData.length);
   return allData;
 };
 
 export default HistoricalKline;
-
-// const startMs = new Date("2024-05-09T00:00:00.000Z").getTime();
-// const endMs = new Date("2024-05-09T23:59:59.999Z").getTime();
-
-// console.log(startMs, endMs);
-
-// const data = await HistoricalKline("BTCUSD", "1", startMs, endMs);
-// fs.writeFileSync("data.json", JSON.stringify(data));

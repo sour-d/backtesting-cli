@@ -10,7 +10,7 @@ class DataManager {
   constructor() {
     // Base directory
     this.dataRoot = process.env.DATA_ROOT || './.data';
-    
+
     // Define directory structure
     this.directories = {
       market: process.env.MARKET_DATA_DIR || path.join(this.dataRoot, 'market'),
@@ -27,7 +27,7 @@ class DataManager {
 
   ensureDirectories() {
     const spinner = ora('Setting up data directories...').start();
-    
+
     try {
       Object.entries(this.directories).forEach(([name, dir]) => {
         if (!fs.existsSync(dir)) {
@@ -35,9 +35,9 @@ class DataManager {
           spinner.text = chalk.yellow(`Created ${name} directory: ${dir}`);
         }
       });
-      
+
       spinner.succeed(chalk.green('Data directories ready'));
-      
+
       // Log directory structure
       console.log(chalk.cyan('\n📁 Data Directory Structure:'));
       console.log(chalk.dim('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'));
@@ -46,7 +46,7 @@ class DataManager {
         console.log(`${chalk.bold(name.padEnd(12))}: ${chalk.green(dir)} ${chalk.dim(`(${files} files)`)}`);
       });
       console.log(chalk.dim('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'));
-      
+
       return true;
     } catch (error) {
       spinner.fail(chalk.red(`Failed to create directories: ${error.message}`));
@@ -54,30 +54,40 @@ class DataManager {
     }
   }
 
-  getFilePath(type, symbol, interval, suffix = '') {
-    if (!this.directories[type]) {
-      throw new Error(`Invalid data type: ${type}`);
+  getFilePath(type, label) {
+    const filename = `${label}.json`;
+    return path.join(this.directories[type] || "", filename);
+  }
+
+  saveData = (filename, data) => {
+    const filepath = path.join(this.directories.market, filename);
+    const dir = path.dirname(filepath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
     }
+    fs.writeFileSync(filepath, JSON.stringify(data, null, 2));
+  };
 
-    const filename = `${symbol}_${interval}${suffix}.json`;
-    return path.join(this.directories[type], filename);
+  getMarketDataPath(label) {
+    return this.getFilePath('market', label);
   }
 
-  getMarketDataPath(symbol, interval, suffix = '') {
-    return this.getFilePath('market', symbol, interval, suffix);
+  saveMarketData(symbolinfo, data) {
+    const filepath = this.getFilePath("market", symbolinfo?.label);
+    this.saveData(filepath, data);
   }
 
-  getTechnicalDataPath(symbol, interval, suffix = '') {
-    return this.getFilePath('technical', symbol, interval, suffix);
+  getTechnicalDataPath(label) {
+    return this.getFilePath('technical', label);
   }
 
-  getResultsPath(symbol, interval, strategy, suffix = '') {
-    const filename = `${symbol}_${interval}_${strategy}${suffix}.json`;
+  getResultsPath(label) {
+    const filename = `${label}.json`;
     return path.join(this.directories.results, filename);
   }
 
-  getOptimizationPath(symbol, interval, strategy, suffix = '') {
-    const filename = `${symbol}_${interval}_${strategy}${suffix}.json`;
+  getOptimizationPath(label) {
+    const filename = `${label}.json`;
     return path.join(this.directories.optimization, filename);
   }
 

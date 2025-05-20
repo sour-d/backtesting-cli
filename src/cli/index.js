@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { Command } from "commander";
-import { downloadDefaultData, downloadFromLastDownloaded, downloadFromStartEnd } from "./download.js";
+import downlaod from "../core/data/download.js";
 import { runStrategy } from "./runStrategy.js";
 import { trainStrategy } from "./train.js";
 import chalk from "chalk";
@@ -16,36 +16,8 @@ program
 program
   .command("download")
   .description("Download historical data")
-  .option("-s, --symbol <symbol>", "Trading symbol (e.g., BTCUSDT)")
-  .option("-i, --interval <interval>", "Time interval (e.g., 1m, 1h, 1d)")
-  .option("--start <date>", "Start date (YYYY-MM-DD)")
-  .option("--end <date>", "End date (YYYY-MM-DD)")
-  .option("-f, --filename <filename>", "Output filename")
-  .option("--default", "Download default data from .env config")
-  .option("--continue", "Continue from last downloaded data")
-  .action(async (options) => {
-    try {
-      if (options.default) {
-        await downloadDefaultData();
-      } else if (options.continue) {
-        await downloadFromLastDownloaded();
-      } else if (options.symbol && options.interval && options.start) {
-        await downloadFromStartEnd(
-          options.symbol,
-          options.interval,
-          options.start,
-          options.end,
-          options.filename
-        );
-      } else {
-        console.error(
-          chalk.red("Please provide required options or use --default/--continue")
-        );
-      }
-    } catch (error) {
-      console.error(chalk.red("\nError:"), error.message);
-      process.exit(1);
-    }
+  .action(async () => {
+    await downlaod()
   });
 
 program
