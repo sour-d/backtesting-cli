@@ -8,7 +8,19 @@ dayjs.extend(timezone);
 const ts = (date, time = "00:00") => {
   const dateTime = dayjs(date + " " + time);
   return dateTime.tz("Asia/Kolkata").valueOf();
-}
+};
+
+const intervals = {
+  '1m': '1',
+  '3m': '3',
+  '5m': '5',
+  '15m': '15',
+  '30m': '30',
+  '1h': '60',
+  '1d': 'D',
+  '1w': 'W',
+  '1M': 'M',
+};
 
 export default [
   {
@@ -16,7 +28,7 @@ export default [
     symbol: "BTCUSDT",
     start: ts("2023-01-01"),
     end: ts("2023-12-01"),
-    interval: "60",
+    interval: intervals['1d'],
     tag: ["Bull market"]
   },
 ]

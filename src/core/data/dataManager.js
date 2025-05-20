@@ -59,8 +59,7 @@ class DataManager {
     return path.join(this.directories[type] || "", filename);
   }
 
-  saveData = (filename, data) => {
-    const filepath = path.join(this.directories.market, filename);
+  saveData = (filepath, data) => {
     const dir = path.dirname(filepath);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
