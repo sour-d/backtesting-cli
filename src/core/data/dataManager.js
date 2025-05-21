@@ -17,6 +17,7 @@ class DataManager {
       technical: process.env.TECHNICAL_DATA_DIR || path.join(this.dataRoot, 'technical'),
       results: process.env.BACKTEST_RESULTS_DIR || path.join(this.dataRoot, 'results'),
       transformedResult: process.env.TRANSFORM_RESULT_DIR || path.join(this.dataRoot, 'transformedResult'),
+      resultsStats: process.env.RESULTS_STATS_DIR || path.join(this.dataRoot, 'resultsStats'),
       optimization: process.env.OPTIMIZATION_DIR || path.join(this.dataRoot, 'optimization')
     };
 
@@ -89,6 +90,10 @@ class DataManager {
   getTransformedResultsPath(label) {
     const filename = `${label}.json`;
     return path.join(this.directories.transformedResult, filename);
+  }
+  getResultsStatsPath(label) {
+    const filename = `${label}.json`;
+    return path.join(this.directories.resultsStats, filename);
   }
 
   getOptimizationPath(label) {

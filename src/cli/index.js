@@ -23,11 +23,10 @@ program
 program
   .command("run")
   .description("Run a trading strategy")
-  .argument("<filename>", "Input data file")
   .argument("<strategy>", "Strategy name")
-  .action(async (filename, strategy) => {
+  .action(async (strategy) => {
     try {
-      await runStrategy(filename, strategy);
+      await runStrategy(strategy);
     } catch (error) {
       console.error(chalk.red("\nError:"), error.message);
       process.exit(1);

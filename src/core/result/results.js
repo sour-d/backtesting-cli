@@ -209,7 +209,7 @@ const saveResults = async (symbol, interval, strategy, results) => {
     spinner.succeed(chalk.green("Statistics calculated"));
 
     // Save stats
-    const statsPath = dataManager.getResultsPath(symbol, interval, strategy, "_stats");
+    const statsPath = dataManager.getResultsStatsPath(symbol);
     dataManager.writeJSON(statsPath, { trade: tradeStats, performance: performanceStats });
     spinner.succeed(chalk.green(`Statistics saved to ${statsPath}`));
 

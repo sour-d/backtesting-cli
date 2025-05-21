@@ -89,25 +89,29 @@ const executeStrategy = async (strategyClass, symbol, interval, marketPath, stra
   }
 };
 
-export const runStrategy = async (symbolinfo, strategyName) => {
-  symbolinfo = symbols[0];
-
+export const runStrategy = async (strategyName) => {
   try {
-    // Validate inputs
-    validateInputs(symbolinfo, strategyName);
+    for (const symbolinfo of symbols) {
+      // Validate inputs
+      validateInputs(symbolinfo, strategyName);
 
-    // Parse symbol and interval from filename
-    const { symbol, interval, label } = symbolinfo;
+      // Parse symbol and interval from filename
+      const { symbol, interval, label } = symbolinfo;
 
-    // Validate market data exists
-    const marketPath = dataManager.getMarketDataPath(label);
-    validateMarketData(marketPath);
+      // Validate market data exists
+      const marketPath = dataManager.getMarketDataPath(label);
+      validateMarketData(marketPath);
 
-    // Find and validate strategy
-    const strategyClass = validateStrategy(findStrategy(strategies, strategyName), strategyName);
+      // Find and validate strategy
+      const strategyClass = validateStrategy(findStrategy(strategies, strategyName), strategyName);
 
-    // Execute strategy
-    await executeStrategy(strategyClass, label, interval, marketPath, strategyName);
+      // Execute strategy
+      await executeStrategy(strategyClass, label, interval, marketPath, strategyName);
+
+      console.log(chalk.dim("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"));
+      console.log(chalk.dim("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"));
+
+    }
   } catch (error) {
     console.error(chalk.red("\n❌ Error: ") + error.message);
     throw error;
