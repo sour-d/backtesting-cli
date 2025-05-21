@@ -74,26 +74,40 @@ const HistoricalKline = async (
   end,
   testnet = false
 ) => {
-  let allData = [];
-  let fetchTill = getNewEnd(start, end, interval);
+  const allData = [];
+  const chunks = [];
 
+  let fetchTill = getNewEnd(start, end, interval);
   while (end >= fetchTill) {
-    await restClient(testnet)
-      .getKline({ symbol, interval, start, end: fetchTill, limit: 1000 })
-      .then((response) => {
-        const data = formatResponse(response);
-        allData = allData.concat(data);
-        start = fetchTill;
-        fetchTill = getNewEnd(start, end, interval, true);
-        if (fetchTill === start) {
-          fetchTill += 1;
-          return;
-        }
-      })
-      .catch((error) => {
-        console.log("error", JSON.stringify(error));
-      });
+    chunks.push({ start, fetchTill });
+    start = fetchTill;
+    fetchTill = getNewEnd(start, end, interval, true);
+    if (fetchTill === start) {
+      fetchTill += 1;
+    }
   }
+
+  try {
+    const results = await Promise.all(
+      chunks.map(async ({ start, fetchTill }) => {
+        const response = await restClient(testnet).getKline({
+          symbol,
+          interval,
+          start,
+          end: fetchTill,
+          limit: 1000,
+        });
+        return formatResponse(response);
+      })
+    );
+
+    results.forEach((data) => {
+      allData.push(...data);
+    });
+  } catch (error) {
+    console.log("error", JSON.stringify(error));
+  }
+
   return allData;
 };
 
