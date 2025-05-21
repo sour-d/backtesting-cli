@@ -28,7 +28,7 @@ export default [
     symbol: "BTCUSDT",
     start: ts("2023-01-01"),
     end: ts("2023-12-31", "23:59"),
-    interval: intervals['1m'],
+    interval: intervals['1d'],
     tag: ["Bull market"]
   },
   // {

@@ -4,6 +4,8 @@ import ora from "ora";
 import dataManager from "../core/data/dataManager.js";
 import { saveResults } from "../core/result/results.js";
 import { transformStockData } from "../core/parser/restructureData.js";
+import _ from "lodash";
+import symbols from "../config/symbols.js";
 
 const findStrategy = (strategies, name) => {
   return strategies.find((s) => s.name === name);
@@ -17,9 +19,9 @@ const parseFilename = (filename) => {
   return { symbol: match[1], interval: match[2] };
 };
 
-const validateInputs = (filename, strategyName) => {
-  if (!filename) {
-    throw new Error('Filename is required');
+const validateInputs = (symbolInfo, strategyName) => {
+  if (!symbolInfo && _.isObject(symbolInfo)) {
+    throw new Error('Symbol information is required');
   }
   if (!strategyName) {
     throw new Error('Strategy name is required');
@@ -87,23 +89,25 @@ const executeStrategy = async (strategyClass, symbol, interval, marketPath, stra
   }
 };
 
-export const runStrategy = async (filename, strategyName) => {
+export const runStrategy = async (symbolinfo, strategyName) => {
+  symbolinfo = symbols[0];
+
   try {
     // Validate inputs
-    validateInputs(filename, strategyName);
+    validateInputs(symbolinfo, strategyName);
 
     // Parse symbol and interval from filename
-    const { symbol, interval } = parseFilename(filename);
+    const { symbol, interval, label } = symbolinfo;
 
     // Validate market data exists
-    const marketPath = dataManager.getMarketDataPath(symbol, interval);
+    const marketPath = dataManager.getMarketDataPath(label);
     validateMarketData(marketPath);
 
     // Find and validate strategy
     const strategyClass = validateStrategy(findStrategy(strategies, strategyName), strategyName);
 
     // Execute strategy
-    await executeStrategy(strategyClass, symbol, interval, marketPath, strategyName);
+    await executeStrategy(strategyClass, label, interval, marketPath, strategyName);
   } catch (error) {
     console.error(chalk.red("\n❌ Error: ") + error.message);
     throw error;

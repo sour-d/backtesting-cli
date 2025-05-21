@@ -16,6 +16,7 @@ class DataManager {
       market: process.env.MARKET_DATA_DIR || path.join(this.dataRoot, 'market'),
       technical: process.env.TECHNICAL_DATA_DIR || path.join(this.dataRoot, 'technical'),
       results: process.env.BACKTEST_RESULTS_DIR || path.join(this.dataRoot, 'results'),
+      transformedResult: process.env.TRANSFORM_RESULT_DIR || path.join(this.dataRoot, 'transformedResult'),
       optimization: process.env.OPTIMIZATION_DIR || path.join(this.dataRoot, 'optimization')
     };
 
@@ -83,6 +84,11 @@ class DataManager {
   getResultsPath(label) {
     const filename = `${label}.json`;
     return path.join(this.directories.results, filename);
+  }
+
+  getTransformedResultsPath(label) {
+    const filename = `${label}.json`;
+    return path.join(this.directories.transformedResult, filename);
   }
 
   getOptimizationPath(label) {

@@ -186,7 +186,7 @@ const saveResults = async (symbol, interval, strategy, results) => {
     dataManager.ensureDirectories();
 
     // Save raw results
-    const resultPath = dataManager.getResultsPath(symbol, interval, strategy);
+    const resultPath = dataManager.getResultsPath(symbol);
     dataManager.writeJSON(resultPath, results);
     spinner.succeed(chalk.green(`Raw results saved to ${resultPath}`));
 
@@ -198,7 +198,7 @@ const saveResults = async (symbol, interval, strategy, results) => {
       interval
     );
 
-    const transformedPath = dataManager.getResultsPath(symbol, interval, strategy, "_transformed");
+    const transformedPath = dataManager.getTransformedResultsPath(symbol);
     dataManager.writeJSON(transformedPath, transformedTrades);
     spinner.succeed(chalk.green(`Transformed data saved to ${transformedPath}`));
 
