@@ -58,7 +58,7 @@ const addTechnicalIndicator = (quotes, startFrom = 0) => {
   }
 };
 
-const transformStockData = (label) => {
+const transformStockData = ({label}) => {
   console.log(chalk.cyan("\n📊 Processing Stock Data:"));
   console.log(chalk.dim("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"));
 
@@ -108,7 +108,7 @@ const getStockData = (symbolInfo) => {
     const marketPath = dataManager.getMarketDataPath(label);
     if (dataManager.exists(marketPath)) {
       spinner.text = chalk.yellow("Technical data not found, processing raw data...");
-      const data = transformStockData(label);
+      const data = transformStockData(symbolInfo);
       spinner.succeed(chalk.green(`Processed ${data.length.toLocaleString()} quotes from raw data`));
       return data;
     }

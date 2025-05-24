@@ -3,8 +3,8 @@ import { Strategy } from "./Strategy.js";
 class SuperTrendStrategy extends Strategy {
   config;
 
-  constructor(symbol, interval, persistTradesFn, config = SuperTrendStrategy.getDefaultConfig()) {
-    super(symbol, interval, persistTradesFn, config);
+  constructor(symbolInfo, persistTradesFn, config = SuperTrendStrategy.getDefaultConfig()) {
+    super(symbolInfo, persistTradesFn, config);
     this.config = config;
   }
 

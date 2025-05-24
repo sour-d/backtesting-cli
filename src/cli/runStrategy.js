@@ -75,7 +75,7 @@ const executeStrategy = async (strategyClass, symbolInfo, marketPath, strategyNa
 
     const strategyInstance = new strategyClass(
       symbolInfo,
-      (results) => saveResults(symbol, interval, strategyName, results),
+      (results) => saveResults({ symbol: symbolInfo.symbol, interval: symbolInfo.interval }, strategyName, results),
       config
     );
 
@@ -90,27 +90,16 @@ const executeStrategy = async (strategyClass, symbolInfo, marketPath, strategyNa
 
 export const runStrategy = async (strategyName) => {
   try {
-    for (const symbolinfo of symbols) {
-      // Validate inputs
-      validateInputs(symbolinfo, strategyName);
+    const symbolInfo = symbols[0]; // Assuming the first symbol for now
+    validateInputs(symbolInfo, strategyName);
 
-      // Parse symbol and interval from filename
-      const { symbol, interval, label } = symbolinfo;
+    const marketPath = dataManager.getMarketDataPath(symbolInfo.label);
+    validateMarketData(marketPath);
 
-      // Validate market data exists
-      const marketPath = dataManager.getMarketDataPath(label);
-      validateMarketData(marketPath);
+    const strategyClass = validateStrategy(findStrategy(strategies, strategyName), strategyName);
+    await executeStrategy(strategyClass, symbolInfo, marketPath, strategyName);
 
-      // Find and validate strategy
-      const strategyClass = validateStrategy(findStrategy(strategies, strategyName), strategyName);
-
-      // Execute strategy
-      await executeStrategy(strategyClass, label, interval, marketPath, strategyName);
-
-      console.log(chalk.dim("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"));
-      console.log(chalk.dim("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"));
-
-    }
+    console.log(chalk.dim("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"));
   } catch (error) {
     console.error(chalk.red("\n❌ Error: ") + error.message);
     throw error;
