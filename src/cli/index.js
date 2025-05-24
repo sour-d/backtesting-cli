@@ -30,10 +30,8 @@ program
     try {
       let symbolObj;
 
-      console.log("Options received:", options);
       if (options.i) {
         const index = parseInt(options.i, 10);
-        console.log(index)
         if (isNaN(index) || index < 0 || index >= symbols.length) {
           throw new Error("Invalid index value provided");
         }

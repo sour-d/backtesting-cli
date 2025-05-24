@@ -1,9 +1,21 @@
+import calculateATR from "../indicators/atr.js";
+import { movingAverageOf } from "../indicators/nDayMA.js";
+import calculateSuperTrendForQuote from "../indicators/superTrend.js";
 import { Strategy } from "./Strategy.js";
+
+const addIndicator =
+  (indicatorFn, ...extraArgs) =>
+  (quote, technicalQuotes) =>
+    indicatorFn(quote, technicalQuotes, ...extraArgs);
 
 class SuperTrendStrategy extends Strategy {
   config;
 
-  constructor(symbolInfo, persistTradesFn, config = SuperTrendStrategy.getDefaultConfig()) {
+  constructor(
+    symbolInfo,
+    persistTradesFn,
+    config = SuperTrendStrategy.getDefaultConfig()
+  ) {
     super(symbolInfo, persistTradesFn, config);
     this.config = config;
   }
@@ -15,10 +27,19 @@ class SuperTrendStrategy extends Strategy {
     };
   }
 
+  static getIndicators() {
+    return [
+      addIndicator(calculateATR, 10),
+      addIndicator(calculateSuperTrendForQuote, 2),
+      addIndicator(movingAverageOf, 60, 'close')
+    ];
+  }
+
   buy() {
     const today = this.stock.now();
     const yesterday = this.stock.prev();
     const dayBeforeYesterday = this.stock.prev(2);
+    // console.log(today)
 
     if (
       today.close > today.ma60close &&
@@ -26,6 +47,7 @@ class SuperTrendStrategy extends Strategy {
       yesterday.superTrendDirection === "Sell" &&
       dayBeforeYesterday.superTrendDirection === "Sell"
     ) {
+      console.log("buy stra")
       const { close: buyingPrice } = today;
       const initialStopLoss = Math.min(
         today.finalLowerBand,

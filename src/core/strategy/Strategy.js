@@ -1,6 +1,7 @@
 import { ExistingQuoteStorage } from "../storage/ExistingQuoteStorage.js";
 import { Trades } from "../tradeSimulator/Trades.js";
-import { getStockData } from "../parser/restructureData.js";
+import { getStockData, transformStockData } from "../parser/restructureData.js";
+import strategy from "./index.js";
 
 class Strategy {
   stock;
@@ -16,7 +17,7 @@ class Strategy {
   constructor(
     symbolInfo,
     persistTradesFn,
-    config = Strategy.getDefaultConfig()
+    config = Strategy.getDefaultConfig(),
   ) {
     const { symbol, interval } = symbolInfo;
     this.capital = config.capital;
@@ -31,7 +32,6 @@ class Strategy {
 
     this.stock = new ExistingQuoteStorage(getStockData(symbolInfo), 20);
     this.trades = new Trades(this);
-    // this.isLive = stock instanceof LiveQuoteStorage;
   }
 
   static getDefaultConfig() {
@@ -39,6 +39,10 @@ class Strategy {
       capital: 100000,
       riskPercentage: 5,
     };
+  }
+
+  static getIndicators() {
+    throw new Error("getIndicators() Method not implemented.");
   }
 
   stocksCanBeBought(riskForOneStock, buyingPrice) {

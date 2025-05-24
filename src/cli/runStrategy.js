@@ -67,7 +67,7 @@ const executeStrategy = async (strategyClass, symbolInfo, marketPath, strategyNa
     dataManager.ensureDirectories();
 
     // Transform data and add technical indicators
-    const technicalData = await transformStockData(symbolInfo);
+    const technicalData = await transformStockData(symbolInfo, strategyClass.getIndicators());
     spinner.succeed(chalk.green(`✔ Loaded ${technicalData.length} quotes from technical data`));
 
     const config = strategyClass.getDefaultConfig();

@@ -1,3 +1,5 @@
+import { addTechnicalIndicator } from "../parser/restructureData.js";
+
 export class ExistingQuoteStorage {
   quotes;
   currentQuoteIndex;

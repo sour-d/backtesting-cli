@@ -1,6 +1,4 @@
 import _ from "lodash";
-import getIndicator from "../indicators/index.js";
-import { im } from "mathjs";
 import chalk from "chalk";
 import ora from "ora";
 import dataManager from "../data/dataManager.js";
@@ -27,7 +25,7 @@ const writeTechnicalData = (label, technicalData) => {
   }
 };
 
-const addTechnicalIndicator = (quotes, startFrom = 0) => {
+const addTechnicalIndicator = (quotes, indicators, startFrom = 0) => {
   const spinner = ora({
     text: chalk.yellow("Adding technical indicators..."),
     spinner: 'dots'
@@ -36,21 +34,18 @@ const addTechnicalIndicator = (quotes, startFrom = 0) => {
   try {
     const technicalQuotes = quotes.slice(0, startFrom);
     const total = quotes.length;
-    let processed = startFrom;
 
-    for (let i = startFrom; i < quotes.length; i++) {
-      if (i % 1000 === 0) {
-        const progress = ((i / total) * 100).toFixed(1);
-        spinner.text = chalk.yellow(`Processing indicators... ${progress}% (${i}/${total})`);
-      }
-
-      const quote = quotes[i];
-      const indicator = getIndicator(quote, technicalQuotes);
-      technicalQuotes.push(indicator);
-      processed++;
+    for (let processed = startFrom; processed < total; processed++) {
+      const quote = _.cloneDeep(quotes[processed]);
+      indicators.forEach((indicatorFn) => {
+        if (typeof indicatorFn === "function") {
+          indicatorFn(quote, technicalQuotes);
+        }
+      });
+      technicalQuotes.push(quote);
     }
 
-    spinner.succeed(chalk.green(`Processed ${processed.toLocaleString()} quotes with technical indicators`));
+    spinner.succeed(chalk.green(`Processed ${quotes.length} quotes with technical indicators`));
     return technicalQuotes;
   } catch (error) {
     spinner.fail(chalk.red("Failed to add technical indicators"));
@@ -58,7 +53,7 @@ const addTechnicalIndicator = (quotes, startFrom = 0) => {
   }
 };
 
-const transformStockData = ({label}) => {
+const transformStockData = ({ label }, indicators) => {
   console.log(chalk.cyan("\n📊 Processing Stock Data:"));
   console.log(chalk.dim("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"));
 
@@ -88,7 +83,7 @@ const transformStockData = ({label}) => {
 
   console.log(chalk.dim("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"));
 
-  const technicalQuotes = addTechnicalIndicator(processedData);
+  const technicalQuotes = addTechnicalIndicator(processedData, indicators);
   writeTechnicalData(label, technicalQuotes);
 
   return technicalQuotes;
