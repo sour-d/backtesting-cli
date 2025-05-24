@@ -18,7 +18,8 @@ class DataManager {
       results: process.env.BACKTEST_RESULTS_DIR || path.join(this.dataRoot, 'results'),
       transformedResult: process.env.TRANSFORM_RESULT_DIR || path.join(this.dataRoot, 'transformedResult'),
       resultsStats: process.env.RESULTS_STATS_DIR || path.join(this.dataRoot, 'resultsStats'),
-      optimization: process.env.OPTIMIZATION_DIR || path.join(this.dataRoot, 'optimization')
+      optimization: process.env.OPTIMIZATION_DIR || path.join(this.dataRoot, 'optimization'),
+      model: process.env.MODEL_DIR || path.join(this.dataRoot, 'model')
     };
 
     // Normalize all paths
@@ -82,8 +83,8 @@ class DataManager {
     return this.getFilePath('technical', label);
   }
 
-  getResultsPath(label) {
-    const filename = `${label}.json`;
+  getResultsPath(label, suffix = '') {
+    const filename = `${label}${suffix}.json`;
     return path.join(this.directories.results, filename);
   }
 
@@ -99,6 +100,11 @@ class DataManager {
   getOptimizationPath(label) {
     const filename = `${label}.json`;
     return path.join(this.directories.optimization, filename);
+  }
+
+  getModelPath(label, suffix = '') {
+    const filename = `${label}${suffix}.json`;
+    return path.join(this.directories.model, filename);
   }
 
   exists(filepath) {

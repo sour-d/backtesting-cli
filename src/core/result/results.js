@@ -179,7 +179,7 @@ const displayStats = (stats) => {
   console.log(chalk.dim("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"));
 };
 
-const saveResults = async (symbol, interval, strategy, results) => {
+const saveResults = async ({symbol, interval}, strategy, results) => {
   const spinner = ora("Processing results...").start();
   
   try {

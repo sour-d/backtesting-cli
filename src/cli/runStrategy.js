@@ -41,14 +41,14 @@ const validateStrategy = (strategyClass, strategyName) => {
   return strategyClass;
 };
 
-const displayStrategyConfig = (strategyName, symbol, interval, marketPath, config) => {
+const displayStrategyConfig = (strategyName, { symbol, interval }, marketPath, config) => {
   console.log(chalk.cyan("\n🤖 Strategy Execution:"));
   console.log(chalk.dim("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"));
   console.log(chalk.bold("Strategy:   ") + chalk.green(strategyName));
   console.log(chalk.bold("Symbol:     ") + chalk.green(symbol));
   console.log(chalk.bold("Interval:   ") + chalk.green(interval));
   console.log(chalk.bold("Input:      ") + chalk.green(marketPath));
-  
+
   console.log(chalk.bold("\nConfiguration:"));
   Object.entries(config).forEach(([key, value]) => {
     console.log(chalk.dim("• ") + chalk.yellow(key) + ": " + chalk.green(value));
@@ -56,7 +56,7 @@ const displayStrategyConfig = (strategyName, symbol, interval, marketPath, confi
   console.log(chalk.dim("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"));
 };
 
-const executeStrategy = async (strategyClass, symbol, interval, marketPath, strategyName) => {
+const executeStrategy = async (strategyClass, symbolInfo, marketPath, strategyName) => {
   const spinner = ora({
     text: chalk.yellow("Initializing strategy..."),
     spinner: 'dots'
@@ -67,15 +67,14 @@ const executeStrategy = async (strategyClass, symbol, interval, marketPath, stra
     dataManager.ensureDirectories();
 
     // Transform data and add technical indicators
-    const technicalData = await transformStockData(symbol, interval);
+    const technicalData = await transformStockData(symbolInfo);
     spinner.succeed(chalk.green(`✔ Loaded ${technicalData.length} quotes from technical data`));
 
     const config = strategyClass.getDefaultConfig();
-    displayStrategyConfig(strategyName, symbol, interval, marketPath, config);
+    displayStrategyConfig(strategyName, symbolInfo, marketPath, config);
 
     const strategyInstance = new strategyClass(
-      symbol,
-      interval,
+      symbolInfo,
       (results) => saveResults(symbol, interval, strategyName, results),
       config
     );

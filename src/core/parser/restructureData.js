@@ -13,12 +13,12 @@ const removeNulls = (quotes) => {
 
 const trimToTwoDecimal = (value) => +value.toFixed(2);
 
-const writeTechnicalData = (symbol, interval, technicalData) => {
+const writeTechnicalData = (label, technicalData) => {
   const spinner = ora("Writing technical indicators data...").start();
-  
+
   try {
     dataManager.ensureDirectories();
-    const path = dataManager.getTechnicalDataPath(symbol, interval);
+    const path = dataManager.getTechnicalDataPath(label);
     dataManager.writeJSON(path, technicalData);
     spinner.succeed(chalk.green("Technical data saved successfully"));
   } catch (error) {
@@ -37,13 +37,13 @@ const addTechnicalIndicator = (quotes, startFrom = 0) => {
     const technicalQuotes = quotes.slice(0, startFrom);
     const total = quotes.length;
     let processed = startFrom;
-    
+
     for (let i = startFrom; i < quotes.length; i++) {
       if (i % 1000 === 0) {
         const progress = ((i / total) * 100).toFixed(1);
         spinner.text = chalk.yellow(`Processing indicators... ${progress}% (${i}/${total})`);
       }
-      
+
       const quote = quotes[i];
       const indicator = getIndicator(quote, technicalQuotes);
       technicalQuotes.push(indicator);
@@ -58,11 +58,11 @@ const addTechnicalIndicator = (quotes, startFrom = 0) => {
   }
 };
 
-const transformStockData = (symbol, interval) => {
+const transformStockData = (label) => {
   console.log(chalk.cyan("\n📊 Processing Stock Data:"));
   console.log(chalk.dim("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"));
 
-  const marketPath = dataManager.getMarketDataPath(symbol, interval);
+  const marketPath = dataManager.getMarketDataPath(label);
   const parseSpinner = ora("Loading market data...").start();
   let stockData;
   try {
@@ -89,32 +89,32 @@ const transformStockData = (symbol, interval) => {
   console.log(chalk.dim("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"));
 
   const technicalQuotes = addTechnicalIndicator(processedData);
-  writeTechnicalData(symbol, interval, technicalQuotes);
+  writeTechnicalData(label, technicalQuotes);
 
   return technicalQuotes;
 };
 
-const getStockData = (symbol, interval) => {
+const getStockData = (symbolInfo) => {
+  const { label } = symbolInfo;
   const spinner = ora("Loading stock data...").start();
   try {
-    const technicalPath = dataManager.getTechnicalDataPath(symbol, interval);
+    const technicalPath = dataManager.getTechnicalDataPath(label);
     if (dataManager.exists(technicalPath)) {
       const data = dataManager.readJSON(technicalPath);
-      console.log("-----", data.length, technicalPath, symbol, interval);
       spinner.succeed(chalk.green(`Loaded ${data.length.toLocaleString()} quotes from technical data`));
       return data;
     }
 
-    const marketPath = dataManager.getMarketDataPath(symbol, interval);
+    const marketPath = dataManager.getMarketDataPath(label);
     if (dataManager.exists(marketPath)) {
       spinner.text = chalk.yellow("Technical data not found, processing raw data...");
-      const data = transformStockData(symbol, interval);
+      const data = transformStockData(label);
       spinner.succeed(chalk.green(`Processed ${data.length.toLocaleString()} quotes from raw data`));
       return data;
     }
 
     spinner.fail(chalk.red("Stock data not found"));
-    throw new Error("Stock data not found for " + symbol + "_" + interval);
+    throw new Error("Stock data not found for " + label);
   } catch (error) {
     spinner.fail(chalk.red(`Failed to load stock data: ${error.message}`));
     throw error;

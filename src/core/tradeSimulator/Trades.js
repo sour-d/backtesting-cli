@@ -9,11 +9,11 @@ export class Trades {
   tradeResults;
   flushedTill;
 
-  constructor({ capital, risk, stockName }) {
+  constructor({ capital, risk, label }) {
     this.tradeResults = [];
     this.capital = capital;
     this.risk = risk;
-    this.stock = stockName;
+    this.stock = label;
     this.timeFrame = process.env.DEFAULT_INTERVAL;
     this.flushedTill = 0;
   }

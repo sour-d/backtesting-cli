@@ -14,21 +14,22 @@ class Strategy {
   interval;
 
   constructor(
-    symbol,
-    interval,
+    symbolInfo,
     persistTradesFn,
     config = Strategy.getDefaultConfig()
   ) {
+    const { symbol, interval } = symbolInfo;
     this.capital = config.capital;
     this.riskPercentage = config.riskPercentage;
     this.persistTradesFn = persistTradesFn;
     this.risk = this.capital * (this.riskPercentage / 100);
     this.symbol = symbol;
     this.interval = interval;
+    this.label = symbolInfo.label || `${symbol}_${interval}`;
 
     this.currentTrade = null;
 
-    this.stock = new ExistingQuoteStorage(getStockData(symbol, interval), 20);
+    this.stock = new ExistingQuoteStorage(getStockData(symbolInfo), 20);
     this.trades = new Trades(this);
     // this.isLive = stock instanceof LiveQuoteStorage;
   }
@@ -71,15 +72,18 @@ class Strategy {
   }
 
   buy() {
-    throw new Error("Method not implemented.");
+    throw new Error("Buy() Method not implemented.");
   }
 
   sell() {
-    throw new Error("Method not implemented.");
+    throw new Error("Sell() Method not implemented.");
   }
 
-  squareOff() {
-    throw new Error("Method not implemented.");
+  longSquareOff() {
+    throw new Error("longSquareOff() Method not implemented.");
+  }
+  shortSquareOff() {
+    throw new Error("shortSquareOff() Method not implemented.");
   }
 
   takePosition(risk, price, transactionType = "Buy") {
@@ -130,8 +134,8 @@ class Strategy {
     if (this.currentTrade?.type === "Buy") return this.longSquareOff();
     if (this.currentTrade?.type === "Sell") return this.shortSquareOff();
 
-    if (this.sell()) return;
-    if (this.buy()) return;
+    if (Boolean(this.sell())) return;
+    if (Boolean(this.buy())) return;
   }
 
   execute() {
