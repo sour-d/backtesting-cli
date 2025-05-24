@@ -179,14 +179,14 @@ const displayStats = (stats) => {
   console.log(chalk.dim("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"));
 };
 
-const saveResults = async ({symbol, interval}, strategy, results) => {
+const saveResults = async ({label, interval}, results) => {
   const spinner = ora("Processing results...").start();
   
   try {
     dataManager.ensureDirectories();
 
     // Save raw results
-    const resultPath = dataManager.getResultsPath(symbol);
+    const resultPath = dataManager.getResultsPath(label);
     dataManager.writeJSON(resultPath, results);
     spinner.succeed(chalk.green(`Raw results saved to ${resultPath}`));
 
@@ -198,7 +198,7 @@ const saveResults = async ({symbol, interval}, strategy, results) => {
       interval
     );
 
-    const transformedPath = dataManager.getTransformedResultsPath(symbol);
+    const transformedPath = dataManager.getTransformedResultsPath(label);
     dataManager.writeJSON(transformedPath, transformedTrades);
     spinner.succeed(chalk.green(`Transformed data saved to ${transformedPath}`));
 
@@ -209,7 +209,7 @@ const saveResults = async ({symbol, interval}, strategy, results) => {
     spinner.succeed(chalk.green("Statistics calculated"));
 
     // Save stats
-    const statsPath = dataManager.getResultsStatsPath(symbol);
+    const statsPath = dataManager.getResultsStatsPath(label);
     dataManager.writeJSON(statsPath, { trade: tradeStats, performance: performanceStats });
     spinner.succeed(chalk.green(`Statistics saved to ${statsPath}`));
 

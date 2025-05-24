@@ -75,7 +75,7 @@ const executeStrategy = async (strategyClass, symbolInfo, marketPath, strategyNa
 
     const strategyInstance = new strategyClass(
       symbolInfo,
-      (results) => saveResults({ symbol: symbolInfo.symbol, interval: symbolInfo.interval }, strategyName, results),
+      (results) => saveResults(symbolInfo, results),
       config
     );
 
