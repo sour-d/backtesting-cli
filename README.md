@@ -62,7 +62,13 @@ yarn cli download --symbol BTCUSDT --interval 1h --start 2023-01-01 --end 2023-0
 Run a trading strategy on historical data:
 
 ```bash
-yarn cli run <data-file> <strategy-name>
+yarn cli run <strategy-name> -i <index_val>
+```
+
+Run a trading strategy on all symbols:
+
+```bash
+yarn cli run <strategy-name> -a
 ```
 
 ### Training Models
