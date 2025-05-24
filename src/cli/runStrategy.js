@@ -88,9 +88,8 @@ const executeStrategy = async (strategyClass, symbolInfo, marketPath, strategyNa
   }
 };
 
-export const runStrategy = async (strategyName) => {
+export const runStrategy = async (strategyName, symbolInfo) => {
   try {
-    const symbolInfo = symbols[0]; // Assuming the first symbol for now
     validateInputs(symbolInfo, strategyName);
 
     const marketPath = dataManager.getMarketDataPath(symbolInfo.label);
