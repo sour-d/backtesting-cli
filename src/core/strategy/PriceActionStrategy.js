@@ -4,8 +4,8 @@ class PriceActionStrategy extends Strategy {
   config;
   demandZones;
 
-  constructor(symbol, interval, persistTradesFn, config = PriceActionStrategy.getDefaultConfig()) {
-    super(symbol, interval, persistTradesFn, config);
+  constructor(symbolInfo, persistTradesFn, config = PriceActionStrategy.getDefaultConfig()) {
+    super(symbolInfo, persistTradesFn, config);
     this.config = config;
     this.demandZones = Array(15).fill(null);
   }

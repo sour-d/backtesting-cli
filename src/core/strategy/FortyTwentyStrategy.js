@@ -3,8 +3,8 @@ import { Strategy } from "./Strategy.js";
 class FortyTwentyStrategy extends Strategy {
   config;
 
-  constructor(symbol, interval, persistTradesFn, config = FortyTwentyStrategy.getDefaultConfig()) {
-    super(symbol, interval, persistTradesFn, config);
+  constructor(symbolInfo, persistTradesFn, config = FortyTwentyStrategy.getDefaultConfig()) {
+    super(symbolInfo, persistTradesFn, config);
     this.config = config;
   }
 

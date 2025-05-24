@@ -4,8 +4,8 @@ import { Strategy } from "./Strategy.js";
 class MovingAverageStrategy extends Strategy {
   config;
 
-  constructor(symbol, interval, persistTradesFn, config = MovingAverageStrategy.getDefaultConfig()) {
-    super(symbol, interval, persistTradesFn, config);
+  constructor(symbolInfo, persistTradesFn, config = MovingAverageStrategy.getDefaultConfig()) {
+    super(symbolInfo, persistTradesFn, config);
     this.config = config;
   }
 

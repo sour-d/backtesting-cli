@@ -3,8 +3,8 @@ import { Strategy } from "./Strategy.js";
 class TwoBreakingCandle extends Strategy {
   config;
 
-  constructor(symbol, interval, persistTradesFn, config = TwoBreakingCandle.getDefaultConfig()) {
-    super(symbol, interval, persistTradesFn, config);
+  constructor(symbolInfo, persistTradesFn, config = TwoBreakingCandle.getDefaultConfig()) {
+    super(symbolInfo, persistTradesFn, config);
     this.config = config;
   }
 
@@ -23,7 +23,7 @@ class TwoBreakingCandle extends Strategy {
     const { low: stopLoss } = this.stock.lowOfLast(3);
     const today = this.stock.now();
     if (today.low <= stopLoss) {
-      this.exitPosition(stopLoss, this.currentTradeInfo.quantity);
+      this.exitPosition(stopLoss, this.currentTrade.quantity);
     }
   }
 
