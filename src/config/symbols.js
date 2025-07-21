@@ -38,5 +38,36 @@ export default [
     end: ts("2023-12-31", "23:59"),
     interval: intervals['1d'],
     tag: ["Bear market"]
+  },
+  {
+    label: "ETH_BULL_MARKET_1d_2023",
+    symbol: "ETHUSDT",
+    start: ts("2023-01-01"),
+    end: ts("2023-12-31", "23:59"),
+    interval: intervals['1d'],
+    tag: ["Bull market"]
+  },
+  {
+    label: "SOL_BEAR_MARKET_1d_2023",
+    symbol: "SOLUSDT",
+    start: ts("2023-01-01"),
+    end: ts("2023-12-31", "23:59"),
+    interval: intervals['1d'],
+    tag: ["Bear market"]
+  }, {
+    label: "DOGE_BULL_MARKET_1d_2023",
+    symbol: "DOGEUSDT",
+    start: ts("2023-01-01"),
+    end: ts("2023-12-31", "23:59"),
+    interval: intervals['1d'],
+    tag: ["Bull market"]
+  },
+  {
+    label: "ADA_BEAR_MARKET_1d_2023",
+    symbol: "ADAUSDT",
+    start: ts("2023-01-01"),
+    end: ts("2023-12-31", "23:59"),
+    interval: intervals['1d'],
+    tag: ["Bear market"]
   }
 ]

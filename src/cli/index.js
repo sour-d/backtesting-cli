@@ -3,6 +3,7 @@
 import { Command } from "commander";
 import downlaod from "../core/data/download.js";
 import { runStrategy } from "./runStrategy.js";
+import { trainAI } from "./trainAI.js";
 import chalk from "chalk";
 import symbols from "../config/symbols.js";
 
@@ -16,8 +17,9 @@ program
 program
   .command("download")
   .description("Download historical data")
-  .action(async () => {
-    await downlaod()
+  .option("-a, --ai", "Download AI training symbols")
+  .action(async (options) => {
+    await downlaod(options.ai);
   });
 
 program
@@ -46,6 +48,25 @@ program
       }
 
       await runStrategy(strategy, symbolObj);
+    } catch (error) {
+      console.error(chalk.red("\nError:"), error.message);
+      process.exit(1);
+    }
+  });
+
+program
+  .command("train")
+  .description("Train AI trading model")
+  .option("-e, --epochs <number>", "Number of training epochs", "1000")
+  .option("-b, --batch-size <number>", "Batch size for training", "32")
+  .option("-l, --learning-rate <number>", "Learning rate", "0.001")
+  .action(async (options) => {
+    try {
+      await trainAI({
+        epochs: parseInt(options.epochs, 10),
+        batchSize: parseInt(options.batchSize, 10),
+        learningRate: parseFloat(options.learningRate)
+      });
     } catch (error) {
       console.error(chalk.red("\nError:"), error.message);
       process.exit(1);

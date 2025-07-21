@@ -1,15 +1,17 @@
 import symbolConfig from "../../config/symbols.js";
 import downloader from "./downloader.js";
+import aiSymbolConfig from "../../config/aiTrainingSymbols.js";
 
-const download = async () => {
-  const allData = symbolConfig.map((symbolinfo) => {
+const download = async (downlaodAiSymbols = false) => {
+  const symbolInfos = downlaodAiSymbols ? aiSymbolConfig : symbolConfig;
+  const allData = symbolInfos.map((symbolInfo) => {
     return new Promise((resolve, reject) => {
-      downloader(symbolinfo)
+      downloader(symbolInfo)
         .then(() => {
           resolve();
         })
         .catch((error) => {
-          console.error(`Error downloading data for ${symbolinfo?.label}:`, error);
+          console.error(`Error downloading data for ${symbolInfo?.label}:`, error);
           reject(error);
         });
     });

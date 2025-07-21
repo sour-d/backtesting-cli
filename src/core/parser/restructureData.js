@@ -25,7 +25,7 @@ const writeTechnicalData = (label, technicalData) => {
   }
 };
 
-const addTechnicalIndicator = (quotes, indicators, startFrom = 0) => {
+const addTechnicalIndicator = (quotes, indicators = [], startFrom = 0) => {
   const spinner = ora({
     text: chalk.yellow("Adding technical indicators..."),
     spinner: 'dots'
@@ -53,7 +53,7 @@ const addTechnicalIndicator = (quotes, indicators, startFrom = 0) => {
   }
 };
 
-const transformStockData = ({ label }, indicators) => {
+const transformStockData = ({ label }, indicators = []) => {
   console.log(chalk.cyan("\n📊 Processing Stock Data:"));
   console.log(chalk.dim("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"));
 
@@ -89,7 +89,7 @@ const transformStockData = ({ label }, indicators) => {
   return technicalQuotes;
 };
 
-const getStockData = (symbolInfo) => {
+const getStockData = (symbolInfo, indicators = []) => {
   const { label } = symbolInfo;
   const spinner = ora("Loading stock data...").start();
   try {
@@ -103,7 +103,7 @@ const getStockData = (symbolInfo) => {
     const marketPath = dataManager.getMarketDataPath(label);
     if (dataManager.exists(marketPath)) {
       spinner.text = chalk.yellow("Technical data not found, processing raw data...");
-      const data = transformStockData(symbolInfo);
+      const data = transformStockData(symbolInfo, indicators);
       spinner.succeed(chalk.green(`Processed ${data.length.toLocaleString()} quotes from raw data`));
       return data;
     }
