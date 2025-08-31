@@ -25,6 +25,7 @@ const getTimeFrame = (timeFrame) => {
     15: "hour",
     30: "hour",
     60: "day",
+    '240': "day",
     D: "month",
   }[timeFrame];
 };

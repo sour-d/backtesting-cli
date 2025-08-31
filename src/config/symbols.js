@@ -17,6 +17,8 @@ const intervals = {
   '15m': '15',
   '30m': '30',
   '1h': '60',
+  '2h': '120',
+  '4h': '240',
   '1d': 'D',
   '1w': 'W',
   '1M': 'M',
@@ -26,17 +28,9 @@ export default [
   {
     label: "BTC_BULL_MARKET_1d_2023",
     symbol: "BTCUSDT",
-    start: ts("2023-01-01"),
-    end: ts("2023-12-31", "23:59"),
-    interval: intervals['1d'],
+    start: ts("2025-01-01"),
+    end: ts("2025-12-31", "23:59"),
+    interval: intervals['4h'],
     tag: ["Bull market"]
   },
-  {
-    label: "GALA_BEAR_MARKET_1d_2023",
-    symbol: "GALAUSDT",
-    start: ts("2023-01-01"),
-    end: ts("2023-12-31", "23:59"),
-    interval: intervals['1d'],
-    tag: ["Bear market"]
-  }
 ]

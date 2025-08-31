@@ -1,5 +1,14 @@
 import dayjs from "dayjs";
 import { Strategy } from "./Strategy.js";
+import calculateATR from "../indicators/atr.js";
+import calculateSuperTrendForQuote from "../indicators/superTrend.js";
+import { movingAverageOf } from "../indicators/nDayMA.js";
+import calculateCandleProperty from "../indicators/candleStick.js";
+
+const addIndicator =
+  (indicatorFn, ...extraArgs) =>
+    (quote, technicalQuotes) =>
+      indicatorFn(quote, technicalQuotes, ...extraArgs);
 
 class MovingAverageStrategy extends Strategy {
   config;
@@ -7,6 +16,16 @@ class MovingAverageStrategy extends Strategy {
   constructor(symbolInfo, persistTradesFn, config = MovingAverageStrategy.getDefaultConfig()) {
     super(symbolInfo, persistTradesFn, config);
     this.config = config;
+  }
+
+  static getIndicators() {
+    return [
+      addIndicator(movingAverageOf, 20, 'high'),
+      addIndicator(movingAverageOf, 20, 'low'),
+      addIndicator(calculateCandleProperty),
+      addIndicator(calculateATR, 10),
+      addIndicator(calculateSuperTrendForQuote, 2),
+    ];
   }
 
   static getDefaultConfig() {
@@ -20,17 +39,22 @@ class MovingAverageStrategy extends Strategy {
   }
 
   buy() {
+    const today = this.stock.now();
     const yesterday = this.stock.prev();
-    const dayBeforeYesterday = this.stock.prev(2);
+
+    if (!today || !yesterday) return;
+
+    const today_body = today.close - today.open;
+    const yesterday_body = yesterday.close - yesterday.open;
+
     if (
-      // yesterday.close > yesterday.ma60close &&
-      yesterday.close > yesterday.ma20high &&
-      yesterday.body > 0 &&
-      dayBeforeYesterday.body > 0 &&
-      yesterday.superTrendDirection === "Buy"
+      today.close > today.ma20high &&
+      today_body > 0 &&
+      yesterday_body > 0 &&
+      today.superTrendDirection === "Buy"
     ) {
-      const { open: buyingPrice } = this.stock.now();
-      const { ma20low: initialStopLoss } = yesterday;
+      const buyingPrice = today.close;
+      const initialStopLoss = buyingPrice * 0.96;
       const riskForOneStock = buyingPrice - initialStopLoss;
       if (initialStopLoss >= buyingPrice) return;
       this.takePosition(riskForOneStock, buyingPrice);
@@ -42,47 +66,34 @@ class MovingAverageStrategy extends Strategy {
     const today = this.stock.now();
     const yesterday = this.stock.prev();
 
-    if (this.currentTrade.stopLoss > today.close) {
-      this.exitPosition(this.currentTrade.stopLoss, this.currentTrade.position);
-      return this.sell();
-    }
+    if (!today || !yesterday) return;
 
-    if (
-      today.ma20high > today.close &&
-      today.ma20high > today.open &&
-      today.body < 0
-    ) {
-      this.exitPosition(today.close, this.currentTrade.position);
-      return this.sell();
-    }
+    const today_body = today.close - today.open;
 
-    if (
-      yesterday.ma20high > yesterday.close &&
-      today.ma20high > today.close &&
-      today.body < 0
-    ) {
-      this.exitPosition(today.close, this.currentTrade.position);
-      return this.sell();
-    }
-
-    if (today.superTrendDirection === "Sell") {
-      this.exitPosition(today.close, this.currentTrade.position);
+    const ma20high_yesterday = yesterday.ma20high;
+    if (ma20high_yesterday > today.low && today_body < 0) {
+      this.exitPosition(ma20high_yesterday, this.currentTrade.position);
       return this.sell();
     }
   }
 
   sell() {
+    const today = this.stock.now();
     const yesterday = this.stock.prev();
-    const dayBeforeYesterday = this.stock.prev(2);
+
+    if (!today || !yesterday) return;
+
+    const today_body = today.close - today.open;
+    const yesterday_body = yesterday.close - yesterday.open;
+
     if (
-      // yesterday.close < yesterday.ma60close &&
-      yesterday.close < yesterday.ma20low &&
-      yesterday.body < 0 &&
-      dayBeforeYesterday.body < 0 &&
-      yesterday.superTrendDirection === "Sell"
+      today.close < today.ma20low &&
+      today_body < 0 &&
+      yesterday_body < 0 &&
+      today.superTrendDirection === "Sell"
     ) {
-      const { open: sellingPrice } = this.stock.now();
-      const { ma20high: initialStopLoss } = yesterday;
+      const sellingPrice = today.close;
+      const initialStopLoss = sellingPrice * 1.04;
       const riskForOneStock = initialStopLoss - sellingPrice;
       if (initialStopLoss <= sellingPrice) return;
       this.takePosition(riskForOneStock, sellingPrice, "Sell");
@@ -94,31 +105,12 @@ class MovingAverageStrategy extends Strategy {
     const today = this.stock.now();
     const yesterday = this.stock.prev();
 
-    if (today.close > this.currentTrade.stopLoss) {
-      this.exitPosition(this.currentTrade.stopLoss, this.currentTrade.position);
-      return this.buy();
-    }
+    if (!today || !yesterday) return;
 
-    if (
-      today.close > today.ma20low &&
-      today.open > today.ma20low &&
-      today.body > 0
-    ) {
-      this.exitPosition(today.close, this.currentTrade.position);
-      return this.buy();
-    }
-
-    if (
-      yesterday.close > yesterday.ma20low &&
-      today.close > today.ma20low &&
-      today.body > 0
-    ) {
-      this.exitPosition(today.close, this.currentTrade.position);
-      return this.buy();
-    }
-
-    if (today.superTrendDirection === "Buy") {
-      this.exitPosition(today.close, this.currentTrade.position);
+    const today_body = today.close - today.open;
+    const ma20low_yesterday = yesterday.ma20low;
+    if (today.high > ma20low_yesterday && today_body > 0) {
+      this.exitPosition(ma20low_yesterday, this.currentTrade.position);
       return this.buy();
     }
   }
