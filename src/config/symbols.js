@@ -33,4 +33,28 @@ export default [
     interval: intervals['4h'],
     tag: ["Bull market"]
   },
+  // {
+  //   label: "DOGE_BULL_MARKET_1d_2023",
+  //   symbol: "DOGEUSDT",
+  //   start: ts("2025-01-01"),
+  //   end: ts("2025-12-31", "23:59"),
+  //   interval: intervals['4h'],
+  //   tag: ["Bull market"]
+  // },
+  // {
+  //   label: "SOL_BULL_MARKET_1d_2023",
+  //   symbol: "SOLUSDT",
+  //   start: ts("2025-01-01"),
+  //   end: ts("2025-12-31", "23:59"),
+  //   interval: intervals['4h'],
+  //   tag: ["Bull market"]
+  // },
+  // {
+  //   label: "GALA_BULL_MARKET_1d_2023",
+  //   symbol: "GALAUSDT",
+  //   start: ts("2025-01-01"),
+  //   end: ts("2025-12-31", "23:59"),
+  //   interval: intervals['4h'],
+  //   tag: ["Bull market"]
+  // },
 ]

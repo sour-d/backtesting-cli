@@ -50,7 +50,7 @@ class MovingAverageStrategy extends Strategy {
     if (
       today.close > today.ma20high &&
       today_body > 0 &&
-      yesterday_body > 0 &&
+      yesterday_body > 0 && 
       today.superTrendDirection === "Buy"
     ) {
       const buyingPrice = today.close;
