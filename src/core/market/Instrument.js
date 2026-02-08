@@ -1,3 +1,4 @@
+import fs from "fs";
 import InstrumentsInfo from "../../config/symbols.js";
 import downloader from "../data/downloader.js";
 import dataManager from "../data/dataManager.js";
@@ -12,23 +13,38 @@ export const getOHLCData = async (symbols) => {
   };
   
   try {
-    // First try to load existing data
     const filepath = dataManager.getMarketDataPath(instrumentInfo.label);
+
+    // Try to load existing data
     if (dataManager.exists(filepath)) {
       const existingData = dataManager.readJSON(filepath);
       if (existingData && existingData.length > 0) {
         console.log(`Loaded existing data for ${symbols}: ${existingData.length} candles`);
         return existingData;
       }
+      // File exists but is empty -- delete it so we can try a fresh download
+      console.log(`Existing file for ${symbols} is empty, removing stale file...`);
+      try { fs.unlinkSync(filepath); } catch { /* ignore */ }
     }
     
-    // If no existing data, download it
-    console.log(`No existing data found for ${symbols}, downloading...`);
-    await downloader(instrumentInfo);
+    // Download fresh data
+    console.log(`No data found for ${symbols}, downloading...`);
+    const success = await downloader(instrumentInfo);
+
+    if (!success || !dataManager.exists(filepath)) {
+      console.warn(`No data available for ${symbols} from exchange.`);
+      return [];
+    }
     
     // Load the newly downloaded data
     const newData = dataManager.readJSON(filepath);
-    return newData || [];
+    if (!newData || newData.length === 0) {
+      console.warn(`Downloaded file for ${symbols} is still empty.`);
+      return [];
+    }
+
+    console.log(`Downloaded data for ${symbols}: ${newData.length} candles`);
+    return newData;
   } catch (error) {
     console.error(`Error loading OHLC data for ${symbols}:`, error);
     return [];

@@ -141,8 +141,11 @@ program
           const locked = open ? open.locked : 0;
           const instrEquity = cash + locked;
           const pnl = instrEquity - initialPer;
-          const pnlStr = pnl >= 0 ? chalk.green(`+${fmt(pnl)}`) : chalk.red(fmt(pnl));
-          let line = `    ${symbol.padEnd(10)} equity: ${fmt(instrEquity).padStart(12)}  (${pnlStr})`;
+          const pnlPct = ((pnl / initialPer) * 100).toFixed(2);
+          const pnlStr = pnl >= 0
+            ? chalk.green(`+${fmt(pnl)}, +${pnlPct}%`)
+            : chalk.red(`${fmt(pnl)}, ${pnlPct}%`);
+          let line = `    ${symbol.padEnd(15)} equity: ${fmt(instrEquity).padStart(12)}  (${pnlStr})`;
           if (open) {
             line += chalk.dim(`  [${open.type} open]`);
           }

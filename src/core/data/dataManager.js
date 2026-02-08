@@ -114,7 +114,11 @@ class DataManager {
       throw new Error(`File not found: ${filepath}`);
     }
     try {
-      return JSON.parse(fs.readFileSync(filepath, 'utf-8'));
+      const content = fs.readFileSync(filepath, 'utf-8').trim();
+      if (!content) {
+        return null; // Empty file → treat as no data
+      }
+      return JSON.parse(content);
     } catch (error) {
       throw new Error(`Failed to parse JSON from ${filepath}: ${error.message}`);
     }

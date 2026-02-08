@@ -11,6 +11,13 @@ const downloader = async (symbolinfo) => {
   try {
     const OHLC = await HistoricalKline(symbol, interval, startMs, endMs, false);
 
+    if (!OHLC || OHLC.length === 0) {
+      console.log(
+        chalk.yellow(`${symbolinfo.label}: no data returned from exchange, skipping save.`)
+      );
+      return false;
+    }
+
     console.log(
       `${symbolinfo.label} data downloaded successfully. Total data points: ${OHLC.length}`
     );
@@ -18,6 +25,7 @@ const downloader = async (symbolinfo) => {
     console.log(
       chalk.green(`Data for ${symbolinfo.label} saved successfully.`)
     );
+    return true;
   } catch (error) {
     console.error("Error downloading data:", error);
     throw error;
