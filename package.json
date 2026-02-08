@@ -7,9 +7,11 @@
     "backtesting": "./src/cli/index.js"
   },
   "scripts": {
-    "setup": "mkdir -p .data/{market,technical,results,optimization}",
+    "setup": "mkdir -p .data/market .data/technical .data/results .data/optimization",
     "clean": "rm -rf .data/*/*",
-    "cli": "node src/cli/index.js"
+    "cli": "node src/cli/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@tensorflow/tfjs": "^4.22.0",
@@ -29,6 +31,7 @@
     "uuid": "^9.0.1"
   },
   "devDependencies": {
-    "@types/node": "^20.12.7"
+    "@types/node": "^20.12.7",
+    "vitest": "^4.0.18"
   }
 }

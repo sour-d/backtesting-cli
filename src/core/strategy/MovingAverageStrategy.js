@@ -1,4 +1,3 @@
-import dayjs from "dayjs";
 import { Strategy } from "./Strategy.js";
 import calculateATR from "../indicators/atr.js";
 import calculateSuperTrendForQuote from "../indicators/superTrend.js";
@@ -7,21 +6,19 @@ import calculateCandleProperty from "../indicators/candleStick.js";
 
 const addIndicator =
   (indicatorFn, ...extraArgs) =>
-    (quote, technicalQuotes) =>
-      indicatorFn(quote, technicalQuotes, ...extraArgs);
+  (quote, technicalQuotes) =>
+    indicatorFn(quote, technicalQuotes, ...extraArgs);
 
 class MovingAverageStrategy extends Strategy {
-  config;
-
-  constructor(symbolInfo, persistTradesFn, config = MovingAverageStrategy.getDefaultConfig()) {
-    super(symbolInfo, persistTradesFn, config);
+  constructor(config = MovingAverageStrategy.getDefaultConfig()) {
+    super(config);
     this.config = config;
   }
 
   static getIndicators() {
     return [
-      addIndicator(movingAverageOf, 20, 'high'),
-      addIndicator(movingAverageOf, 20, 'low'),
+      addIndicator(movingAverageOf, 20, "high"),
+      addIndicator(movingAverageOf, 20, "low"),
       addIndicator(calculateCandleProperty),
       addIndicator(calculateATR, 10),
       addIndicator(calculateSuperTrendForQuote, 2),
@@ -35,6 +32,7 @@ class MovingAverageStrategy extends Strategy {
       stopLossWindow: 10,
       capital: 100000,
       riskPercentage: 5,
+      maxAllocation: 0.8, // Max 80% of per-instrument capital per trade
     };
   }
 
@@ -50,7 +48,7 @@ class MovingAverageStrategy extends Strategy {
     if (
       today.close > today.ma20high &&
       today_body > 0 &&
-      yesterday_body > 0 && 
+      yesterday_body > 0 &&
       today.superTrendDirection === "Buy"
     ) {
       const buyingPrice = today.close;
@@ -72,7 +70,7 @@ class MovingAverageStrategy extends Strategy {
 
     const ma20high_yesterday = yesterday.ma20high;
     if (ma20high_yesterday > today.low && today_body < 0) {
-      this.exitPosition(ma20high_yesterday, this.currentTrade.position);
+      this.exitPosition(ma20high_yesterday, this.currentTrade.quantity);
       return this.sell();
     }
   }
@@ -110,12 +108,12 @@ class MovingAverageStrategy extends Strategy {
     const today_body = today.close - today.open;
     const ma20low_yesterday = yesterday.ma20low;
     if (today.high > ma20low_yesterday && today_body > 0) {
-      this.exitPosition(ma20low_yesterday, this.currentTrade.position);
+      this.exitPosition(ma20low_yesterday, this.currentTrade.quantity);
       return this.buy();
     }
   }
 
-  static name = "MovingAverage";
+  static strategyName = "MovingAverage";
 }
 
 export default MovingAverageStrategy;

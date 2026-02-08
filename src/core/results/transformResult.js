@@ -6,6 +6,16 @@ const trimToTwoDecimal = (value) => {
   return +value.toFixed(2);
 };
 
+/**
+ * Format a price preserving meaningful precision while cleaning up
+ * floating-point noise (e.g. 136.47640000000002 -> 136.4764).
+ * Uses 10 significant figures which is sufficient for all financial instruments.
+ */
+const formatPrice = (price) => {
+  if (typeof price !== "number" || isNaN(price)) return price;
+  return +price.toPrecision(10);
+};
+
 const getTimeMultiplier = (timeFrame) => {
   switch (timeFrame.toUpperCase()) {
     case 'M': return 1;
@@ -17,8 +27,12 @@ const getTimeMultiplier = (timeFrame) => {
 };
 
 const calculateDuration = (trade, timeFrame) => {
-  const startTime = dayjs(trade.transactionDate);
-  const endTime = dayjs(trade.exitDate);
+  // transactionDate/exitDate may be candle objects or date strings
+  const startRaw = trade.transactionDate?.date ?? trade.transactionDate;
+  const endRaw = trade.exitDate?.date ?? trade.exitDate;
+  const startTime = dayjs(startRaw);
+  const endTime = dayjs(endRaw);
+  if (!startTime.isValid() || !endTime.isValid()) return null;
   const minutesDiff = endTime.diff(startTime, 'minute');
   const multiplier = getTimeMultiplier(timeFrame);
   return Math.ceil(minutesDiff / multiplier);
@@ -76,43 +90,55 @@ const calculateFee = (price, quantity) => {
 
 const aggregateLog = (trades) => {
   const result = [];
-  let currentPosition = null;
+  // Track open positions per symbol (multi-instrument support)
+  const openPositions = new Map();
 
   trades.forEach((trade) => {
+    const symbol = trade.symbol || "unknown";
     const fee = calculateFee(trade.price, trade.quantity);
 
     if (trade.transactionType === "Buy" || trade.transactionType === "Sell") {
       if (trade.risk === 0) return;
 
+      const currentPosition = openPositions.get(symbol);
+
       if (currentPosition) {
+        // Close existing position for this symbol
         currentPosition.exitDate = trade.transactionDate;
         currentPosition.exitPrice = trade.price;
         currentPosition.exitFee = fee;
         result.push(currentPosition);
-        currentPosition = null;
+        openPositions.delete(symbol);
       } else {
-        currentPosition = {
+        // Open new position for this symbol
+        openPositions.set(symbol, {
+          symbol,
           transactionDate: trade.transactionDate,
           entryPrice: trade.price,
           quantity: trade.quantity,
           risk: trade.risk,
           type: trade.transactionType === "Buy" ? "Long" : "Short",
-          entryFee: fee
-        };
+          entryFee: fee,
+        });
       }
     }
 
-    if (trade.transactionType === "square-off" && currentPosition) {
-      currentPosition.exitDate = trade.transactionDate;
-      currentPosition.exitPrice = trade.price;
-      currentPosition.exitFee = fee;
-      result.push(currentPosition);
-      currentPosition = null;
+    if (trade.transactionType === "square-off") {
+      const currentPosition = openPositions.get(symbol);
+      if (currentPosition) {
+        currentPosition.exitDate = trade.transactionDate;
+        currentPosition.exitPrice = trade.price;
+        currentPosition.exitFee = fee;
+        result.push(currentPosition);
+        openPositions.delete(symbol);
+      }
     }
   });
 
   return result;
 };
+
+export { aggregateLog };
 
 export const transformTradesData = (trades, capital, timeFrame) => {
   const aggregatedLog = aggregateLog(trades);
@@ -128,6 +154,7 @@ export const transformTradesData = (trades, capital, timeFrame) => {
     return {
       id: i + 1,
       type: trade.type,
+      symbol: trade.symbol,
       duration: calculateDuration({
         transactionDate: trade.transactionDate,
         exitDate: trade.exitDate
@@ -143,8 +170,8 @@ export const transformTradesData = (trades, capital, timeFrame) => {
       quantity: trade.quantity,
       transactionDate: trade.transactionDate,
       exitDate: trade.exitDate,
-      entryPrice: trimToTwoDecimal(trade.entryPrice),
-      exitPrice: trimToTwoDecimal(trade.exitPrice)
+      entryPrice: formatPrice(trade.entryPrice),
+      exitPrice: formatPrice(trade.exitPrice)
     };
   });
 

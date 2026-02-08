@@ -18,8 +18,6 @@ class DataManager {
       results: process.env.BACKTEST_RESULTS_DIR || path.join(this.dataRoot, 'results'),
       transformedResult: process.env.TRANSFORM_RESULT_DIR || path.join(this.dataRoot, 'transformedResult'),
       resultsStats: process.env.RESULTS_STATS_DIR || path.join(this.dataRoot, 'resultsStats'),
-      optimization: process.env.OPTIMIZATION_DIR || path.join(this.dataRoot, 'optimization'),
-      model: process.env.MODEL_DIR || path.join(this.dataRoot, 'model')
     };
 
     // Normalize all paths

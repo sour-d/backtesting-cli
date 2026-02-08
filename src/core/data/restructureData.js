@@ -1,7 +1,7 @@
 import _ from "lodash";
 import chalk from "chalk";
 import ora from "ora";
-import dataManager from "../data/dataManager.js";
+import dataManager from "./dataManager.js";
 
 const removeNulls = (quotes) => {
   return quotes.filter((quote) =>

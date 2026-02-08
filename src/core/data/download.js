@@ -2,14 +2,15 @@ import symbolConfig from "../../config/symbols.js";
 import downloader from "./downloader.js";
 
 const download = async () => {
-  const allData = symbolConfig.map((symbolinfo) => {
+  const { instruments, interval, start, end } = symbolConfig;
+  const allData = instruments.map((symbol) => {
     return new Promise((resolve, reject) => {
-      downloader(symbolinfo)
+      downloader({ symbol, interval, start, end, label: `${symbol}_${interval}` })
         .then(() => {
           resolve();
         })
         .catch((error) => {
-          console.error(`Error downloading data for ${symbolinfo?.label}:`, error);
+          console.error(`Error downloading data for ${symbol}:`, error);
           reject(error);
         });
     });

@@ -9,11 +9,10 @@ export class Trades {
   tradeResults;
   flushedTill;
 
-  constructor({ capital, risk, label }) {
+  constructor({ capital, risk }) {
     this.tradeResults = [];
     this.capital = capital;
     this.risk = risk;
-    this.stock = label;
     this.timeFrame = process.env.DEFAULT_INTERVAL;
     this.flushedTill = 0;
   }
@@ -33,13 +32,14 @@ export class Trades {
     return this.totalExpectancy() / this.totalTrades();
   }
 
-  addTradeResult(transactionDate, price, quantity, risk, transactionType) {
+  addTradeResult(transactionDate, price, quantity, risk, transactionType, symbol) {
     const outcome = {
       transactionDate,
       price,
       quantity,
       risk: trimToDec(risk),
       transactionType,
+      symbol,
     };
 
     this.tradeResults.push(outcome);

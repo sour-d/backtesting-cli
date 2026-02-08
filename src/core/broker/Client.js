@@ -4,14 +4,13 @@ dotenv.config();
 
 class Client {
   static #client = null;
-  static async getClient() {
+  static getClient() {
     if (!this.#client) {
       this.#client = new RestClientV5({
         key: process.env.TESTNET_API_KEY,
         secret: process.env.TESTNET_API_SECRET,
         parseAPIRateLimits: true,
         testnet: true,
-        // demoTrading: true,
       });
     }
     return this.#client;

@@ -1,43 +1,41 @@
-import { addTechnicalIndicator } from "../parser/restructureData.js";
-
-export class ExistingQuoteStorage {
-  quotes;
-  currentQuoteIndex;
+export class ExistingOHLCStorage {
+  ohlc;
+  currentOHLCIndex;
   name;
 
-  constructor(quotes, startingQuoteDay = 1, stockName = "") {
-    this.quotes = quotes;
-    this.currentQuoteIndex = startingQuoteDay - 1;
-    this.name = stockName;
+  constructor(ohlc, startingIndex = 1, instrumentName = "") {
+    this.ohlc = ohlc;
+    this.currentOHLCIndex = startingIndex - 1;
+    this.name = instrumentName;
   }
 
   hasData() {
-    return this.quotes.length - 1 > this.currentQuoteIndex;
+    return this.ohlc.length - 1 > this.currentOHLCIndex;
   }
 
   now() {
-    return this.quotes[this.currentQuoteIndex];
+    return this.ohlc[this.currentOHLCIndex];
   }
 
   prev(quoteCount = 1) {
-    return this.quotes[this.currentQuoteIndex - quoteCount];
+    return this.ohlc[this.currentOHLCIndex - quoteCount];
   }
 
   move() {
     if (this.hasData()) {
-      this.currentQuoteIndex++;
+      this.currentOHLCIndex++;
       return this.now();
     }
   }
 
   dataOfLast(days) {
-    let data = this.quotes.slice(0, this.currentQuoteIndex);
+    let data = this.ohlc.slice(0, this.currentOHLCIndex);
 
-    if (days < this.currentQuoteIndex) {
-      data = this.quotes.slice(0, this.currentQuoteIndex).slice(-days);
+    if (days < this.currentOHLCIndex) {
+      data = this.ohlc.slice(0, this.currentOHLCIndex).slice(-days);
     }
 
-    return new ExistingQuoteStorage(data);
+    return new ExistingOHLCStorage(data);
   }
 
   highOfLast(days) {

@@ -1,5 +1,4 @@
 import { RestClientV5 } from "bybit-api";
-// import dotenv from "dotenv";
 import _ from "lodash";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc.js";
@@ -14,7 +13,6 @@ const restClient = (testnet) =>
     secret: process.env.TESTNET_API_SECRET,
     parseAPIRateLimits: true,
     testnet: testnet,
-    // demoTrading: true,
   });
 
 const getTimeFrame = (timeFrame) => {
