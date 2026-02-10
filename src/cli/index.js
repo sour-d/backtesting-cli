@@ -8,6 +8,7 @@ import instrumentsInfo from "../config/symbols.js";
 import Bot from "../core/strategy/Bot.js";
 import MovingAverageStrategy from "../core/strategy/MovingAverageStrategy.js";
 import BTCTrendStrategy from "../core/strategy/BTCTrendStrategy.js";
+import BTCTrendShortOnlyStrategy from "../core/strategy/BTCTrendShortOnlyStrategy.js";
 import { saveResults } from "../core/results/results.js";
 
 const program = new Command();
@@ -16,6 +17,7 @@ const program = new Command();
 const strategies = {
   MovingAverage: MovingAverageStrategy,
   BTCTrend: BTCTrendStrategy,
+  BTCTrendShortOnly: BTCTrendShortOnlyStrategy,
 };
 
 program
