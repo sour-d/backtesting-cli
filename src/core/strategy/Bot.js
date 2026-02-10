@@ -38,9 +38,6 @@ class Bot {
     const instruments = this.market.getAllInstruments();
     const symbols = Object.keys(instruments);
 
-    // Allocate capital equally among instruments (isolated pools)
-    this.strategy.allocateCapital(symbols);
-
     console.log(chalk.yellow(`Computing indicators for ${symbols.length} instruments...`));
 
     for (const symbol of symbols) {
@@ -60,6 +57,10 @@ class Bot {
       const stock = new ExistingOHLCStorage(enrichedData, startIndex, symbol);
       this.instrumentStocks.set(symbol, stock);
     }
+
+    // Allocate capital only among instruments that actually have data
+    const activeSymbols = [...this.instrumentStocks.keys()];
+    this.strategy.allocateCapital(activeSymbols);
 
     console.log(chalk.green(`Indicators computed for ${this.instrumentStocks.size} instruments`));
   }

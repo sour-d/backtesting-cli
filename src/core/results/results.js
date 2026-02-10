@@ -112,10 +112,10 @@ const calculatePerformanceStats = (tradeResults) => {
       tradeResults.reduce((acc, trade) => acc + (trade.reward || 0), 0)
     ),
     maxReward: trimToTwoDecimal(
-      Math.max(...tradeResults.map((trade) => trade.reward || 0))
+      tradeResults.reduce((max, trade) => Math.max(max, trade.reward || 0), -Infinity)
     ),
     minReward: trimToTwoDecimal(
-      Math.min(...tradeResults.map((trade) => trade.reward || 0))
+      tradeResults.reduce((min, trade) => Math.min(min, trade.reward || 0), Infinity)
     ),
   };
 
@@ -156,11 +156,11 @@ const calculatePerformanceStats = (tradeResults) => {
   );
 
   performance.maxDrawDown = trimToTwoDecimal(
-    Math.min(...tradeResults.map((trade) => trade.drawDown || 0))
+    tradeResults.reduce((min, trade) => Math.min(min, trade.drawDown || 0), 0)
   );
 
-  performance.maxDrawDownDuration = Math.max(
-    ...tradeResults.map((trade) => trade.drawDownDuration || 0)
+  performance.maxDrawDownDuration = tradeResults.reduce(
+    (max, trade) => Math.max(max, trade.drawDownDuration || 0), 0
   );
 
   return performance;

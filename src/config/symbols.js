@@ -25,13 +25,10 @@ const intervals = {
 };
 
 export default {
-  start: ts("2025-01-01"),
-  end: ts("2025-12-31", "23:59"),
+  start: ts("2017-01-01"),
+  end: ts("2026-02-10", "23:59"),
   interval: intervals["1d"],
   instruments: [
     "BTCUSDT",
-    "ETHUSDT",
-    "SOLUSDT",
-    "GALAUSDT",
   ],
 };

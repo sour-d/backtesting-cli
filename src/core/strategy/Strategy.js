@@ -18,6 +18,8 @@ class Strategy {
     this.currentTrades = new Map(); // Per-symbol open positions
     this.currentTrade = null; // Alias for current symbol's trade during tradeOnce
     this.stock = null;
+    this._buyFirst = false; // Alternates buy/sell check order to avoid directional bias
+    this._lastPrices = new Map(); // Last known close price per symbol (for equity calc)
 
     this.trades = new Trades({
       capital: this.capital,
@@ -156,13 +158,53 @@ class Strategy {
     this.currentTrades.delete(this._currentSymbol);
   }
 
+  /**
+   * Check whether the current candle has breached the stop loss.
+   * If so, exit the position at the stop-loss price.
+   * Returns true if the stop loss was triggered.
+   */
+  checkStopLoss() {
+    if (!this.currentTrade) return false;
+
+    const today = this.stock.now();
+    if (!today) return false;
+
+    const { stopLoss, type, quantity } = this.currentTrade;
+    if (stopLoss == null) return false;
+
+    if (type === "Buy" && today.low <= stopLoss) {
+      // Long stop loss hit: exit at the stop-loss price
+      this.exitPosition(stopLoss, quantity);
+      return true;
+    }
+
+    if (type === "Sell" && today.high >= stopLoss) {
+      // Short stop loss hit: exit at the stop-loss price
+      this.exitPosition(stopLoss, quantity);
+      return true;
+    }
+
+    return false;
+  }
+
   trade() {
     if (this.capital <= 0) return; // Skip if capital exhausted
+
+    // --- Enforce stop loss before any strategy-level exit logic ---
+    if (this.currentTrade && this.checkStopLoss()) return;
+
     if (this.currentTrade?.type === "Buy") return this.longSquareOff();
     if (this.currentTrade?.type === "Sell") return this.shortSquareOff();
 
-    if (Boolean(this.sell())) return;
-    if (Boolean(this.buy())) return;
+    // Alternate buy/sell check order to avoid directional bias
+    if (this._buyFirst) {
+      if (Boolean(this.buy())) return;
+      if (Boolean(this.sell())) return;
+    } else {
+      if (Boolean(this.sell())) return;
+      if (Boolean(this.buy())) return;
+    }
+    this._buyFirst = !this._buyFirst;
   }
 
   /**
@@ -177,6 +219,12 @@ class Strategy {
     this._currentSymbol = symbol;
     this.stock = stock;
     this.currentTrade = this.currentTrades.get(symbol) || null;
+
+    // Track last known close price for equity calculation
+    const currentCandle = stock.now();
+    if (currentCandle?.close != null) {
+      this._lastPrices.set(symbol, currentCandle.close);
+    }
 
     // Load per-instrument capital (falls back to shared capital if not allocated)
     if (this.capitalPool.size > 0) {
@@ -218,18 +266,33 @@ class Strategy {
         ? Object.fromEntries(this.capitalPool)
         : null;
 
-    // Compute capital locked in open positions
+    // Compute market-value equity for open positions using last known prices
     const openPositions = {};
     let totalLocked = 0;
     for (const [symbol, trade] of this.currentTrades) {
-      const locked = trade.quantity * trade.price;
+      const currentPrice = this._lastPrices.get(symbol) ?? trade.price;
+      // Market value = what you'd get by closing the position now
+      let marketValue;
+      let unrealizedPnL;
+      if (trade.type === "Sell") {
+        // Short: closing returns collateral + P&L = qty * (2 * entry - current)
+        marketValue = trade.quantity * (2 * trade.price - currentPrice);
+        unrealizedPnL = trade.quantity * (trade.price - currentPrice);
+      } else {
+        // Long: closing returns qty * currentPrice
+        marketValue = trade.quantity * currentPrice;
+        unrealizedPnL = trade.quantity * (currentPrice - trade.price);
+      }
+
       openPositions[symbol] = {
         type: trade.type,
         quantity: trade.quantity,
         entryPrice: trade.price,
-        locked,
+        currentPrice,
+        unrealizedPnL,
+        locked: marketValue,
       };
-      totalLocked += locked;
+      totalLocked += marketValue;
     }
 
     return {
@@ -237,8 +300,8 @@ class Strategy {
       tradeResults: this.trades.tradeResults,
       metadata: {
         capital: totalCash,            // Available cash (excl. open positions)
-        totalLocked,                   // Capital locked in open positions
-        totalEquity: totalCash + totalLocked, // Cash + locked
+        totalLocked,                   // Market value of open positions
+        totalEquity: totalCash + totalLocked, // True equity: cash + market value
         initialCapital: this.initialCapital,
         riskPercentage: this.riskPercentage,
         totalOpenPositions: this.currentTrades.size,

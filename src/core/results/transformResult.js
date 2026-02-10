@@ -16,8 +16,20 @@ const formatPrice = (price) => {
   return +price.toPrecision(10);
 };
 
-const getTimeMultiplier = (timeFrame) => {
-  switch (timeFrame.toUpperCase()) {
+/**
+ * Convert a timeFrame value (from config/exchange) to its duration in minutes.
+ * Handles both numeric strings ("240", "60") and letter codes ("D", "W", "M").
+ */
+const getTimeFrameMinutes = (timeFrame) => {
+  if (timeFrame == null) return 1;
+  const str = String(timeFrame).trim();
+
+  // Numeric string → already in minutes (e.g. "240" = 4h, "60" = 1h)
+  const asNumber = Number(str);
+  if (!isNaN(asNumber) && asNumber > 0) return asNumber;
+
+  // Letter codes
+  switch (str.toUpperCase()) {
     case 'M': return 1;
     case 'H': return 60;
     case 'D': return 1440;
@@ -26,16 +38,42 @@ const getTimeMultiplier = (timeFrame) => {
   }
 };
 
+/**
+ * Calculate trade duration in candles.
+ * Uses unix timestamps (dateUnix) for accuracy, falling back to date+time strings.
+ */
 const calculateDuration = (trade, timeFrame) => {
-  // transactionDate/exitDate may be candle objects or date strings
-  const startRaw = trade.transactionDate?.date ?? trade.transactionDate;
-  const endRaw = trade.exitDate?.date ?? trade.exitDate;
-  const startTime = dayjs(startRaw);
-  const endTime = dayjs(endRaw);
-  if (!startTime.isValid() || !endTime.isValid()) return null;
-  const minutesDiff = endTime.diff(startTime, 'minute');
-  const multiplier = getTimeMultiplier(timeFrame);
-  return Math.ceil(minutesDiff / multiplier);
+  // Prefer precise unix timestamps when available
+  const startUnix = trade.transactionDate?.dateUnix;
+  const endUnix = trade.exitDate?.dateUnix;
+
+  let minutesDiff;
+  if (startUnix && endUnix) {
+    minutesDiff = (endUnix - startUnix) / 60000;
+  } else {
+    // Fallback: combine date + time for full datetime parsing
+    const startDate = trade.transactionDate;
+    const endDate = trade.exitDate;
+    const startRaw = startDate?.dateUnix
+      ? null
+      : (startDate?.date && startDate?.time)
+        ? `${startDate.date} ${startDate.time}`
+        : (startDate?.date ?? startDate);
+    const endRaw = endDate?.dateUnix
+      ? null
+      : (endDate?.date && endDate?.time)
+        ? `${endDate.date} ${endDate.time}`
+        : (endDate?.date ?? endDate);
+
+    if (!startRaw || !endRaw) return null;
+    const startTime = dayjs(startRaw);
+    const endTime = dayjs(endRaw);
+    if (!startTime.isValid() || !endTime.isValid()) return null;
+    minutesDiff = endTime.diff(startTime, 'minute');
+  }
+
+  const candleMinutes = getTimeFrameMinutes(timeFrame);
+  return Math.max(1, Math.round(minutesDiff / candleMinutes));
 };
 
 const calculateDrawdown = (trades) => {

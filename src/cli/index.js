@@ -7,6 +7,7 @@ import CryptoMarket from "../core/market/CryptoMarket.js";
 import instrumentsInfo from "../config/symbols.js";
 import Bot from "../core/strategy/Bot.js";
 import MovingAverageStrategy from "../core/strategy/MovingAverageStrategy.js";
+import BTCTrendStrategy from "../core/strategy/BTCTrendStrategy.js";
 import { saveResults } from "../core/results/results.js";
 
 const program = new Command();
@@ -14,6 +15,7 @@ const program = new Command();
 // Strategy registry -- add new strategies here
 const strategies = {
   MovingAverage: MovingAverageStrategy,
+  BTCTrend: BTCTrendStrategy,
 };
 
 program
@@ -101,11 +103,12 @@ program
 
       const results = bot.getResults();
 
+      let stats = null;
       if (results.tradeResults.length === 0) {
         console.log(chalk.dim("  No trades were generated during the simulation."));
         console.log(chalk.dim("  This may be normal if the strategy conditions were not met."));
       } else {
-        await saveResults(market, results);
+        stats = await saveResults(market, results);
       }
 
       // Summary
@@ -130,6 +133,36 @@ program
       const netPnL = equity - metadata.initialCapital;
       const netColor = netPnL >= 0 ? chalk.green : chalk.red;
       console.log(`    Total equity:     ${fmt(equity)} (${netColor((netPnL >= 0 ? "+" : "") + fmt(netPnL))})`);
+
+      // Key performance metrics
+      if (stats) {
+        const { tradeStats: ts, performanceStats: ps } = stats;
+
+        console.log(chalk.blue("\n  Performance:"));
+        const winColor = ts.accuracy >= 50 ? chalk.green : chalk.yellow;
+        console.log(`    Win rate:           ${winColor(ts.accuracy + "%")} (${ts.win}W / ${ts.loss}L)`);
+        console.log(`    Max consec. wins:   ${chalk.green(ts.maxConsecutiveWins)}`);
+        console.log(`    Max consec. losses: ${chalk.red(ts.maxConsecutiveLosses)}`);
+        console.log(`    Avg trade length:   ${ts.averageTradeCandle} candles`);
+
+        console.log(chalk.blue("\n  Directions:"));
+        const longWinPct = ts.longs > 0 ? ((ts.longsWon / ts.longs) * 100).toFixed(1) : "0.0";
+        const shortWinPct = ts.shorts > 0 ? ((ts.shortsWon / ts.shorts) * 100).toFixed(1) : "0.0";
+        console.log(`    Longs:  ${String(ts.longs).padStart(4)} trades, ${chalk.green(ts.longsWon + "W")} (${longWinPct}%)`);
+        console.log(`    Shorts: ${String(ts.shorts).padStart(4)} trades, ${chalk.green(ts.shortsWon + "W")} (${shortWinPct}%)`);
+
+        console.log(chalk.blue("\n  Risk & Reward:"));
+        console.log(`    Total P&L:          ${netColor(fmt(ps.totalProfitOrLoss))}`);
+        console.log(`    P&L after fees:     ${netColor(fmt(ps.profitOrLossAfterFee))}`);
+        console.log(`    Total fees:         ${chalk.red(fmt(ps.fee))}`);
+        console.log(`    Max drawdown:       ${chalk.red(fmt(Math.abs(ps.maxDrawDown)))}`);
+        console.log(`    Drawdown duration:  ${chalk.red(ps.maxDrawDownDuration + " trades")}`);
+        console.log(`    Avg reward (R):     ${ps.averageReward >= 0 ? chalk.green(ps.averageReward) : chalk.red(ps.averageReward)}`);
+        console.log(`    Avg win R:          ${chalk.green(ps.averageWinReward)}`);
+        console.log(`    Avg loss R:         ${chalk.red(ps.averageLossReward)}`);
+        console.log(`    Best trade R:       ${chalk.green(ps.maxReward)}`);
+        console.log(`    Worst trade R:      ${chalk.red(ps.minReward)}`);
+      }
 
       // Per-instrument breakdown
       if (metadata.capitalPerInstrument) {
