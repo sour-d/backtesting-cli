@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+import fs from "fs";
+import path from "path";
 import { Command } from "commander";
 import download from "../core/data/download.js";
 import chalk from "chalk";
@@ -39,6 +41,7 @@ program
   .description("Run a trading strategy backtest")
   .option("-s, --strategy <name>", "Strategy name", "MovingAverage")
   .option("-a, --all-instruments", "Use all available instruments from exchange", false)
+  .option("-e, --equity-output <file>", "Output equity curve to CSV file", null)
   .action(async (options) => {
     try {
       const startTime = Date.now();
@@ -94,7 +97,7 @@ program
       // --- Step 3: Compute indicators ---
       console.log(chalk.yellow("\nStep 3: Computing indicators..."));
 
-      const bot = new Bot(market, StrategyClass);
+      const bot = new Bot(market, StrategyClass, { logEquity: !!options.equityOutput });
       await bot.initialize();
 
       // --- Step 4: Run strategy day-by-day ---
@@ -190,6 +193,19 @@ program
         }
       }
       console.log("");
+
+      // Write equity log if requested
+      if (options.equityOutput && bot.getEquityLog().length > 0) {
+        try {
+          const csvPath = path.resolve(options.equityOutput);
+          const csvContent = 'date,total_equity\n' +
+            bot.getEquityLog().map(e => `${e.date},${e.totalEquity.toFixed(2)}`).join('\n');
+          fs.writeFileSync(csvPath, csvContent, 'utf8');
+          console.log(chalk.green(`  Equity curve written to: ${csvPath}`));
+        } catch (e) {
+          console.error(chalk.red(` Failed to write equity file: ${e.message}`));
+        }
+      }
     } catch (error) {
       console.error(chalk.red("\nError:"), error);
     }

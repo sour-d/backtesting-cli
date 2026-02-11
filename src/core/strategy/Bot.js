@@ -3,12 +3,14 @@ import { addTechnicalIndicator } from "../data/restructureData.js";
 import chalk from "chalk";
 
 class Bot {
-  constructor(market, strategyClass) {
+  constructor(market, strategyClass, options = {}) {
     this.market = market;
     this.strategyClass = strategyClass;
     this.strategy = null;
     this.instrumentStocks = new Map(); // Map<symbol, ExistingOHLCStorage>
     this.isRunning = false;
+    this.logEquity = options.logEquity || false;
+    this.equityLog = [];
   }
 
   /**
@@ -136,6 +138,26 @@ class Bot {
 
       completedDays++;
 
+      // Record equity at end of day if logging enabled
+      if (this.logEquity) {
+        try {
+          const results = this.strategy.getResults();
+          // Get current date from any instrument
+          const anySymbol = [...this.instrumentStocks.keys()][0];
+          const anyStock = this.instrumentStocks.get(anySymbol);
+          const currentBar = anyStock.now();
+          const date = currentBar?.date;
+          if (date) {
+            this.equityLog.push({
+              date,
+              totalEquity: results.metadata.totalEquity
+            });
+          }
+        } catch (e) {
+          console.error('Error logging equity:', e.message);
+        }
+      }
+
       // Progress logging every 10% or at least every 50 days
       const progressInterval = Math.max(1, Math.floor(daysToRun / 10));
       if (completedDays % progressInterval === 0 || completedDays === daysToRun) {
@@ -155,6 +177,10 @@ class Bot {
 
   getResults() {
     return this.strategy.getResults();
+  }
+
+  getEquityLog() {
+    return this.equityLog;
   }
 
   getStatus() {
