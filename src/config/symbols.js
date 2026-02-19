@@ -27,7 +27,7 @@ const intervals = {
 export default {
   start: ts("2025-01-01"),
   end: ts("2025-12-31", "23:59"),
-  interval: intervals["1d"],
+  interval: intervals["4h"],
   instruments: [
     "BTCUSDT",   // Bitcoin
     "ETHUSDT",   // Ethereum

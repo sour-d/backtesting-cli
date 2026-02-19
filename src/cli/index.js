@@ -9,17 +9,15 @@ import CryptoMarket from "../core/market/CryptoMarket.js";
 import instrumentsInfo from "../config/symbols.js";
 import Bot from "../core/strategy/Bot.js";
 import MovingAverageStrategy from "../core/strategy/MovingAverageStrategy.js";
-import BTCTrendStrategy from "../core/strategy/BTCTrendStrategy.js";
-import HybridRegimeStrategy from "../core/strategy/HybridRegimeStrategy.js";
 import { saveResults } from "../core/results/results.js";
+import MovingAverageV2Strategy from "../core/strategy/MovingAverageV2Strategy.js";
 
 const program = new Command();
 
 // Strategy registry -- add new strategies here
 const strategies = {
   MovingAverage: MovingAverageStrategy,
-  BTCTrend: BTCTrendStrategy,
-  HybridRegime: HybridRegimeStrategy,
+  MovingAverage_v2: MovingAverageV2Strategy,
 };
 
 program
