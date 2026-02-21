@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "tsx src/cli/index.ts live",
     "dev:backtest": "tsx src/cli/index.ts run",
+    "download": "tsx src/cli/index.ts download",
     "prebuild": "rm -rf dist",
     "build": "tsc",
     "postbuild": "mkdir -p .data/market .data/technical .data/results .data/transformedResult .data/resultsStats",

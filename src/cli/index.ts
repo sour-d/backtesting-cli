@@ -9,10 +9,12 @@ import { FileStore } from '../store/FileStore.js';
 import { SupabaseStore } from '../store/SupabaseStore.js';
 import { aggregateTrades, computeStats } from '../store/analytics.js';
 import { HistoricalFeed } from '../datasource/feeds/HistoricalFeed.js';
+import { BybitClient } from '../datasource/exchange/BybitClient.js';
 import { ConsoleLogger, LogLevel } from '../logger/ConsoleLogger.js';
 import { PersistentLogger } from '../logger/PersistentLogger.js';
 import { DeploymentManager } from '../deployment/DeploymentManager.js';
 import { createServer } from '../api/server.js';
+import { loadConfig, parseDate } from '../config/loadConfig.js';
 import type { AppConfig } from '../types/index.js';
 import type { IStore } from '../store/IStore.js';
 
@@ -21,37 +23,51 @@ dotenv.config();
 const program = new Command();
 program.name('quantlab').description('Modular backtesting and trading engine').version('0.2.0');
 
-// ---- Backtest command (unchanged) ----
+// ---- Backtest command ----
 
 program
   .command('run')
   .description('Run a backtest')
-  .requiredOption('-s, --strategy <name>', 'Strategy name')
-  .option('-S, --symbols <symbols>', 'Comma-separated symbol list', 'SOLUSDT')
-  .option('-c, --capital <amount>', 'Starting capital', '100000')
-  .option('-r, --risk <percent>', 'Risk percentage per trade', '5')
-  .option('-a, --allocation <fraction>', 'Max allocation fraction per trade', '0.8')
-  .option('-f, --fee <rate>', 'Fee rate', '0.001')
-  .option('--start <unix>', 'Start timestamp (unix ms)')
-  .option('--end <unix>', 'End timestamp (unix ms)')
-  .option('--interval <interval>', 'Candle interval', '240')
+  .option('-s, --strategy <name>', 'Strategy name')
+  .option('-S, --symbols <symbols>', 'Comma-separated symbol list')
+  .option('-c, --capital <amount>', 'Starting capital')
+  .option('-r, --risk <percent>', 'Risk percentage per trade')
+  .option('-a, --allocation <fraction>', 'Max allocation fraction per trade')
+  .option('-f, --fee <rate>', 'Fee rate')
+  .option('--start <date>', 'Start date (e.g. "2024-01-01" or unix ms)')
+  .option('--end <date>', 'End date (e.g. "2025-12-31" or unix ms)')
+  .option('--interval <interval>', 'Candle interval')
   .option('--log-level <level>', 'Log level: DEBUG, INFO, WARN, ERROR', 'INFO')
   .action(async (opts) => {
-    const symbols = (opts.symbols as string).split(',').map((s: string) => s.trim());
+    const cfg = await loadConfig();
     const logLevel = LogLevel[opts.logLevel as keyof typeof LogLevel] ?? LogLevel.INFO;
     const logger = new ConsoleLogger({ component: 'CLI' }, logLevel);
 
+    const symbols = opts.symbols
+      ? (opts.symbols as string).split(',').map((s: string) => s.trim())
+      : cfg.symbols;
+    const strategyName = (opts.strategy as string | undefined) ?? cfg.strategy;
+
+    if (!symbols || symbols.length === 0) {
+      logger.error('No symbols specified. Use -S flag or set "symbols" in quantlab.config.json');
+      process.exit(1);
+    }
+    if (!strategyName) {
+      logger.error('No strategy specified. Use -s flag or set "strategy" in quantlab.config.json');
+      process.exit(1);
+    }
+
     const config: AppConfig = {
       mode: 'backtest',
-      start: opts.start ? Number(opts.start) : 0,
-      end: opts.end ? Number(opts.end) : Date.now(),
-      interval: opts.interval as string,
+      start: parseDate(opts.start as string) ?? parseDate(cfg.start) ?? 0,
+      end: parseDate(opts.end as string) ?? parseDate(cfg.end) ?? Date.now(),
+      interval: (opts.interval as string | undefined) ?? cfg.interval ?? '240',
       instruments: symbols,
-      strategy: opts.strategy as string,
-      capital: Number(opts.capital),
-      riskPercentage: Number(opts.risk),
-      maxAllocation: Number(opts.allocation),
-      feeRate: Number(opts.fee),
+      strategy: strategyName,
+      capital: Number(opts.capital ?? cfg.capital ?? 100000),
+      riskPercentage: Number(opts.risk ?? cfg.riskPercentage ?? 5),
+      maxAllocation: Number(opts.allocation ?? cfg.maxAllocation ?? 0.8),
+      feeRate: Number(opts.fee ?? cfg.feeRate ?? 0.001),
     };
 
     logger.info('Starting backtest', { strategy: config.strategy, symbols: symbols.join(',') });
@@ -201,19 +217,64 @@ program
     logger.info(`  GET  http://localhost:${port}/api/deployments`);
   });
 
-// ---- Download command (placeholder) ----
+// ---- Download command ----
 
 program
   .command('download')
-  .description('Download historical market data')
-  .requiredOption('-S, --symbols <symbols>', 'Comma-separated symbol list')
-  .requiredOption('--start <unix>', 'Start timestamp (unix ms)')
-  .requiredOption('--end <unix>', 'End timestamp (unix ms)')
-  .option('--interval <interval>', 'Candle interval', '240')
+  .description('Download historical market data from Bybit')
+  .option('-S, --symbols <symbols>', 'Comma-separated symbol list')
+  .option('--start <date>', 'Start date (e.g. "2024-01-01" or unix ms)')
+  .option('--end <date>', 'End date (e.g. "2025-12-31" or unix ms)')
+  .option('--interval <interval>', 'Candle interval')
+  .option('--category <category>', 'Bybit market category: linear, spot, inverse')
+  .option('--log-level <level>', 'Log level: DEBUG, INFO, WARN, ERROR', 'INFO')
   .action(async (opts) => {
-    const logger = new ConsoleLogger({ component: 'Downloader' });
-    logger.info('Download command is a placeholder — implement with exchange client');
-    logger.info('Usage: Provide exchange client integration in src/datasource/exchange/');
+    const cfg = await loadConfig();
+    const logLevel = LogLevel[opts.logLevel as keyof typeof LogLevel] ?? LogLevel.INFO;
+    const logger = new ConsoleLogger({ component: 'Downloader' }, logLevel);
+
+    const symbols = opts.symbols
+      ? (opts.symbols as string).split(',').map((s: string) => s.trim())
+      : cfg.symbols;
+    const start = parseDate(opts.start as string) ?? parseDate(cfg.start);
+    const end = parseDate(opts.end as string) ?? parseDate(cfg.end);
+    const interval = (opts.interval as string | undefined) ?? cfg.interval ?? '240';
+    const category = (opts.category as 'linear' | 'spot' | 'inverse' | undefined) ?? cfg.category ?? 'linear';
+
+    if (!symbols || symbols.length === 0) {
+      logger.error('No symbols specified. Use -S flag or set "symbols" in quantlab.config.json');
+      process.exit(1);
+    }
+    if (start === undefined || end === undefined) {
+      logger.error('Start and end dates are required. Use --start/--end flags or set in quantlab.config.json');
+      process.exit(1);
+    }
+
+    const client = new BybitClient({
+      apiKey: process.env.BYBIT_API_KEY,
+      apiSecret: process.env.BYBIT_API_SECRET,
+      logger: logger.child({ component: 'BybitClient' }),
+    });
+    const store = new FileStore('.data');
+
+    for (const symbol of symbols) {
+      logger.info(`Downloading ${symbol} ${interval}min candles`, {
+        start: new Date(start).toISOString(),
+        end: new Date(end).toISOString(),
+      });
+
+      try {
+        const candles = await client.fetchKlines({ symbol, interval, start, end, category });
+        const label = `${symbol}_${interval}`;
+        await store.saveMarketData(label, candles);
+        logger.info(`Saved ${candles.length} candles to .data/market/${label}.json`);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        logger.error(`Failed to download ${symbol}: ${message}`);
+      }
+    }
+
+    logger.info('Download complete');
   });
 
 program.parse();
