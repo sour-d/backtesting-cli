@@ -7,13 +7,15 @@
     "quantlab": "./dist/cli/index.js"
   },
   "scripts": {
-    "dev": "tsx src/cli/index.ts",
+    "dev": "tsx src/cli/index.ts live",
+    "dev:backtest": "tsx src/cli/index.ts run",
+    "prebuild": "rm -rf dist",
     "build": "tsc",
-    "start": "node dist/cli/index.js",
+    "postbuild": "mkdir -p .data/market .data/technical .data/results .data/transformedResult .data/resultsStats",
+    "start": "node dist/cli/index.js live",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "setup": "mkdir -p .data/market .data/technical .data/results .data/transformedResult .data/resultsStats",
     "clean": "rm -rf dist .data/*/*",
     "typecheck": "tsc --noEmit"
   },
