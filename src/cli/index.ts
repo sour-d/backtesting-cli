@@ -9,6 +9,7 @@ import { FileStore } from '../store/FileStore.js';
 import { SupabaseStore } from '../store/SupabaseStore.js';
 import { aggregateTrades, computeStats } from '../store/analytics.js';
 import { HistoricalFeed } from '../datasource/feeds/HistoricalFeed.js';
+import { LiveFeed } from '../datasource/feeds/LiveFeed.js';
 import { BybitClient } from '../datasource/exchange/BybitClient.js';
 import { ConsoleLogger, LogLevel } from '../logger/ConsoleLogger.js';
 import { PersistentLogger } from '../logger/PersistentLogger.js';
@@ -16,6 +17,7 @@ import { DeploymentManager } from '../deployment/DeploymentManager.js';
 import { createServer } from '../api/server.js';
 import { loadConfig, parseDate } from '../config/loadConfig.js';
 import type { AppConfig } from '../types/index.js';
+import type { DeployRequest } from '../types/deployment.js';
 import type { IStore } from '../store/IStore.js';
 
 dotenv.config();
@@ -140,16 +142,20 @@ program
   .command('live')
   .description('Start the live trading engine with API server')
   .option('--port <port>', 'API server port', '3000')
-  .option('--interval <interval>', 'Candle interval', '240')
+  .option('--interval <interval>', 'Candle interval')
   .option('--log-level <level>', 'Log level: DEBUG, INFO, WARN, ERROR', 'INFO')
+  .option('--auto-deploy', 'Auto-deploy strategy from quantlab.config.js on startup')
   .action(async (opts) => {
+    const cfg = await loadConfig();
     const logLevel = LogLevel[opts.logLevel as keyof typeof LogLevel] ?? LogLevel.INFO;
     const consoleLogger = new ConsoleLogger({ component: 'Engine' }, logLevel);
     const port = Number(process.env.PORT || opts.port);
+    const interval = (opts.interval as string | undefined) ?? cfg.interval ?? '240';
 
-    consoleLogger.info('Starting live trading engine', { port: String(port) });
+    consoleLogger.info('Starting live trading engine', { port: String(port), interval });
 
-    const market = new Market([]);
+    const defaultStrategy = resolveStrategy(cfg.strategy ?? 'MovingAverage_v2');
+    const market = new Market(defaultStrategy.getIndicators());
 
     let store: IStore;
     const supabaseUrl = process.env.SUPABASE_URL;
@@ -160,7 +166,12 @@ program
       store = new SupabaseStore(client);
       consoleLogger.info('Using Supabase for persistence');
     } else {
-      store = new FileStore('.data');
+      const fileStore = new FileStore('.data');
+      if (opts.autoDeploy) {
+        fileStore.cleanLiveData();
+        consoleLogger.info('Cleaned previous live data');
+      }
+      store = fileStore;
       consoleLogger.info('Using FileStore for persistence (set SUPABASE_URL and SUPABASE_KEY for DB)');
     }
 
@@ -170,10 +181,23 @@ program
       context: { component: 'Engine' },
     });
 
+    const bybitClient = new BybitClient({
+      apiKey: process.env.BYBIT_API_KEY,
+      apiSecret: process.env.BYBIT_API_SECRET,
+      logger: logger.child({ component: 'BybitClient' }),
+    });
+
+    const liveFeed = new LiveFeed({
+      client: bybitClient,
+      interval,
+      category: (cfg.category as 'linear' | 'spot' | 'inverse') ?? 'linear',
+      logger: logger.child({ component: 'LiveFeed' }),
+    });
+
     const broker = new SimulatedBroker({
-      feeRate: 0.001,
-      riskPercentage: 5,
-      maxAllocation: 0.8,
+      feeRate: cfg.feeRate ?? 0.001,
+      riskPercentage: cfg.riskPercentage ?? 5,
+      maxAllocation: cfg.maxAllocation ?? 0.8,
     });
 
     const bot = new Bot({
@@ -183,12 +207,19 @@ program
       logger: logger.child({ component: 'Bot' }),
     });
 
+    liveFeed.onCandle((symbol, candle) => {
+      bot.onCandle(symbol, candle);
+      const enriched = market.getStock(symbol).now();
+      void store.saveCandles(symbol, interval, [enriched]);
+    });
+
     const dm = new DeploymentManager({
       bot,
       broker,
       market,
       store,
       logger: logger.child({ component: 'DeploymentManager' }),
+      liveFeed,
     });
 
     const restored = await dm.restoreFromStore();
@@ -196,10 +227,35 @@ program
       logger.info('Restored deployments from store', { count: String(restored) });
     }
 
+    if (opts.autoDeploy && restored === 0) {
+      const symbols = cfg.symbols ?? [];
+      if (symbols.length > 0 && cfg.strategy) {
+        const request: DeployRequest = {
+          symbols,
+          strategy: cfg.strategy,
+          capital: cfg.capital ?? 100000,
+          riskPercentage: cfg.riskPercentage ?? 5,
+          maxAllocation: cfg.maxAllocation ?? 0.8,
+          feeRate: cfg.feeRate ?? 0.001,
+        };
+        const deployments = await dm.deploy(request);
+        logger.info('Auto-deployed from config', {
+          strategy: request.strategy,
+          symbols: symbols.join(','),
+          count: String(deployments.length),
+        });
+      } else {
+        logger.warn('--auto-deploy set but quantlab.config.js has no symbols or strategy');
+      }
+    }
+
+    await liveFeed.start();
+
     const server = await createServer(dm, store, logger.child({ component: 'API' }), { port });
 
     const shutdown = () => {
       logger.info('Shutting down...');
+      liveFeed.stop();
       server.close(() => {
         void logger.flush().then(() => {
           logger.dispose();

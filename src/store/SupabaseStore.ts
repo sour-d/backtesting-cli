@@ -215,18 +215,28 @@ export class SupabaseStore implements IStore {
   }
 
   private async flushCandles(symbol: string, interval: string, candles: Candle[]): Promise<void> {
-    const rows = candles.map((c) => ({
-      symbol,
-      interval,
-      date_unix: c.dateUnix,
-      date: c.date,
-      time: c.time,
-      open: c.open,
-      high: c.high,
-      low: c.low,
-      close: c.close,
-      volume: c.volume,
-    }));
+    const BASE_KEYS = new Set(['date', 'time', 'dateUnix', 'open', 'high', 'low', 'close', 'volume']);
+
+    const rows = candles.map((c) => {
+      const technicals: Record<string, unknown> = {};
+      for (const [key, val] of Object.entries(c)) {
+        if (!BASE_KEYS.has(key)) technicals[key] = val;
+      }
+
+      return {
+        symbol,
+        interval,
+        date_unix: c.dateUnix,
+        date: c.date,
+        time: c.time,
+        open: c.open,
+        high: c.high,
+        low: c.low,
+        close: c.close,
+        volume: c.volume,
+        technicals: Object.keys(technicals).length > 0 ? technicals : null,
+      };
+    });
 
     const { error } = await this.client
       .from('candles')
@@ -336,6 +346,7 @@ export class SupabaseStore implements IStore {
       low: row.low as number,
       close: row.close as number,
       volume: row.volume as number,
+      ...((row.technicals ?? {}) as Record<string, number | string>),
     }));
   }
 

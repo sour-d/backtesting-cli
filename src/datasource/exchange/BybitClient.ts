@@ -32,6 +32,29 @@ export class BybitClient {
     this.logger = opts?.logger ?? null;
   }
 
+  /**
+   * Fetch the most recent N candles with a single API call.
+   * Intended for live polling -- no pagination, no logging noise.
+   */
+  async fetchRecentCandles(opts: {
+    symbol: string;
+    interval: string;
+    limit?: number;
+    category?: 'linear' | 'spot' | 'inverse';
+  }): Promise<Candle[]> {
+    const response = await this.client.getKline({
+      category: opts.category ?? 'linear',
+      symbol: opts.symbol,
+      interval: opts.interval as Parameters<RestClientV5['getKline']>[0]['interval'],
+      limit: opts.limit ?? 5,
+    });
+
+    const list = response.result?.list;
+    if (!list || list.length === 0) return [];
+
+    return list.map((kline) => this.mapKline(kline)).reverse();
+  }
+
   async fetchKlines(opts: FetchKlinesOpts): Promise<Candle[]> {
     const { symbol, interval, start, category } = opts;
     let { end } = opts;

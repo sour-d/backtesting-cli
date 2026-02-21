@@ -8,6 +8,7 @@
   },
   "scripts": {
     "dev": "tsx src/cli/index.ts live",
+    "dev:live": "tsx src/cli/index.ts live --auto-deploy",
     "dev:backtest": "tsx src/cli/index.ts run",
     "download": "tsx src/cli/index.ts download",
     "prebuild": "rm -rf dist",

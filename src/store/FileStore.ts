@@ -21,7 +21,7 @@ export class FileStore implements IStore {
     this.ensureDirs();
   }
 
-  // --- Trade recording (backtest) ---
+  // --- Trade recording (backtest in-memory) ---
 
   recordTrade(entry: TradeEntry): void {
     this.trades.push(entry);
@@ -53,33 +53,85 @@ export class FileStore implements IStore {
     this.writeJSON(filePath, data);
   }
 
-  // --- Deployment persistence (no-op for backtest) ---
+  // --- Deployment persistence (file-based for live) ---
 
-  async saveDeployment(_deployment: Deployment): Promise<void> {}
-  async updateDeployment(_id: string, _patch: Partial<Deployment>): Promise<void> {}
-  async loadActiveDeployments(): Promise<Deployment[]> { return []; }
-  async removeDeployment(_id: string): Promise<void> {}
+  async saveDeployment(deployment: Deployment): Promise<void> {
+    const all = this.loadAllDeployments();
+    all[deployment.id] = deployment;
+    this.writeJSON(this.deploymentsPath(), all);
+  }
 
-  // --- Position recovery (no-op for backtest) ---
+  async updateDeployment(id: string, patch: Partial<Deployment>): Promise<void> {
+    const all = this.loadAllDeployments();
+    if (all[id]) {
+      all[id] = { ...all[id], ...patch } as Deployment;
+      this.writeJSON(this.deploymentsPath(), all);
+    }
+  }
 
-  async savePosition(_deploymentId: string, _position: Position): Promise<void> {}
-  async loadPosition(_deploymentId: string): Promise<Position | null> { return null; }
-  async removePosition(_deploymentId: string): Promise<void> {}
+  async loadActiveDeployments(): Promise<Deployment[]> {
+    const all = this.loadAllDeployments();
+    return Object.values(all).filter(
+      (d) => d.status === 'active' || d.status === 'paused',
+    );
+  }
 
-  // --- Completed trade storage (no-op for backtest) ---
+  async removeDeployment(id: string): Promise<void> {
+    const all = this.loadAllDeployments();
+    delete all[id];
+    this.writeJSON(this.deploymentsPath(), all);
+  }
 
-  async saveTrade(_trade: StoredTrade): Promise<void> {}
-  async loadTrades(_deploymentId: string): Promise<StoredTrade[]> { return []; }
+  // --- Position recovery (file-based for live) ---
 
-  // --- Live candle buffering (no-op for backtest) ---
+  async savePosition(deploymentId: string, position: Position): Promise<void> {
+    const all = this.loadAllPositions();
+    all[deploymentId] = position;
+    this.writeJSON(this.positionsPath(), all);
+  }
 
-  async saveCandles(_symbol: string, _interval: string, _candles: readonly Candle[]): Promise<void> {}
+  async loadPosition(deploymentId: string): Promise<Position | null> {
+    const all = this.loadAllPositions();
+    return all[deploymentId] ?? null;
+  }
 
-  // --- Application log persistence (no-op for backtest) ---
+  async removePosition(deploymentId: string): Promise<void> {
+    const all = this.loadAllPositions();
+    delete all[deploymentId];
+    this.writeJSON(this.positionsPath(), all);
+  }
+
+  // --- Completed trade storage (file-based for live) ---
+
+  async saveTrade(trade: StoredTrade): Promise<void> {
+    const all = this.loadStoredTrades();
+    all.push(trade);
+    this.writeJSON(this.storedTradesPath(), all);
+  }
+
+  async loadTrades(deploymentId: string): Promise<StoredTrade[]> {
+    const all = this.loadStoredTrades();
+    return all.filter((t) => t.deploymentId === deploymentId);
+  }
+
+  // --- Live candle buffering (append to file) ---
+
+  async saveCandles(symbol: string, interval: string, candles: readonly Candle[]): Promise<void> {
+    const label = `${symbol}_${interval}`;
+    const existing = this.loadMarketData(label) ?? [];
+    const seen = new Set(existing.map((c) => c.dateUnix));
+    const newCandles = candles.filter((c) => !seen.has(c.dateUnix));
+    if (newCandles.length === 0) return;
+    existing.push(...newCandles);
+    existing.sort((a, b) => a.dateUnix - b.dateUnix);
+    await this.saveMarketData(label, existing);
+  }
+
+  // --- Application log persistence (no-op for file mode) ---
 
   async saveLogBatch(_entries: readonly LogEntry[]): Promise<void> {}
 
-  // --- Dashboard query methods (no-op for backtest) ---
+  // --- Dashboard query methods (no-op for file mode) ---
 
   async queryTrades(_filters: TradeQueryFilters): Promise<StoredTrade[]> { return []; }
   async queryDeployments(_filters: DeploymentQueryFilters): Promise<Deployment[]> { return []; }
@@ -87,7 +139,44 @@ export class FileStore implements IStore {
   async queryCandles(_filters: CandleQueryFilters): Promise<Candle[]> { return []; }
   async queryLogs(_filters: LogQueryFilters): Promise<LogEntry[]> { return []; }
 
+  // --- Cleanup ---
+
+  cleanLiveData(): void {
+    const dirs = ['live', 'market'];
+    for (const dir of dirs) {
+      const dirPath = path.join(this.baseDir, dir);
+      if (fs.existsSync(dirPath)) {
+        fs.rmSync(dirPath, { recursive: true });
+        fs.mkdirSync(dirPath, { recursive: true });
+      }
+    }
+  }
+
   // --- Private helpers ---
+
+  private deploymentsPath(): string {
+    return path.join(this.baseDir, 'live', 'deployments.json');
+  }
+
+  private positionsPath(): string {
+    return path.join(this.baseDir, 'live', 'positions.json');
+  }
+
+  private storedTradesPath(): string {
+    return path.join(this.baseDir, 'live', 'trades.json');
+  }
+
+  private loadAllDeployments(): Record<string, Deployment> {
+    return this.readJSON<Record<string, Deployment>>(this.deploymentsPath()) ?? {};
+  }
+
+  private loadAllPositions(): Record<string, Position> {
+    return this.readJSON<Record<string, Position>>(this.positionsPath()) ?? {};
+  }
+
+  private loadStoredTrades(): StoredTrade[] {
+    return this.readJSON<StoredTrade[]>(this.storedTradesPath()) ?? [];
+  }
 
   private readJSON<T>(filePath: string): T | null {
     try {
@@ -105,7 +194,7 @@ export class FileStore implements IStore {
   }
 
   private ensureDirs(): void {
-    const dirs = ['market', 'technical', 'results', 'transformedResult', 'resultsStats'];
+    const dirs = ['market', 'technical', 'results', 'transformedResult', 'resultsStats', 'live'];
     for (const dir of dirs) {
       fs.mkdirSync(path.join(this.baseDir, dir), { recursive: true });
     }

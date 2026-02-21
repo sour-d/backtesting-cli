@@ -6,6 +6,7 @@ import type { ILogger } from '../logger/ILogger.js';
 import type { IBroker } from '../broker/IBroker.js';
 import type { Bot } from '../trading-bot/Bot.js';
 import type { Market } from '../market/Market.js';
+import type { LiveFeed } from '../datasource/feeds/LiveFeed.js';
 import { resolveStrategy, getStrategyDefinitions } from '../strategy/index.js';
 
 export interface DeploymentManagerDeps {
@@ -14,6 +15,7 @@ export interface DeploymentManagerDeps {
   market: Market;
   store: IStore;
   logger: ILogger;
+  liveFeed?: LiveFeed;
 }
 
 export class DeploymentManager {
@@ -24,6 +26,7 @@ export class DeploymentManager {
   private readonly market: Market;
   private readonly store: IStore;
   private readonly logger: ILogger;
+  private readonly liveFeed: LiveFeed | null;
 
   constructor(deps: DeploymentManagerDeps) {
     this.bot = deps.bot;
@@ -31,6 +34,7 @@ export class DeploymentManager {
     this.market = deps.market;
     this.store = deps.store;
     this.logger = deps.logger;
+    this.liveFeed = deps.liveFeed ?? null;
   }
 
   async deploy(request: DeployRequest): Promise<Deployment[]> {
@@ -76,6 +80,7 @@ export class DeploymentManager {
       }
 
       this.bot.addSymbol(symbol, strategy);
+      this.liveFeed?.addSymbol(symbol);
       this.deployments.set(deployment.id, deployment);
       this.deploymentsBySymbol.set(symbol, deployment.id);
 
@@ -103,6 +108,7 @@ export class DeploymentManager {
     const returnedCapital = result.ok ? result.value : 0;
 
     this.bot.removeSymbol(deployment.symbol);
+    this.liveFeed?.removeSymbol(deployment.symbol);
     deployment.status = 'stopped';
     deployment.currentCapital = returnedCapital;
 
@@ -220,6 +226,7 @@ export class DeploymentManager {
         }
 
         this.bot.addSymbol(deployment.symbol, strategy);
+        this.liveFeed?.addSymbol(deployment.symbol);
         if (deployment.status === 'paused') {
           this.bot.pauseSymbol(deployment.symbol);
         }

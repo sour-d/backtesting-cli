@@ -65,21 +65,22 @@ CREATE TABLE trades (
 CREATE INDEX idx_trades_deployment_exit ON trades (deployment_id, exit_time);
 
 -- ============================================================
--- 4. candles (raw OHLCV market data)
+-- 4. candles (OHLCV market data + technical indicators)
 -- ============================================================
 DROP TABLE IF EXISTS candles CASCADE;
 
 CREATE TABLE candles (
-  symbol    TEXT    NOT NULL,
-  interval  TEXT    NOT NULL,
-  date_unix BIGINT  NOT NULL,
-  date      TEXT    NOT NULL,
-  time      TEXT    NOT NULL,
-  open      NUMERIC NOT NULL,
-  high      NUMERIC NOT NULL,
-  low       NUMERIC NOT NULL,
-  close     NUMERIC NOT NULL,
-  volume    NUMERIC NOT NULL,
+  symbol     TEXT    NOT NULL,
+  interval   TEXT    NOT NULL,
+  date_unix  BIGINT  NOT NULL,
+  date       TEXT    NOT NULL,
+  time       TEXT    NOT NULL,
+  open       NUMERIC NOT NULL,
+  high       NUMERIC NOT NULL,
+  low        NUMERIC NOT NULL,
+  close      NUMERIC NOT NULL,
+  volume     NUMERIC NOT NULL,
+  technicals JSONB,
   UNIQUE (symbol, interval, date_unix)
 );
 
