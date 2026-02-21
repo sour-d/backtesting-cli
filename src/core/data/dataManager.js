@@ -81,6 +81,18 @@ class DataManager {
     return this.getFilePath('technical', label);
   }
 
+  saveTechnicalData(label, data) {
+    const filepath = this.getFilePath('technical', label);
+    this.saveData(filepath, data);
+  }
+
+  loadTechnicalData(label) {
+    const filepath = this.getFilePath('technical', label);
+    if (!this.exists(filepath)) return null;
+    const data = this.readJSON(filepath);
+    return data && data.length > 0 ? data : null;
+  }
+
   getResultsPath(label, suffix = '') {
     const filename = `${label}${suffix}.json`;
     return path.join(this.directories.results, filename);

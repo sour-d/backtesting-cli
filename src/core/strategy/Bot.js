@@ -1,5 +1,6 @@
 import { ExistingOHLCStorage } from "../data/OHLCStorage.js";
 import { addTechnicalIndicator } from "../data/restructureData.js";
+import dataManager from "../data/dataManager.js";
 import chalk from "chalk";
 
 class Bot {
@@ -42,8 +43,22 @@ class Bot {
 
     console.log(chalk.yellow(`Computing indicators for ${symbols.length} instruments...`));
 
+    const interval = this.market.interval || '';
+
     for (const symbol of symbols) {
       const instrument = instruments[symbol];
+      const technicalLabel = `${symbol}_${interval}_${strategyName}`;
+
+      // Try loading cached technical data
+      const cached = dataManager.loadTechnicalData(technicalLabel);
+      if (cached) {
+        console.log(chalk.green(`  Loaded cached indicators for ${symbol}`));
+        const startIndex = Math.min(20, Math.max(1, cached.length - 1));
+        const stock = new ExistingOHLCStorage(cached, startIndex, symbol);
+        this.instrumentStocks.set(symbol, stock);
+        continue;
+      }
+
       const rawOHLC = instrument.ohcl;
 
       if (!rawOHLC || rawOHLC.length === 0) {
@@ -51,10 +66,12 @@ class Bot {
         continue;
       }
 
-      // Apply technical indicators to raw OHLC data
       const enrichedData = addTechnicalIndicator(rawOHLC, indicators);
 
-      // Wrap in ExistingOHLCStorage (start at index 20 to allow indicator warm-up)
+      // Persist enriched data to .data/technical/
+      dataManager.saveTechnicalData(technicalLabel, enrichedData);
+      console.log(chalk.green(`  Saved technical data: ${technicalLabel}`));
+
       const startIndex = Math.min(20, Math.max(1, enrichedData.length - 1));
       const stock = new ExistingOHLCStorage(enrichedData, startIndex, symbol);
       this.instrumentStocks.set(symbol, stock);

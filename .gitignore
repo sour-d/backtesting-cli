@@ -2,3 +2,4 @@ node_modules
 .data
 .output
 .idea
+.data_old_for_test
