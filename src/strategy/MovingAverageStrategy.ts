@@ -5,25 +5,52 @@ import { candleStick, movingAverage, atr, superTrend } from '../market/indicator
 import { num } from '../market/indicators/utils.js';
 import type { IStrategy } from './IStrategy.js';
 
+export interface MAParams {
+  maPeriod?: number;
+  atrPeriod?: number;
+  superTrendPeriod?: number;
+  superTrendMultiplier?: number;
+  stopLossPct?: number;
+}
+
 /**
- * 20-period channel breakout strategy with SuperTrend filter.
+ * Channel breakout strategy with SuperTrend filter.
  *
- * Long entry: close > MA20(high), bullish bodies x2, SuperTrend = Buy
- * Short entry: close < MA20(low), bearish bodies x2, SuperTrend = Sell
- * Stop loss: 4% from entry.
+ * Long entry: close > MA(high), bullish bodies x2, SuperTrend = Buy
+ * Short entry: close < MA(low), bearish bodies x2, SuperTrend = Sell
  * Exit: price penetrates yesterday's channel + reversal body.
  */
 export class MovingAverageStrategy implements IStrategy {
   readonly name = 'MovingAverage';
   private buyFirst = false;
 
+  private readonly maPeriod: number;
+  private readonly atrPeriod: number;
+  private readonly stPeriod: number;
+  private readonly stMultiplier: number;
+  private readonly slPct: number;
+
+  private readonly maHighKey: string;
+  private readonly maLowKey: string;
+
+  constructor(params?: MAParams) {
+    this.maPeriod = params?.maPeriod ?? 20;
+    this.atrPeriod = params?.atrPeriod ?? 10;
+    this.stPeriod = params?.superTrendPeriod ?? 10;
+    this.stMultiplier = params?.superTrendMultiplier ?? 2;
+    this.slPct = params?.stopLossPct ?? 0.04;
+
+    this.maHighKey = `ma${this.maPeriod}high`;
+    this.maLowKey = `ma${this.maPeriod}low`;
+  }
+
   getIndicators(): IndicatorFn[] {
     return [
-      movingAverage(20, 'high'),
-      movingAverage(20, 'low'),
+      movingAverage(this.maPeriod, 'high'),
+      movingAverage(this.maPeriod, 'low'),
       candleStick(),
-      atr(10),
-      superTrend(10, 2),
+      atr(this.atrPeriod),
+      superTrend(this.stPeriod, this.stMultiplier),
     ];
   }
 
@@ -48,12 +75,12 @@ export class MovingAverageStrategy implements IStrategy {
 
     const body = num((now as Record<string, unknown>)['body']);
     const prevBody = num((yesterday as Record<string, unknown>)['body']);
-    const ma20high = num((now as Record<string, unknown>)['ma20high']);
+    const maHigh = num((now as Record<string, unknown>)[this.maHighKey]);
     const stDir = (now as Record<string, unknown>)['superTrendDirection'];
 
-    if (now.close > ma20high && body > 0 && prevBody > 0 && stDir === 'Buy') {
+    if (now.close > maHigh && body > 0 && prevBody > 0 && stDir === 'Buy') {
       const price = now.close;
-      const stopLoss = price * 0.96;
+      const stopLoss = price * (1 - this.slPct);
       return { action: 'BUY', price, stopLoss, risk: price - stopLoss };
     }
     return null;
@@ -66,12 +93,12 @@ export class MovingAverageStrategy implements IStrategy {
 
     const body = num((now as Record<string, unknown>)['body']);
     const prevBody = num((yesterday as Record<string, unknown>)['body']);
-    const ma20low = num((now as Record<string, unknown>)['ma20low']);
+    const maLow = num((now as Record<string, unknown>)[this.maLowKey]);
     const stDir = (now as Record<string, unknown>)['superTrendDirection'];
 
-    if (now.close < ma20low && body < 0 && prevBody < 0 && stDir === 'Sell') {
+    if (now.close < maLow && body < 0 && prevBody < 0 && stDir === 'Sell') {
       const price = now.close;
-      const stopLoss = price * 1.04;
+      const stopLoss = price * (1 + this.slPct);
       return { action: 'SELL', price, stopLoss, risk: stopLoss - price };
     }
     return null;
@@ -83,10 +110,10 @@ export class MovingAverageStrategy implements IStrategy {
     if (!now || !yesterday) return null;
 
     const body = num((now as Record<string, unknown>)['body']);
-    const ma20highYesterday = num((yesterday as Record<string, unknown>)['ma20high']);
+    const maHighYesterday = num((yesterday as Record<string, unknown>)[this.maHighKey]);
 
-    if (ma20highYesterday > now.low && body < 0) {
-      return { action: 'EXIT', price: ma20highYesterday, reason: 'channel_reversal' };
+    if (maHighYesterday > now.low && body < 0) {
+      return { action: 'EXIT', price: maHighYesterday, reason: 'channel_reversal' };
     }
     return null;
   }
@@ -97,10 +124,10 @@ export class MovingAverageStrategy implements IStrategy {
     if (!now || !yesterday) return null;
 
     const body = num((now as Record<string, unknown>)['body']);
-    const ma20lowYesterday = num((yesterday as Record<string, unknown>)['ma20low']);
+    const maLowYesterday = num((yesterday as Record<string, unknown>)[this.maLowKey]);
 
-    if (now.high > ma20lowYesterday && body > 0) {
-      return { action: 'EXIT', price: ma20lowYesterday, reason: 'channel_reversal' };
+    if (now.high > maLowYesterday && body > 0) {
+      return { action: 'EXIT', price: maLowYesterday, reason: 'channel_reversal' };
     }
     return null;
   }

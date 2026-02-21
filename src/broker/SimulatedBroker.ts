@@ -13,6 +13,7 @@ export class SimulatedBroker implements IBroker {
   private readonly config: SimulatedBrokerConfig;
   private capitalPool: Map<string, number> = new Map();
   private positions: Map<string, Position> = new Map();
+  private symbolConfigs: Map<string, { riskPercentage: number; maxAllocation: number }> = new Map();
 
   constructor(config: SimulatedBrokerConfig) {
     this.config = config;
@@ -25,6 +26,28 @@ export class SimulatedBroker implements IBroker {
     }
   }
 
+  allocateCapitalForSymbol(symbol: string, amount: number): void {
+    this.capitalPool.set(symbol, (this.capitalPool.get(symbol) ?? 0) + amount);
+  }
+
+  deallocateCapitalForSymbol(symbol: string): Result<number> {
+    if (this.positions.has(symbol)) {
+      return err(`Cannot deallocate: open position in ${symbol}`);
+    }
+    const remaining = this.capitalPool.get(symbol) ?? 0;
+    this.capitalPool.delete(symbol);
+    this.symbolConfigs.delete(symbol);
+    return ok(remaining);
+  }
+
+  restorePosition(symbol: string, position: Position): void {
+    this.positions.set(symbol, position);
+  }
+
+  setSymbolConfig(symbol: string, config: { riskPercentage: number; maxAllocation: number }): void {
+    this.symbolConfigs.set(symbol, config);
+  }
+
   placeOrder(symbol: string, signal: Signal & { action: 'BUY' | 'SELL' }, timestamp: number): Result<Position> {
     if (this.positions.has(symbol)) {
       return err(`Already have position in ${symbol}`);
@@ -33,12 +56,16 @@ export class SimulatedBroker implements IBroker {
     const capital = this.getCapital(symbol);
     if (capital <= 0) return err('No capital available');
 
+    const symConfig = this.symbolConfigs.get(symbol);
+    const riskPercentage = symConfig?.riskPercentage ?? this.config.riskPercentage;
+    const maxAllocation = symConfig?.maxAllocation ?? this.config.maxAllocation;
+
     const quantity = calculateQuantity({
       capital,
       riskPerStock: signal.risk,
       price: signal.price,
-      riskPercentage: this.config.riskPercentage,
-      maxAllocation: this.config.maxAllocation,
+      riskPercentage,
+      maxAllocation,
     });
 
     if (quantity <= 0) return err('Calculated quantity is zero');
@@ -93,7 +120,7 @@ export class SimulatedBroker implements IBroker {
     if (!position) return null;
 
     let triggered = false;
-    let exitPrice = position.stopLoss;
+    const exitPrice = position.stopLoss;
 
     if (position.side === 'Buy' && candle.low <= position.stopLoss) {
       triggered = true;

@@ -1,19 +1,27 @@
 import { Command } from 'commander';
+import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 import { resolveStrategy } from '../strategy/index.js';
 import { Market } from '../market/Market.js';
 import { Bot } from '../trading-bot/Bot.js';
 import { SimulatedBroker } from '../broker/SimulatedBroker.js';
 import { FileStore } from '../store/FileStore.js';
+import { SupabaseStore } from '../store/SupabaseStore.js';
 import { aggregateTrades, computeStats } from '../store/analytics.js';
 import { HistoricalFeed } from '../datasource/feeds/HistoricalFeed.js';
 import { ConsoleLogger, LogLevel } from '../logger/ConsoleLogger.js';
+import { PersistentLogger } from '../logger/PersistentLogger.js';
+import { DeploymentManager } from '../deployment/DeploymentManager.js';
+import { createServer } from '../api/server.js';
 import type { AppConfig } from '../types/index.js';
+import type { IStore } from '../store/IStore.js';
 
 dotenv.config();
 
 const program = new Command();
 program.name('quantlab').description('Modular backtesting and trading engine').version('0.2.0');
+
+// ---- Backtest command (unchanged) ----
 
 program
   .command('run')
@@ -109,6 +117,91 @@ program
     console.log(`Results saved to .data/transformedResult/t_result.json`);
     console.log(`Stats saved to .data/resultsStats/stats_result.json`);
   });
+
+// ---- Live / Paper trading command ----
+
+program
+  .command('live')
+  .description('Start the live trading engine with API server')
+  .option('--port <port>', 'API server port', '3000')
+  .option('--interval <interval>', 'Candle interval', '240')
+  .option('--log-level <level>', 'Log level: DEBUG, INFO, WARN, ERROR', 'INFO')
+  .action(async (opts) => {
+    const logLevel = LogLevel[opts.logLevel as keyof typeof LogLevel] ?? LogLevel.INFO;
+    const consoleLogger = new ConsoleLogger({ component: 'Engine' }, logLevel);
+    const port = Number(process.env.PORT || opts.port);
+
+    consoleLogger.info('Starting live trading engine', { port: String(port) });
+
+    const market = new Market([]);
+
+    let store: IStore;
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_KEY;
+
+    if (supabaseUrl && supabaseKey) {
+      const client = createClient(supabaseUrl, supabaseKey);
+      store = new SupabaseStore(client);
+      consoleLogger.info('Using Supabase for persistence');
+    } else {
+      store = new FileStore('.data');
+      consoleLogger.info('Using FileStore for persistence (set SUPABASE_URL and SUPABASE_KEY for DB)');
+    }
+
+    const logger = new PersistentLogger({
+      inner: consoleLogger,
+      store,
+      context: { component: 'Engine' },
+    });
+
+    const broker = new SimulatedBroker({
+      feeRate: 0.001,
+      riskPercentage: 5,
+      maxAllocation: 0.8,
+    });
+
+    const bot = new Bot({
+      market,
+      broker,
+      store,
+      logger: logger.child({ component: 'Bot' }),
+    });
+
+    const dm = new DeploymentManager({
+      bot,
+      broker,
+      market,
+      store,
+      logger: logger.child({ component: 'DeploymentManager' }),
+    });
+
+    const restored = await dm.restoreFromStore();
+    if (restored > 0) {
+      logger.info('Restored deployments from store', { count: String(restored) });
+    }
+
+    const server = await createServer(dm, logger.child({ component: 'API' }), { port });
+
+    const shutdown = () => {
+      logger.info('Shutting down...');
+      server.close(() => {
+        void logger.flush().then(() => {
+          logger.dispose();
+          process.exit(0);
+        });
+      });
+    };
+
+    process.on('SIGINT', shutdown);
+    process.on('SIGTERM', shutdown);
+
+    logger.info('Engine ready. Use the API to create deployments.');
+    logger.info(`  POST http://localhost:${port}/api/deployments`);
+    logger.info(`  GET  http://localhost:${port}/api/strategies`);
+    logger.info(`  GET  http://localhost:${port}/api/deployments`);
+  });
+
+// ---- Download command (placeholder) ----
 
 program
   .command('download')

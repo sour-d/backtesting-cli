@@ -10,7 +10,7 @@ export interface BotDeps {
   broker: IBroker;
   store: IStore;
   logger: ILogger;
-  strategyMap: ReadonlyMap<string, IStrategy>;
+  strategyMap?: ReadonlyMap<string, IStrategy>;
   warmupPeriod?: number;
 }
 
@@ -19,9 +19,10 @@ export class Bot {
   private readonly broker: IBroker;
   private readonly store: IStore;
   private readonly logger: ILogger;
-  private readonly strategyMap: ReadonlyMap<string, IStrategy>;
+  private readonly strategyMap: Map<string, IStrategy>;
   private readonly warmupPeriod: number;
   private readonly symbolCandleCount: Map<string, number> = new Map();
+  private readonly pausedSymbols: Set<string> = new Set();
   private candleCount = 0;
 
   constructor(deps: BotDeps) {
@@ -29,8 +30,38 @@ export class Bot {
     this.broker = deps.broker;
     this.store = deps.store;
     this.logger = deps.logger;
-    this.strategyMap = deps.strategyMap;
+    this.strategyMap = new Map(deps.strategyMap ?? []);
     this.warmupPeriod = deps.warmupPeriod ?? 20;
+  }
+
+  addSymbol(symbol: string, strategy: IStrategy): void {
+    this.strategyMap.set(symbol, strategy);
+    this.logger.info('Symbol added', { symbol, strategy: strategy.name });
+  }
+
+  removeSymbol(symbol: string): void {
+    this.strategyMap.delete(symbol);
+    this.symbolCandleCount.delete(symbol);
+    this.pausedSymbols.delete(symbol);
+    this.logger.info('Symbol removed', { symbol });
+  }
+
+  pauseSymbol(symbol: string): void {
+    this.pausedSymbols.add(symbol);
+    this.logger.info('Symbol paused', { symbol });
+  }
+
+  resumeSymbol(symbol: string): void {
+    this.pausedSymbols.delete(symbol);
+    this.logger.info('Symbol resumed', { symbol });
+  }
+
+  isSymbolActive(symbol: string): boolean {
+    return this.strategyMap.has(symbol) && !this.pausedSymbols.has(symbol);
+  }
+
+  getActiveSymbols(): string[] {
+    return [...this.strategyMap.keys()].filter((s) => !this.pausedSymbols.has(s));
   }
 
   onCandle(symbol: string, candle: Candle): void {
@@ -41,6 +72,8 @@ export class Bot {
     this.market.update(symbol, candle);
 
     if (symbolCount <= this.warmupPeriod) return;
+
+    if (this.pausedSymbols.has(symbol)) return;
 
     const stock = this.market.getStock(symbol);
     const strategy = this.strategyMap.get(symbol);

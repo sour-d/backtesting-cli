@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import type { Candle, TradeEntry, AggregatedTrade, PerformanceStats } from '../types/index.js';
-import type { IStore } from './IStore.js';
+import type { Candle, TradeEntry, AggregatedTrade, PerformanceStats, Position } from '../types/index.js';
+import type { Deployment, StoredTrade } from '../types/deployment.js';
+import type { IStore, LogEntry } from './IStore.js';
 
 export class FileStore implements IStore {
   private readonly baseDir: string;
@@ -11,6 +12,8 @@ export class FileStore implements IStore {
     this.baseDir = baseDir;
     this.ensureDirs();
   }
+
+  // --- Trade recording (backtest) ---
 
   recordTrade(entry: TradeEntry): void {
     this.trades.push(entry);
@@ -30,6 +33,8 @@ export class FileStore implements IStore {
     this.writeJSON(filePath, stats);
   }
 
+  // --- Market data ---
+
   loadMarketData(label: string): Candle[] | null {
     const filePath = path.join(this.baseDir, 'market', `${label}.json`);
     return this.readJSON<Candle[]>(filePath);
@@ -39,6 +44,34 @@ export class FileStore implements IStore {
     const filePath = path.join(this.baseDir, 'market', `${label}.json`);
     this.writeJSON(filePath, data);
   }
+
+  // --- Deployment persistence (no-op for backtest) ---
+
+  async saveDeployment(_deployment: Deployment): Promise<void> {}
+  async updateDeployment(_id: string, _patch: Partial<Deployment>): Promise<void> {}
+  async loadActiveDeployments(): Promise<Deployment[]> { return []; }
+  async removeDeployment(_id: string): Promise<void> {}
+
+  // --- Position recovery (no-op for backtest) ---
+
+  async savePosition(_deploymentId: string, _position: Position): Promise<void> {}
+  async loadPosition(_deploymentId: string): Promise<Position | null> { return null; }
+  async removePosition(_deploymentId: string): Promise<void> {}
+
+  // --- Completed trade storage (no-op for backtest) ---
+
+  async saveTrade(_trade: StoredTrade): Promise<void> {}
+  async loadTrades(_deploymentId: string): Promise<StoredTrade[]> { return []; }
+
+  // --- Live candle buffering (no-op for backtest) ---
+
+  async saveCandles(_symbol: string, _interval: string, _candles: readonly Candle[]): Promise<void> {}
+
+  // --- Application log persistence (no-op for backtest) ---
+
+  async saveLogBatch(_entries: readonly LogEntry[]): Promise<void> {}
+
+  // --- Private helpers ---
 
   private readJSON<T>(filePath: string): T | null {
     try {

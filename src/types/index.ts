@@ -5,3 +5,10 @@ export type { TradeEntry, AggregatedTrade, PerformanceStats } from './trade.js';
 export type { Result } from './result.js';
 export { ok, err } from './result.js';
 export type { AppConfig, Mode } from './config.js';
+export type {
+  Deployment,
+  DeploymentConfig,
+  DeploymentInfo,
+  DeployRequest,
+  StoredTrade,
+} from './deployment.js';

@@ -1,5 +1,7 @@
 node_modules
+dist
 .data
+.data_old_for_test
 .output
 .idea
-.data_old_for_test
+.env
