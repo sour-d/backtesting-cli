@@ -2,8 +2,10 @@ import http from 'node:http';
 import express from 'express';
 import type { DeploymentManager } from '../deployment/DeploymentManager.js';
 import type { ILogger } from '../logger/ILogger.js';
+import type { IStore } from '../store/IStore.js';
 import { registerStrategyRoutes } from './routes/strategies.js';
 import { registerDeploymentRoutes } from './routes/deployments.js';
+import { registerDashboardRoutes } from './routes/dashboard.js';
 
 export interface ServerConfig {
   port: number;
@@ -12,6 +14,7 @@ export interface ServerConfig {
 
 export function createServer(
   dm: DeploymentManager,
+  store: IStore,
   logger: ILogger,
   config: ServerConfig,
 ): Promise<http.Server> {
@@ -25,6 +28,7 @@ export function createServer(
 
   registerStrategyRoutes(app);
   registerDeploymentRoutes(app, dm);
+  registerDashboardRoutes(app, store);
 
   app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok', uptime: process.uptime() });

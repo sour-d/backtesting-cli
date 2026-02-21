@@ -2,7 +2,15 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { Candle, TradeEntry, AggregatedTrade, PerformanceStats, Position } from '../types/index.js';
 import type { Deployment, StoredTrade } from '../types/deployment.js';
-import type { IStore, LogEntry } from './IStore.js';
+import type {
+  IStore,
+  LogEntry,
+  TradeQueryFilters,
+  DeploymentQueryFilters,
+  CandleQueryFilters,
+  LogQueryFilters,
+  PositionWithDeployment,
+} from './IStore.js';
 
 export class FileStore implements IStore {
   private readonly baseDir: string;
@@ -70,6 +78,14 @@ export class FileStore implements IStore {
   // --- Application log persistence (no-op for backtest) ---
 
   async saveLogBatch(_entries: readonly LogEntry[]): Promise<void> {}
+
+  // --- Dashboard query methods (no-op for backtest) ---
+
+  async queryTrades(_filters: TradeQueryFilters): Promise<StoredTrade[]> { return []; }
+  async queryDeployments(_filters: DeploymentQueryFilters): Promise<Deployment[]> { return []; }
+  async queryAllPositions(): Promise<PositionWithDeployment[]> { return []; }
+  async queryCandles(_filters: CandleQueryFilters): Promise<Candle[]> { return []; }
+  async queryLogs(_filters: LogQueryFilters): Promise<LogEntry[]> { return []; }
 
   // --- Private helpers ---
 

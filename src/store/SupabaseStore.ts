@@ -1,7 +1,15 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Candle, TradeEntry, AggregatedTrade, PerformanceStats, Position } from '../types/index.js';
 import type { Deployment, StoredTrade } from '../types/deployment.js';
-import type { IStore, LogEntry } from './IStore.js';
+import type {
+  IStore,
+  LogEntry,
+  TradeQueryFilters,
+  DeploymentQueryFilters,
+  CandleQueryFilters,
+  LogQueryFilters,
+  PositionWithDeployment,
+} from './IStore.js';
 
 export class SupabaseStore implements IStore {
   private readonly client: SupabaseClient;
@@ -87,21 +95,7 @@ export class SupabaseStore implements IStore {
     if (error) throw new Error(`Failed to load deployments: ${error.message}`);
     if (!data) return [];
 
-    return data.map((row) => ({
-      id: row.id as string,
-      symbol: row.symbol as string,
-      strategyName: row.strategy_name as string,
-      config: {
-        capital: row.capital as number,
-        riskPercentage: row.risk_pct as number,
-        maxAllocation: row.max_allocation as number,
-        feeRate: row.fee_rate as number,
-      },
-      strategyParams: (row.strategy_params ?? {}) as Record<string, number>,
-      status: row.status as Deployment['status'],
-      currentCapital: row.current_capital as number,
-      createdAt: new Date(row.created_at as string).getTime(),
-    }));
+    return data.map((row) => this.mapDeploymentRow(row));
   }
 
   async removeDeployment(id: string): Promise<void> {
@@ -188,23 +182,7 @@ export class SupabaseStore implements IStore {
     if (error) throw new Error(`Failed to load trades: ${error.message}`);
     if (!data) return [];
 
-    return data.map((row) => ({
-      id: row.id as string,
-      deploymentId: row.deployment_id as string,
-      symbol: row.symbol as string,
-      side: row.side as StoredTrade['side'],
-      entryPrice: row.entry_price as number,
-      exitPrice: row.exit_price as number,
-      quantity: row.quantity as number,
-      entryTime: new Date(row.entry_time as string).getTime(),
-      exitTime: new Date(row.exit_time as string).getTime(),
-      grossPnl: row.gross_pnl as number,
-      fee: row.fee as number,
-      netPnl: row.net_pnl as number,
-      risk: row.risk as number,
-      result: row.result as StoredTrade['result'],
-      exitType: row.exit_type as StoredTrade['exitType'],
-    }));
+    return data.map((row) => this.mapTradeRow(row));
   }
 
   // --- Live candle buffering (batch inserts) ---
@@ -273,5 +251,159 @@ export class SupabaseStore implements IStore {
 
     const { error } = await this.client.from('logs').insert(rows);
     if (error) throw new Error(`Failed to save log batch: ${error.message}`);
+  }
+
+  // --- Dashboard query methods ---
+
+  async queryTrades(filters: TradeQueryFilters): Promise<StoredTrade[]> {
+    let query = this.client.from('trades').select('*');
+
+    if (filters.symbol) query = query.eq('symbol', filters.symbol);
+    if (filters.side) query = query.eq('side', filters.side);
+    if (filters.result) query = query.eq('result', filters.result);
+    if (filters.exitType) query = query.eq('exit_type', filters.exitType);
+    if (filters.deploymentId) query = query.eq('deployment_id', filters.deploymentId);
+    if (filters.from) query = query.gte('exit_time', filters.from);
+    if (filters.to) query = query.lte('exit_time', filters.to);
+
+    query = query.order('exit_time', { ascending: false });
+    if (filters.limit) query = query.limit(filters.limit);
+    if (filters.offset) query = query.range(filters.offset, filters.offset + (filters.limit ?? 100) - 1);
+
+    const { data, error } = await query;
+    if (error) throw new Error(`Failed to query trades: ${error.message}`);
+    if (!data) return [];
+
+    return data.map((row) => this.mapTradeRow(row));
+  }
+
+  async queryDeployments(filters: DeploymentQueryFilters): Promise<Deployment[]> {
+    let query = this.client.from('deployments').select('*');
+
+    if (filters.status) query = query.eq('status', filters.status);
+    if (filters.symbol) query = query.eq('symbol', filters.symbol);
+    if (filters.strategyName) query = query.eq('strategy_name', filters.strategyName);
+
+    query = query.order('created_at', { ascending: false });
+
+    const { data, error } = await query;
+    if (error) throw new Error(`Failed to query deployments: ${error.message}`);
+    if (!data) return [];
+
+    return data.map((row) => this.mapDeploymentRow(row));
+  }
+
+  async queryAllPositions(): Promise<PositionWithDeployment[]> {
+    const { data, error } = await this.client.from('positions').select('*');
+    if (error) throw new Error(`Failed to query positions: ${error.message}`);
+    if (!data) return [];
+
+    return data.map((row) => ({
+      deploymentId: row.deployment_id as string,
+      symbol: row.symbol as string,
+      side: row.side as Position['side'],
+      entryPrice: row.entry_price as number,
+      quantity: row.quantity as number,
+      stopLoss: row.stop_loss as number,
+      entryTime: new Date(row.entry_time as string).getTime(),
+    }));
+  }
+
+  async queryCandles(filters: CandleQueryFilters): Promise<Candle[]> {
+    let query = this.client
+      .from('candles')
+      .select('*')
+      .eq('symbol', filters.symbol)
+      .eq('interval', filters.interval);
+
+    if (filters.from) query = query.gte('date_unix', Number(filters.from));
+    if (filters.to) query = query.lte('date_unix', Number(filters.to));
+
+    query = query.order('date_unix', { ascending: true });
+    if (filters.limit) query = query.limit(filters.limit);
+    if (filters.offset) query = query.range(filters.offset, filters.offset + (filters.limit ?? 1000) - 1);
+
+    const { data, error } = await query;
+    if (error) throw new Error(`Failed to query candles: ${error.message}`);
+    if (!data) return [];
+
+    return data.map((row) => ({
+      date: row.date as string,
+      time: row.time as string,
+      dateUnix: row.date_unix as number,
+      open: row.open as number,
+      high: row.high as number,
+      low: row.low as number,
+      close: row.close as number,
+      volume: row.volume as number,
+    }));
+  }
+
+  async queryLogs(filters: LogQueryFilters): Promise<LogEntry[]> {
+    let query = this.client.from('logs').select('*');
+
+    if (filters.sessionId) query = query.eq('session_id', filters.sessionId);
+    if (filters.level) query = query.eq('level', filters.level);
+    if (filters.component) query = query.eq('component', filters.component);
+    if (filters.from) query = query.gte('timestamp', filters.from);
+    if (filters.to) query = query.lte('timestamp', filters.to);
+
+    query = query.order('timestamp', { ascending: false });
+    if (filters.limit) query = query.limit(filters.limit);
+    if (filters.offset) query = query.range(filters.offset, filters.offset + (filters.limit ?? 100) - 1);
+
+    const { data, error } = await query;
+    if (error) throw new Error(`Failed to query logs: ${error.message}`);
+    if (!data) return [];
+
+    return data.map((row) => ({
+      sessionId: row.session_id as string,
+      timestamp: row.timestamp as string,
+      level: row.level as string,
+      component: row.component as string,
+      message: row.message as string,
+      ...(row.data ? { data: row.data as Record<string, unknown> } : {}),
+      ...(row.context ? { context: row.context as Record<string, string> } : {}),
+    }));
+  }
+
+  // --- Private row mappers ---
+
+  private mapTradeRow(row: Record<string, unknown>): StoredTrade {
+    return {
+      id: row.id as string,
+      deploymentId: row.deployment_id as string,
+      symbol: row.symbol as string,
+      side: row.side as StoredTrade['side'],
+      entryPrice: row.entry_price as number,
+      exitPrice: row.exit_price as number,
+      quantity: row.quantity as number,
+      entryTime: new Date(row.entry_time as string).getTime(),
+      exitTime: new Date(row.exit_time as string).getTime(),
+      grossPnl: row.gross_pnl as number,
+      fee: row.fee as number,
+      netPnl: row.net_pnl as number,
+      risk: row.risk as number,
+      result: row.result as StoredTrade['result'],
+      exitType: row.exit_type as StoredTrade['exitType'],
+    };
+  }
+
+  private mapDeploymentRow(row: Record<string, unknown>): Deployment {
+    return {
+      id: row.id as string,
+      symbol: row.symbol as string,
+      strategyName: row.strategy_name as string,
+      config: {
+        capital: row.capital as number,
+        riskPercentage: row.risk_pct as number,
+        maxAllocation: row.max_allocation as number,
+        feeRate: row.fee_rate as number,
+      },
+      strategyParams: (row.strategy_params ?? {}) as Record<string, number>,
+      status: row.status as Deployment['status'],
+      currentCapital: row.current_capital as number,
+      createdAt: new Date(row.created_at as string).getTime(),
+    };
   }
 }

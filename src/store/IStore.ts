@@ -11,6 +11,48 @@ export interface LogEntry {
   readonly context?: Record<string, string>;
 }
 
+// --- Query filter types (dashboard) ---
+
+export interface PaginationOpts {
+  readonly limit?: number;
+  readonly offset?: number;
+}
+
+export interface TradeQueryFilters extends PaginationOpts {
+  readonly symbol?: string;
+  readonly side?: string;
+  readonly result?: string;
+  readonly exitType?: string;
+  readonly deploymentId?: string;
+  readonly from?: string;
+  readonly to?: string;
+}
+
+export interface DeploymentQueryFilters {
+  readonly status?: string;
+  readonly symbol?: string;
+  readonly strategyName?: string;
+}
+
+export interface CandleQueryFilters extends PaginationOpts {
+  readonly symbol: string;
+  readonly interval: string;
+  readonly from?: string;
+  readonly to?: string;
+}
+
+export interface LogQueryFilters extends PaginationOpts {
+  readonly sessionId?: string;
+  readonly level?: string;
+  readonly component?: string;
+  readonly from?: string;
+  readonly to?: string;
+}
+
+export interface PositionWithDeployment extends Position {
+  readonly deploymentId: string;
+}
+
 export interface IStore {
   // --- Trade recording (backtest + live) ---
   recordTrade(entry: TradeEntry): void;
@@ -42,4 +84,11 @@ export interface IStore {
 
   // --- Application log persistence (live) ---
   saveLogBatch(entries: readonly LogEntry[]): Promise<void>;
+
+  // --- Dashboard query methods ---
+  queryTrades(filters: TradeQueryFilters): Promise<StoredTrade[]>;
+  queryDeployments(filters: DeploymentQueryFilters): Promise<Deployment[]>;
+  queryAllPositions(): Promise<PositionWithDeployment[]>;
+  queryCandles(filters: CandleQueryFilters): Promise<Candle[]>;
+  queryLogs(filters: LogQueryFilters): Promise<LogEntry[]>;
 }

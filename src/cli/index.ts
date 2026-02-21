@@ -180,7 +180,7 @@ program
       logger.info('Restored deployments from store', { count: String(restored) });
     }
 
-    const server = await createServer(dm, logger.child({ component: 'API' }), { port });
+    const server = await createServer(dm, store, logger.child({ component: 'API' }), { port });
 
     const shutdown = () => {
       logger.info('Shutting down...');
