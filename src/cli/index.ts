@@ -7,7 +7,7 @@ import { Bot } from '../trading-bot/Bot.js';
 import { SimulatedBroker } from '../broker/SimulatedBroker.js';
 import { FileStore } from '../store/FileStore.js';
 import { SupabaseStore } from '../store/SupabaseStore.js';
-import { aggregateTrades, computeStats } from '../store/analytics.js';
+import { aggregateTrades, computeStats, computeStatsBySymbol } from '../store/analytics.js';
 import { HistoricalFeed } from '../datasource/feeds/HistoricalFeed.js';
 import { LiveFeed } from '../datasource/feeds/LiveFeed.js';
 import { BybitClient } from '../datasource/exchange/BybitClient.js';
@@ -86,7 +86,8 @@ program
     broker.allocateCapital([...config.instruments], config.capital);
 
     const strategyMap = new Map(config.instruments.map((s) => [s, strategy]));
-    const botLogger = logger.child({ component: 'Bot' });
+    // Bot logs (Order placed, Position exited, etc.) at WARN+ only during backtest to keep output quiet.
+    const botLogger = new ConsoleLogger({ component: 'Bot' }, LogLevel.WARN);
 
     const bot = new Bot({ market, broker, store, logger: botLogger, strategyMap });
 
@@ -112,6 +113,7 @@ program
     });
 
     const stats = computeStats(aggregated);
+    const statsBySymbol = computeStatsBySymbol(aggregated);
 
     await store.saveResults(aggregated);
     await store.saveStats(stats);
@@ -125,7 +127,13 @@ program
       elapsed: `${elapsed}ms`,
     });
 
-    console.log('\n--- Performance Summary ---');
+    console.log('\n--- Per symbol ---');
+    for (const [symbol, s] of Object.entries(statsBySymbol)) {
+      console.log(
+        `  ${symbol}: trades=${s.totalTrades} winRate=${s.winRate}% netPnL=${s.netPnL} maxDD=${s.maxDrawdown}`,
+      );
+    }
+    console.log('\n--- Total ---');
     console.log(`Total Trades: ${stats.totalTrades}`);
     console.log(`Win Rate: ${stats.winRate}%`);
     console.log(`Net P&L: ${stats.netPnL}`);

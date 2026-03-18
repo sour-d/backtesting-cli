@@ -1,9 +1,14 @@
-import type { Signal, Position } from '../types/index.js';
-import type { OHLCStorage } from '../market/OHLCStorage.js';
-import type { IndicatorFn } from '../market/indicators/types.js';
-import { candleStick, movingAverage, atr, superTrend } from '../market/indicators/index.js';
-import { num } from '../market/indicators/utils.js';
-import type { IStrategy } from './IStrategy.js';
+import type { Signal, Position } from "../types/index.js";
+import type { OHLCStorage } from "../market/OHLCStorage.js";
+import type { IndicatorFn } from "../market/indicators/types.js";
+import {
+  candleStick,
+  movingAverage,
+  atr,
+  superTrend,
+} from "../market/indicators/index.js";
+import { num } from "../market/indicators/utils.js";
+import type { IStrategy } from "./IStrategy.js";
 
 export interface V2Params {
   maPeriod?: number;
@@ -22,7 +27,7 @@ export interface V2Params {
  * Exit: price penetrates yesterday's channel + reversal body.
  */
 export class MovingAverageV2Strategy implements IStrategy {
-  readonly name = 'MovingAverage_v2';
+  readonly name = "MovingAverage_v2";
   private buyFirst = false;
 
   private readonly maPeriod: number;
@@ -51,9 +56,9 @@ export class MovingAverageV2Strategy implements IStrategy {
 
   getIndicators(): IndicatorFn[] {
     return [
-      movingAverage(this.maPeriod, 'high'),
-      movingAverage(this.maPeriod, 'low'),
-      movingAverage(this.trendMaPeriod, 'close'),
+      movingAverage(this.maPeriod, "high"),
+      movingAverage(this.maPeriod, "low"),
+      movingAverage(this.trendMaPeriod, "close"),
       candleStick(),
       atr(this.atrPeriod),
       superTrend(this.stPeriod, this.stMultiplier),
@@ -61,8 +66,8 @@ export class MovingAverageV2Strategy implements IStrategy {
   }
 
   evaluate(stock: OHLCStorage, position: Position | null): Signal | null {
-    if (position?.side === 'Buy') return this.checkLongExit(stock);
-    if (position?.side === 'Sell') return this.checkShortExit(stock);
+    if (position?.side === "Buy") return this.checkLongExit(stock);
+    if (position?.side === "Sell") return this.checkShortExit(stock);
 
     let signal: Signal | null;
     if (this.buyFirst) {
@@ -82,15 +87,15 @@ export class MovingAverageV2Strategy implements IStrategy {
     const trendMa = num((now as Record<string, unknown>)[this.maTrendKey]);
     if (trendMa > 0 && now.close <= trendMa) return null;
 
-    const body = num((now as Record<string, unknown>)['body']);
-    const prevBody = num((yesterday as Record<string, unknown>)['body']);
+    const body = num((now as Record<string, unknown>)["body"]);
+    const prevBody = num((yesterday as Record<string, unknown>)["body"]);
     const maHigh = num((now as Record<string, unknown>)[this.maHighKey]);
-    const stDir = (now as Record<string, unknown>)['superTrendDirection'];
+    const stDir = (now as Record<string, unknown>)["superTrendDirection"];
 
-    if (now.close > maHigh && body > 0 && prevBody > 0 && stDir === 'Buy') {
+    if (now.close > maHigh && body > 0 && prevBody > 0 && stDir === "Buy") {
       const price = now.close;
       const stopLoss = price * (1 - this.slPct);
-      return { action: 'BUY', price, stopLoss, risk: price - stopLoss };
+      return { action: "BUY", price, stopLoss, risk: price - stopLoss };
     }
     return null;
   }
@@ -103,15 +108,15 @@ export class MovingAverageV2Strategy implements IStrategy {
     const trendMa = num((now as Record<string, unknown>)[this.maTrendKey]);
     if (trendMa > 0 && now.close >= trendMa) return null;
 
-    const body = num((now as Record<string, unknown>)['body']);
-    const prevBody = num((yesterday as Record<string, unknown>)['body']);
+    const body = num((now as Record<string, unknown>)["body"]);
+    const prevBody = num((yesterday as Record<string, unknown>)["body"]);
     const maLow = num((now as Record<string, unknown>)[this.maLowKey]);
-    const stDir = (now as Record<string, unknown>)['superTrendDirection'];
+    const stDir = (now as Record<string, unknown>)["superTrendDirection"];
 
-    if (now.close < maLow && body < 0 && prevBody < 0 && stDir === 'Sell') {
+    if (now.close < maLow && body < 0 && prevBody < 0 && stDir === "Sell") {
       const price = now.close;
       const stopLoss = price * (1 + this.slPct);
-      return { action: 'SELL', price, stopLoss, risk: stopLoss - price };
+      return { action: "SELL", price, stopLoss, risk: stopLoss - price };
     }
     return null;
   }
@@ -121,11 +126,17 @@ export class MovingAverageV2Strategy implements IStrategy {
     const yesterday = stock.prev();
     if (!now || !yesterday) return null;
 
-    const body = num((now as Record<string, unknown>)['body']);
-    const maHighYesterday = num((yesterday as Record<string, unknown>)[this.maHighKey]);
+    const body = num((now as Record<string, unknown>)["body"]);
+    const maHighYesterday = num(
+      (yesterday as Record<string, unknown>)[this.maHighKey],
+    );
 
     if (maHighYesterday > now.low && body < 0) {
-      return { action: 'EXIT', price: maHighYesterday, reason: 'channel_reversal' };
+      return {
+        action: "EXIT",
+        price: maHighYesterday,
+        reason: "channel_reversal",
+      };
     }
     return null;
   }
@@ -135,11 +146,17 @@ export class MovingAverageV2Strategy implements IStrategy {
     const yesterday = stock.prev();
     if (!now || !yesterday) return null;
 
-    const body = num((now as Record<string, unknown>)['body']);
-    const maLowYesterday = num((yesterday as Record<string, unknown>)[this.maLowKey]);
+    const body = num((now as Record<string, unknown>)["body"]);
+    const maLowYesterday = num(
+      (yesterday as Record<string, unknown>)[this.maLowKey],
+    );
 
     if (now.high > maLowYesterday && body > 0) {
-      return { action: 'EXIT', price: maLowYesterday, reason: 'channel_reversal' };
+      return {
+        action: "EXIT",
+        price: maLowYesterday,
+        reason: "channel_reversal",
+      };
     }
     return null;
   }

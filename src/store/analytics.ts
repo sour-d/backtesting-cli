@@ -75,6 +75,19 @@ export function aggregateTrades(
   return trades;
 }
 
+/**
+ * Compute performance stats grouped by symbol. Useful for backtest summary.
+ */
+export function computeStatsBySymbol(trades: readonly AggregatedTrade[]): Record<string, PerformanceStats> {
+  const bySymbol: Record<string, PerformanceStats> = {};
+  const symbols = [...new Set(trades.map((t) => t.symbol))];
+  for (const symbol of symbols) {
+    const symbolTrades = trades.filter((t) => t.symbol === symbol);
+    bySymbol[symbol] = computeStats(symbolTrades);
+  }
+  return bySymbol;
+}
+
 export function computeStats(trades: readonly AggregatedTrade[]): PerformanceStats {
   if (trades.length === 0) return emptyStats();
 
