@@ -2,8 +2,8 @@
 export default {
   symbols: [
     'SOLUSDT',
-    'BTCUSDT',
-    'ETHUSDT',
+    // 'BTCUSDT',
+    // 'ETHUSDT',
     'XRPUSDT',
     'DOGEUSDT',
     'ADAUSDT',
@@ -15,7 +15,7 @@ export default {
   end: '2025-12-31 23:59',
   category: 'linear',
   strategy: 'MovingAverage_v2',
-  capital: 100000,
+  capital: 50,
   riskPercentage: 5,
   maxAllocation: 0.8,
   feeRate: 0.001,
