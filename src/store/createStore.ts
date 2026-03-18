@@ -24,7 +24,7 @@ export function createStore(mode: RunMode, options: CreateStoreOptions = {}): IS
 
   if (mode === 'live' && supabaseUrl && supabaseKey) {
     const client = createClient(supabaseUrl, supabaseKey);
-    return new SupabaseStore(client);
+    return new SupabaseStore(client, 1);
   }
 
   const fileStore = new FileStore(baseDir);

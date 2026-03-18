@@ -55,6 +55,11 @@ export class Bot {
     }
   }
 
+  /** Pre-set the candle count for a symbol after loading historical data (skips warmup wait). */
+  setHistoryCount(symbol: string, count: number): void {
+    this.symbolCandleCount.set(symbol, count);
+  }
+
   addSymbol(symbol: string, strategy: IStrategy): void {
     this.strategyMap.set(symbol, strategy);
     this.logger.info('Symbol added', { symbol, strategy: strategy.name });

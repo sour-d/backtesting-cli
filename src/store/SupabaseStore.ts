@@ -383,7 +383,7 @@ export class SupabaseStore implements IStore {
     if (filters.from) query = query.gte('date_unix', Number(filters.from));
     if (filters.to) query = query.lte('date_unix', Number(filters.to));
 
-    query = query.order('date_unix', { ascending: true });
+    query = query.order('date_unix', { ascending: filters.order !== 'desc' });
     if (filters.limit) query = query.limit(filters.limit);
     if (filters.offset) query = query.range(filters.offset, filters.offset + (filters.limit ?? 1000) - 1);
 

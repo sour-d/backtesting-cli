@@ -20,6 +20,7 @@ import type { DeployRequest } from '../types/deployment.js';
 import { ConsoleLogger, LogLevel } from '../logger/ConsoleLogger.js';
 import { FileStore } from '../store/FileStore.js';
 import { safeErrorMessage } from '../utils/safeErrorMessage.js';
+import { warmupMarket } from '../datasource/warmup.js';
 
 dotenv.config();
 
@@ -260,6 +261,22 @@ async function runEngine(mode: 'paper' | 'live', opts: EngineOpts): Promise<void
       }
     }
 
+    // Pre-load historical candles so indicators are ready before the first live candle
+    const trackedSymbols = feed.getTrackedSymbols();
+    if (trackedSymbols.length > 0) {
+      await warmupMarket({
+        symbols: trackedSymbols,
+        interval,
+        category,
+        count: 40,
+        store,
+        market,
+        bot,
+        logger: logger.child({ component: 'Warmup' }),
+        testnet: process.env.BYBIT_TESTNET === 'true',
+      });
+    }
+
     await feed.start();
     const server = await createServer(dm, store, logger.child({ component: 'API' }), { port });
 
@@ -275,11 +292,14 @@ async function runEngine(mode: 'paper' | 'live', opts: EngineOpts): Promise<void
       logger.info('Shutting down...');
       stopKeepAlive();
       feed.stop();
-      server.close(() => {
-        const l = logger as { flush?: () => Promise<void>; dispose?: () => void };
-        void (l.flush?.() ?? Promise.resolve()).then(() => {
-          l.dispose?.();
-          process.exit(0);
+      const s = store as { flushAllCandles?: () => Promise<void> };
+      void (s.flushAllCandles?.() ?? Promise.resolve()).then(() => {
+        server.close(() => {
+          const l = logger as { flush?: () => Promise<void>; dispose?: () => void };
+          void (l.flush?.() ?? Promise.resolve()).then(() => {
+            l.dispose?.();
+            process.exit(0);
+          });
         });
       });
     };

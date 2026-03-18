@@ -49,6 +49,7 @@ export interface CandleQueryFilters extends PaginationOpts {
   readonly interval: string;
   readonly from?: string;
   readonly to?: string;
+  readonly order?: 'asc' | 'desc';
 }
 
 export interface LogQueryFilters extends PaginationOpts {
