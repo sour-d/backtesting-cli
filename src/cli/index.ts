@@ -140,18 +140,16 @@ program
     console.log(`Stats saved to .data/resultsStats/stats_result.json`);
   });
 
-// ---- Live (paper or exchange) ----
+// ---- Paper (simulated) and Live (real exchange) ----
 
-program
-  .command('live')
-  .description('Start engine: paper (stream + sim broker) or real exchange (--exchange)')
-  .option('--port <port>', 'API server port', '3000')
-  .option('--interval <interval>', 'Candle interval')
-  .option('--log-level <level>', 'Log level: DEBUG, INFO, WARN, ERROR', 'INFO')
-  .option('--auto-deploy', 'Auto-deploy strategy from quantlab.config.js on startup')
-  .option('--exchange', 'Use real Bybit exchange (default: paper trading)')
-  .action(async (opts) => {
-    const mode: RunMode = opts.exchange ? 'live' : 'paper';
+interface EngineOpts {
+  port: string;
+  interval?: string;
+  logLevel?: string;
+  autoDeploy?: boolean;
+}
+
+async function runEngine(mode: 'paper' | 'live', opts: EngineOpts): Promise<void> {
     const cfg = await loadConfig();
     const port = Number(process.env.PORT || opts.port);
     const interval = (opts.interval as string | undefined) ?? cfg.interval ?? '240';
@@ -297,7 +295,25 @@ program
     logger.info(`  POST http://localhost:${port}/api/deployments`);
     logger.info(`  GET  http://localhost:${port}/api/strategies`);
     logger.info(`  GET  http://localhost:${port}/api/deployments`);
-  });
+}
+
+program
+  .command('paper')
+  .description('Start engine in paper trading mode (stream + simulated broker)')
+  .option('--port <port>', 'API server port', '3000')
+  .option('--interval <interval>', 'Candle interval')
+  .option('--log-level <level>', 'Log level: DEBUG, INFO, WARN, ERROR', 'INFO')
+  .option('--auto-deploy', 'Auto-deploy strategy from quantlab.config.js on startup')
+  .action((opts) => runEngine('paper', opts as EngineOpts));
+
+program
+  .command('live')
+  .description('Start engine with real Bybit exchange')
+  .option('--port <port>', 'API server port', '3000')
+  .option('--interval <interval>', 'Candle interval')
+  .option('--log-level <level>', 'Log level: DEBUG, INFO, WARN, ERROR', 'INFO')
+  .option('--auto-deploy', 'Auto-deploy strategy from quantlab.config.js on startup')
+  .action((opts) => runEngine('live', opts as EngineOpts));
 
 // ---- Download ----
 
