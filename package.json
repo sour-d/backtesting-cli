@@ -15,7 +15,7 @@
     "build": "tsc",
     "postbuild": "mkdir -p .data/market .data/technical .data/results .data/transformedResult .data/resultsStats",
     "start:paper": "node dist/cli/index.js paper",
-    "start:live": "node dist/cli/index.js live",
+    "start:live": "node dist/cli/index.js live --auto-deploy",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
