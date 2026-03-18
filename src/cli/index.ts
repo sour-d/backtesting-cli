@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { Command } from 'commander';
 import dotenv from 'dotenv';
 import { resolveStrategy } from '../strategy/index.js';
@@ -163,10 +164,12 @@ program
       cleanLiveData: opts.autoDeploy === true,
     });
 
+    const sessionId = randomUUID();
     const { root: logger, botLogger } = createLogger(mode, {
       logLevel: opts.logLevel as keyof typeof LogLevel,
       component: 'Engine',
       store: mode === 'live' ? store : undefined,
+      sessionId: mode === 'live' ? sessionId : undefined,
     });
 
     logger.info('Starting live engine', {
@@ -203,16 +206,30 @@ program
       testnet: process.env.BYBIT_TESTNET === 'true',
       demoTrading: process.env.DEMO_TRADING === 'true',
       logger: logger.child({ component: mode === 'live' ? 'BybitBroker' : 'Broker' }),
+      sessionId: mode === 'live' ? sessionId : undefined,
+      store: mode === 'live' ? store : undefined,
     });
 
     const defaultStrategy = resolveStrategy(cfg.strategy ?? 'MovingAverage_v2');
     const market = new Market(defaultStrategy.getIndicators());
-    const bot = new Bot({ market, broker, store, logger: botLogger });
+    const bot = new Bot({
+      market,
+      broker,
+      store,
+      logger: botLogger,
+      sessionId: mode === 'live' ? sessionId : undefined,
+    });
 
     feed.onCandle(async (symbol, candle) => {
-      await bot.onCandle(symbol, candle);
-      const enriched = market.getStock(symbol).now();
-      void store.saveCandles(symbol, interval, [enriched]);
+      try {
+        await bot.onCandle(symbol, candle);
+        const enriched = market.getStock(symbol).now();
+        void store.saveCandles(symbol, interval, [enriched]);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        logger.error('Live candle handler error (server continues)', { symbol, message });
+        // Bot already catches and persists runtime_error; this is a safety net so server never crashes
+      }
     });
 
     const dm = new DeploymentManager({
@@ -222,6 +239,7 @@ program
       store,
       logger: logger.child({ component: 'DeploymentManager' }),
       liveFeed: feed,
+      sessionId: mode === 'live' ? sessionId : undefined,
     });
 
     const restored = await dm.restoreFromStore();

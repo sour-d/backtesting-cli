@@ -102,3 +102,24 @@ CREATE TABLE logs (
 
 CREATE INDEX idx_logs_session ON logs (session_id);
 CREATE INDEX idx_logs_timestamp ON logs (timestamp);
+CREATE INDEX idx_logs_level ON logs (level);
+
+-- ============================================================
+-- 6. live_events (structured debugging: order/exit failures, runtime errors)
+-- ============================================================
+DROP TABLE IF EXISTS live_events CASCADE;
+
+CREATE TABLE live_events (
+  id            BIGSERIAL   PRIMARY KEY,
+  session_id    TEXT        NOT NULL,
+  event_type    TEXT        NOT NULL,
+  deployment_id TEXT,
+  symbol        TEXT,
+  message       TEXT        NOT NULL,
+  payload       JSONB,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_live_events_type ON live_events (event_type);
+CREATE INDEX idx_live_events_created ON live_events (created_at);
+CREATE INDEX idx_live_events_session ON live_events (session_id);

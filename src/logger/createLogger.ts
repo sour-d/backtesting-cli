@@ -11,6 +11,8 @@ export interface CreateLoggerOptions {
   component?: string;
   /** For paper/live: if provided, logs are also persisted (e.g. Supabase for live) */
   store?: IStore;
+  /** For live: session id for log/event correlation (e.g. same id for PersistentLogger and live_events) */
+  sessionId?: string;
 }
 
 export interface CreateLoggerResult {
@@ -39,7 +41,7 @@ export function createLogger(mode: RunMode, options: CreateLoggerOptions = {}): 
 
   const consoleLogger = new ConsoleLogger({ component }, level);
   const root: ILogger = store && mode === 'live'
-    ? new PersistentLogger({ inner: consoleLogger, store, context: { component } })
+    ? new PersistentLogger({ inner: consoleLogger, store, context: { component }, sessionId: options.sessionId })
     : consoleLogger;
   const botLogger = root.child({ component: 'Bot' });
   return { root, botLogger };

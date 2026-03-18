@@ -3,6 +3,8 @@ import type { Candle, TradeEntry, AggregatedTrade, PerformanceStats, Position } 
 import type { Deployment, StoredTrade } from '../types/deployment.js';
 import type {
   IStore,
+  LiveEvent,
+  LiveEventQueryFilters,
   LogEntry,
   TradeQueryFilters,
   DeploymentQueryFilters,
@@ -261,6 +263,53 @@ export class SupabaseStore implements IStore {
 
     const { error } = await this.client.from('logs').insert(rows);
     if (error) throw new Error(`Failed to save log batch: ${error.message}`);
+  }
+
+  async saveLiveEvent(event: LiveEvent): Promise<void> {
+    try {
+      const { error } = await this.client.from('live_events').insert({
+        session_id: event.sessionId,
+        event_type: event.eventType,
+        deployment_id: event.deploymentId ?? null,
+        symbol: event.symbol ?? null,
+        message: event.message,
+        payload: event.payload ?? null,
+      });
+      if (error) {
+        // Persistence failure: do not throw so main flow never crashes
+        console.error('[SupabaseStore] saveLiveEvent failed:', error.message);
+      }
+    } catch (e) {
+      console.error('[SupabaseStore] saveLiveEvent threw:', e);
+    }
+  }
+
+  async queryLiveEvents(filters: LiveEventQueryFilters): Promise<LiveEvent[]> {
+    let query = this.client.from('live_events').select('*');
+
+    if (filters.sessionId) query = query.eq('session_id', filters.sessionId);
+    if (filters.eventType) query = query.eq('event_type', filters.eventType);
+    if (filters.symbol) query = query.eq('symbol', filters.symbol);
+    if (filters.deploymentId) query = query.eq('deployment_id', filters.deploymentId);
+    if (filters.from) query = query.gte('created_at', filters.from);
+    if (filters.to) query = query.lte('created_at', filters.to);
+
+    query = query.order('created_at', { ascending: false });
+    if (filters.limit) query = query.limit(filters.limit);
+    if (filters.offset) query = query.range(filters.offset, filters.offset + (filters.limit ?? 100) - 1);
+
+    const { data, error } = await query;
+    if (error) throw new Error(`Failed to query live_events: ${error.message}`);
+    if (!data) return [];
+
+    return data.map((row) => ({
+      sessionId: row.session_id as string,
+      eventType: row.event_type as LiveEvent['eventType'],
+      ...(row.deployment_id ? { deploymentId: row.deployment_id as string } : {}),
+      ...(row.symbol ? { symbol: row.symbol as string } : {}),
+      message: row.message as string,
+      ...(row.payload ? { payload: row.payload as Record<string, unknown> } : {}),
+    }));
   }
 
   // --- Dashboard query methods ---

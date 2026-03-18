@@ -1,5 +1,7 @@
 export type {
   IStore,
+  LiveEvent,
+  LiveEventQueryFilters,
   LogEntry,
   PaginationOpts,
   TradeQueryFilters,

@@ -1,7 +1,7 @@
 import type { Candle, TradeEntry } from '../types/index.js';
 import type { Market } from '../market/Market.js';
 import type { IBroker } from '../broker/IBroker.js';
-import type { IStore } from '../store/IStore.js';
+import type { IStore, LiveEvent } from '../store/IStore.js';
 import type { ILogger } from '../logger/ILogger.js';
 import type { IStrategy } from '../strategy/IStrategy.js';
 
@@ -10,6 +10,8 @@ export interface BotDeps {
   broker: IBroker;
   store: IStore;
   logger: ILogger;
+  /** For live: session id used when persisting live_events (order_failed, exit_failed, runtime_error) */
+  sessionId?: string;
   strategyMap?: ReadonlyMap<string, IStrategy>;
   warmupPeriod?: number;
 }
@@ -19,6 +21,7 @@ export class Bot {
   private readonly broker: IBroker;
   private readonly store: IStore;
   private readonly logger: ILogger;
+  private readonly sessionId: string;
   private readonly strategyMap: Map<string, IStrategy>;
   private readonly warmupPeriod: number;
   private readonly symbolCandleCount: Map<string, number> = new Map();
@@ -30,8 +33,25 @@ export class Bot {
     this.broker = deps.broker;
     this.store = deps.store;
     this.logger = deps.logger;
+    this.sessionId = deps.sessionId ?? '';
     this.strategyMap = new Map(deps.strategyMap ?? []);
     this.warmupPeriod = deps.warmupPeriod ?? 20;
+  }
+
+  private async persistLiveEvent(eventType: LiveEvent['eventType'], symbol: string, message: string, payload?: Record<string, unknown>): Promise<void> {
+    const save = this.store.saveLiveEvent;
+    if (!save || !this.sessionId) return;
+    try {
+      await save({
+        sessionId: this.sessionId,
+        eventType,
+        symbol,
+        message,
+        payload,
+      });
+    } catch {
+      // Do not throw; persistence failure must not crash the flow
+    }
   }
 
   addSymbol(symbol: string, strategy: IStrategy): void {
@@ -65,6 +85,18 @@ export class Bot {
   }
 
   async onCandle(symbol: string, candle: Candle): Promise<void> {
+    try {
+      await this.onCandleInner(symbol, candle);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      const stack = err instanceof Error ? err.stack : undefined;
+      this.logger.error('Runtime error in onCandle', { symbol, message, stack });
+      await this.persistLiveEvent('runtime_error', symbol, message, { stack });
+      // Do not rethrow: keep server running
+    }
+  }
+
+  private async onCandleInner(symbol: string, candle: Candle): Promise<void> {
     this.candleCount++;
     const symbolCount = (this.symbolCandleCount.get(symbol) ?? 0) + 1;
     this.symbolCandleCount.set(symbol, symbolCount);
@@ -96,8 +128,10 @@ export class Bot {
       if (result.ok) {
         this.store.recordTrade(result.value);
         this.logger.info('Position exited', { symbol, price: signal.price, reason: signal.reason });
-
         await this.tryEntry(symbol, strategy, stock, candle.dateUnix);
+      } else {
+        this.logger.error('Exit position failed', { symbol, price: signal.price, error: result.error });
+        await this.persistLiveEvent('exit_failed', symbol, result.error, { price: signal.price, reason: signal.reason });
       }
       return;
     }
@@ -120,6 +154,13 @@ export class Bot {
           side: result.value.side,
           price: result.value.entryPrice,
           quantity: result.value.quantity,
+        });
+      } else {
+        this.logger.error('Order placement failed', { symbol, action: signal.action, error: result.error });
+        await this.persistLiveEvent('order_failed', symbol, result.error, {
+          action: signal.action,
+          price: signal.price,
+          stopLoss: signal.stopLoss,
         });
       }
     }
@@ -151,6 +192,13 @@ export class Bot {
           symbol,
           side: result.value.side,
           price: result.value.entryPrice,
+        });
+      } else {
+        this.logger.error('Reversal order failed', { symbol, action: signal.action, error: result.error });
+        await this.persistLiveEvent('order_failed', symbol, result.error, {
+          context: 'reversal',
+          action: signal.action,
+          price: signal.price,
         });
       }
     }

@@ -4,6 +4,7 @@ import type { Candle, TradeEntry, AggregatedTrade, PerformanceStats, Position } 
 import type { Deployment, StoredTrade } from '../types/deployment.js';
 import type {
   IStore,
+  LiveEvent,
   LogEntry,
   TradeQueryFilters,
   DeploymentQueryFilters,
@@ -130,6 +131,8 @@ export class FileStore implements IStore {
   // --- Application log persistence (no-op for file mode) ---
 
   async saveLogBatch(_entries: readonly LogEntry[]): Promise<void> {}
+
+  async saveLiveEvent(_event: LiveEvent): Promise<void> {}
 
   // --- Dashboard query methods (no-op for file mode) ---
 

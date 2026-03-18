@@ -6,6 +6,7 @@ import { RestClientV5 } from 'bybit-api';
 import type { Signal, Position, TradeEntry, Result, Candle } from '../types/index.js';
 import { ok, err } from '../types/result.js';
 import type { IBroker } from './IBroker.js';
+import type { LiveEvent } from '../store/IStore.js';
 import { calculateQuantity } from './riskManager.js';
 import type { ILogger } from '../logger/ILogger.js';
 
@@ -30,6 +31,9 @@ export class BybitBroker implements IBroker {
   private readonly capitalPool: Map<string, number> = new Map();
   private readonly symbolConfigs: Map<string, { riskPercentage: number; maxAllocation: number }> = new Map();
 
+  /** Called when stop-loss exit fails (so caller can persist to live_events). Caller adds sessionId. */
+  private readonly onLiveEvent?: (event: Omit<LiveEvent, 'sessionId'>) => void;
+
   constructor(opts: {
     apiKey?: string;
     apiSecret?: string;
@@ -37,6 +41,7 @@ export class BybitBroker implements IBroker {
     demoTrading?: boolean;
     config: BybitBrokerConfig;
     logger?: ILogger;
+    onLiveEvent?: (event: Omit<LiveEvent, 'sessionId'>) => void;
   }) {
     this.client = new RestClientV5({
       key: opts.apiKey,
@@ -46,6 +51,7 @@ export class BybitBroker implements IBroker {
     });
     this.config = opts.config;
     this.logger = opts.logger ?? null;
+    this.onLiveEvent = opts.onLiveEvent;
   }
 
   allocateCapital(symbols: string[], totalCapital: number): void {
@@ -221,7 +227,16 @@ export class BybitBroker implements IBroker {
     if (pos.side === 'Sell' && candle.high >= pos.stopLoss) triggered = true;
     if (!triggered) return null;
     const result = await this.exitPositionAsync(symbol, pos.stopLoss, candle.dateUnix);
-    if (!result.ok) return null;
+    if (!result.ok) {
+      this.logger?.error('Stop-loss exit failed', { symbol, error: result.error });
+      this.onLiveEvent?.({
+        eventType: 'stop_loss_exit_failed',
+        symbol,
+        message: result.error,
+        payload: { stopLoss: pos.stopLoss, side: pos.side },
+      });
+      return null;
+    }
     return { ...result.value, type: 'STOP_LOSS' as const };
   }
 

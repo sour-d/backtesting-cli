@@ -1,6 +1,16 @@
 import type { Candle, TradeEntry, AggregatedTrade, PerformanceStats, Position } from '../types/index.js';
 import type { Deployment, StoredTrade } from '../types/deployment.js';
 
+/** Structured event for live debugging (order/exit failures, runtime errors). Persisted to DB in live mode. */
+export interface LiveEvent {
+  readonly sessionId: string;
+  readonly eventType: 'order_placed' | 'order_failed' | 'exit_ok' | 'exit_failed' | 'stop_loss_triggered' | 'stop_loss_exit_failed' | 'runtime_error';
+  readonly deploymentId?: string;
+  readonly symbol?: string;
+  readonly message: string;
+  readonly payload?: Record<string, unknown>;
+}
+
 export interface LogEntry {
   readonly sessionId: string;
   readonly timestamp: string;
@@ -49,6 +59,15 @@ export interface LogQueryFilters extends PaginationOpts {
   readonly to?: string;
 }
 
+export interface LiveEventQueryFilters extends PaginationOpts {
+  readonly sessionId?: string;
+  readonly eventType?: LiveEvent['eventType'];
+  readonly symbol?: string;
+  readonly deploymentId?: string;
+  readonly from?: string;
+  readonly to?: string;
+}
+
 export interface PositionWithDeployment extends Position {
   readonly deploymentId: string;
 }
@@ -84,6 +103,12 @@ export interface IStore {
 
   // --- Application log persistence (live) ---
   saveLogBatch(entries: readonly LogEntry[]): Promise<void>;
+
+  /** Optional: persist structured live events for debugging (live mode). No-op on FileStore. */
+  saveLiveEvent?(event: LiveEvent): Promise<void>;
+
+  /** Optional: query live_events for debugging (SupabaseStore). */
+  queryLiveEvents?(filters: LiveEventQueryFilters): Promise<LiveEvent[]>;
 
   // --- Dashboard query methods ---
   queryTrades(filters: TradeQueryFilters): Promise<StoredTrade[]>;

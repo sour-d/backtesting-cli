@@ -16,6 +16,8 @@ export interface DeploymentManagerDeps {
   store: IStore;
   logger: ILogger;
   liveFeed?: LiveFeed;
+  /** For live: session id when persisting exit_failed on stop() */
+  sessionId?: string;
 }
 
 export class DeploymentManager {
@@ -27,6 +29,7 @@ export class DeploymentManager {
   private readonly store: IStore;
   private readonly logger: ILogger;
   private readonly liveFeed: LiveFeed | null;
+  private readonly sessionId: string;
 
   constructor(deps: DeploymentManagerDeps) {
     this.bot = deps.bot;
@@ -35,6 +38,7 @@ export class DeploymentManager {
     this.store = deps.store;
     this.logger = deps.logger;
     this.liveFeed = deps.liveFeed ?? null;
+    this.sessionId = deps.sessionId ?? '';
   }
 
   async deploy(request: DeployRequest): Promise<Deployment[]> {
@@ -99,8 +103,50 @@ export class DeploymentManager {
 
     const position = await Promise.resolve(this.broker.getPosition(deployment.symbol));
     if (position) {
-      const lastCandle = this.market.getStock(deployment.symbol).now();
-      await Promise.resolve(this.broker.exitPosition(deployment.symbol, lastCandle.close, lastCandle.dateUnix));
+      try {
+        const lastCandle = this.market.getStock(deployment.symbol).now();
+        const exitResult = await Promise.resolve(
+          this.broker.exitPosition(deployment.symbol, lastCandle.close, lastCandle.dateUnix),
+        );
+        if (!exitResult.ok) {
+          this.logger.error('Exit failed on stop', {
+            deploymentId,
+            symbol: deployment.symbol,
+            error: exitResult.error,
+          });
+          if (this.sessionId && this.store.saveLiveEvent) {
+            try {
+              await this.store.saveLiveEvent({
+                sessionId: this.sessionId,
+                eventType: 'exit_failed',
+                deploymentId,
+                symbol: deployment.symbol,
+                message: exitResult.error,
+                payload: { context: 'stop_deployment' },
+              });
+            } catch {
+              // Persist failure must not crash
+            }
+          }
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        this.logger.error('Error during stop (exit or getStock)', { deploymentId, symbol: deployment.symbol, message });
+        if (this.sessionId && this.store.saveLiveEvent) {
+          try {
+            await this.store.saveLiveEvent({
+              sessionId: this.sessionId,
+              eventType: 'runtime_error',
+              deploymentId,
+              symbol: deployment.symbol,
+              message,
+              payload: { context: 'stop_deployment' },
+            });
+          } catch {
+            // ignore
+          }
+        }
+      }
       await this.store.removePosition(deploymentId);
     }
 
