@@ -12,7 +12,7 @@ import { aggregateTrades, computeStats, computeStatsBySymbol } from '../store/an
 import { BybitClient } from '../datasource/exchange/BybitClient.js';
 import { LiveFeed } from '../datasource/feeds/LiveFeed.js';
 import { DeploymentManager } from '../deployment/DeploymentManager.js';
-import { createServer } from '../api/server.js';
+import { createServer, startKeepAlivePing } from '../api/server.js';
 import { loadConfig, parseDate } from '../config/loadConfig.js';
 import type { RunMode } from '../core/types.js';
 import type { AppConfig } from '../types/index.js';
@@ -270,8 +270,17 @@ program
     await feed.start();
     const server = await createServer(dm, store, logger.child({ component: 'API' }), { port });
 
+    const stopKeepAlive =
+      process.env.LIVE_URL ?
+        startKeepAlivePing(process.env.LIVE_URL, logger.child({ component: 'KeepAlive' }))
+      : () => {};
+    if (process.env.LIVE_URL) {
+      logger.info('Keep-alive ping started', { url: process.env.LIVE_URL, interval: '1m' });
+    }
+
     const shutdown = () => {
       logger.info('Shutting down...');
+      stopKeepAlive();
       feed.stop();
       server.close(() => {
         const l = logger as { flush?: () => Promise<void>; dispose?: () => void };

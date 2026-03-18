@@ -34,6 +34,10 @@ export function createServer(
     res.json({ status: 'ok', uptime: process.uptime() });
   });
 
+  app.get('/api/ping', (_req, res) => {
+    res.status(200).json({ pong: true });
+  });
+
   const host = config.host ?? '0.0.0.0';
 
   return new Promise((resolve) => {
@@ -42,4 +46,24 @@ export function createServer(
       resolve(server);
     });
   });
+}
+
+const PING_INTERVAL_MS = 60_000; // 1 min
+
+/**
+ * Start a loop that GETs baseUrl/api/ping every minute (e.g. to keep Render free tier awake).
+ * Returns a cleanup function to clear the interval.
+ */
+export function startKeepAlivePing(baseUrl: string, logger?: ILogger): () => void {
+  const url = baseUrl.replace(/\/$/, '') + '/api/ping';
+  const timer = setInterval(() => {
+    fetch(url)
+      .then((res) => {
+        if (logger && !res.ok) logger.warn('Keep-alive ping failed', { url, status: res.status });
+      })
+      .catch((err) => {
+        if (logger) logger.warn('Keep-alive ping error', { url, error: String(err) });
+      });
+  }, PING_INTERVAL_MS);
+  return () => clearInterval(timer);
 }
