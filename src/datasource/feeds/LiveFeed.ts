@@ -1,63 +1,77 @@
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc.js';
+import timezone from 'dayjs/plugin/timezone.js';
+import { WebsocketClient } from 'bybit-api';
 import type { Candle } from '../../types/index.js';
 import type { IDataFeed, CandleHandler } from '../IDataFeed.js';
-import type { BybitClient } from '../exchange/BybitClient.js';
 import type { ILogger } from '../../logger/ILogger.js';
 import { safeErrorMessage } from '../../utils/safeErrorMessage.js';
 
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
+const TZ = 'Asia/Kolkata';
+
 export interface LiveFeedConfig {
-  readonly client: BybitClient;
   readonly interval: string;
   readonly category?: 'linear' | 'spot' | 'inverse';
+  readonly testnet?: boolean;
   readonly logger: ILogger;
 }
 
-const INTERVAL_MS: Record<string, number> = {
-  '1': 60_000,
-  '3': 180_000,
-  '5': 300_000,
-  '15': 900_000,
-  '30': 1_800_000,
-  '60': 3_600_000,
-  '120': 7_200_000,
-  '240': 14_400_000,
-  '360': 21_600_000,
-  '720': 43_200_000,
-  D: 86_400_000,
-};
-
-function pollIntervalFor(intervalKey: string): number {
-  const candleMs = INTERVAL_MS[intervalKey] ?? 240 * 60_000;
-  if (candleMs <= 60_000) return 10_000;
-  if (candleMs <= 300_000) return 30_000;
-  if (candleMs <= 3_600_000) return 60_000;
-  return 120_000;
-}
-
 /**
- * Polls Bybit kline API at regular intervals, detects newly completed candles,
- * and dispatches them to the registered handler. Supports dynamic symbol
- * addition/removal for use with DeploymentManager.
+ * Subscribes to Bybit kline WebSocket (public, no API keys).
+ * Only emits confirmed (closed) candles. Supports dynamic symbol add/remove.
  */
 export class LiveFeed implements IDataFeed {
-  private readonly client: BybitClient;
   private readonly interval: string;
-  private readonly candleMs: number;
   private readonly category: 'linear' | 'spot' | 'inverse';
   private readonly logger: ILogger;
+  private readonly wsClient: InstanceType<typeof WebsocketClient>;
 
   private readonly symbols: Set<string> = new Set();
-  private readonly lastCandleTime: Map<string, number> = new Map();
-
   private handler: CandleHandler | null = null;
-  private timer: ReturnType<typeof setInterval> | null = null;
   private running = false;
 
   constructor(config: LiveFeedConfig) {
-    this.client = config.client;
     this.interval = config.interval;
-    this.candleMs = INTERVAL_MS[config.interval] ?? 240 * 60_000;
     this.category = config.category ?? 'linear';
     this.logger = config.logger;
+
+    this.wsClient = new WebsocketClient({
+      market: 'v5',
+      testnet: config.testnet ?? false,
+    });
+
+    this.wsClient.on('update', (msg) => {
+      if (!this.running || !this.handler) return;
+      try {
+        this.handleUpdate(msg);
+      } catch (err) {
+        this.logger.error('LiveFeed WS update error', { error: safeErrorMessage(err) });
+      }
+    });
+
+    this.wsClient.on('open', (data) => {
+      this.logger.info('WebSocket connected', { wsKey: data?.wsKey });
+    });
+
+    this.wsClient.on('reconnect', (data) => {
+      this.logger.info('WebSocket reconnecting', { wsKey: data?.wsKey });
+    });
+
+    this.wsClient.on('reconnected', (data) => {
+      this.logger.info('WebSocket reconnected', { wsKey: data?.wsKey });
+    });
+
+    this.wsClient.on('close', () => {
+      this.logger.warn('WebSocket closed');
+    });
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (this.wsClient as any).on('error', (err: unknown) => {
+      this.logger.error('WebSocket error', { error: safeErrorMessage(err) });
+    });
   }
 
   onCandle(handler: CandleHandler): void {
@@ -67,12 +81,17 @@ export class LiveFeed implements IDataFeed {
   addSymbol(symbol: string): void {
     this.symbols.add(symbol);
     this.logger.info('LiveFeed tracking symbol', { symbol });
+    if (this.running) {
+      this.subscribe(symbol);
+    }
   }
 
   removeSymbol(symbol: string): void {
     this.symbols.delete(symbol);
-    this.lastCandleTime.delete(symbol);
     this.logger.info('LiveFeed stopped tracking symbol', { symbol });
+    if (this.running) {
+      this.unsubscribe(symbol);
+    }
   }
 
   getTrackedSymbols(): string[] {
@@ -83,67 +102,53 @@ export class LiveFeed implements IDataFeed {
     if (!this.handler) throw new Error('No candle handler registered');
     this.running = true;
 
-    const pollMs = pollIntervalFor(this.interval);
+    for (const symbol of this.symbols) {
+      this.subscribe(symbol);
+    }
+
     this.logger.info('LiveFeed started', {
       interval: this.interval,
-      pollMs: String(pollMs),
+      mode: 'websocket',
       symbols: [...this.symbols].join(','),
     });
-
-    await this.pollAll();
-
-    this.timer = setInterval(() => {
-      void this.pollAll();
-    }, pollMs);
   }
 
   stop(): void {
     this.running = false;
-    if (this.timer) {
-      clearInterval(this.timer);
-      this.timer = null;
+    for (const symbol of this.symbols) {
+      this.unsubscribe(symbol);
+    }
+    try {
+      this.wsClient.closeAll();
+    } catch {
+      // ignore close errors on shutdown
     }
     this.logger.info('LiveFeed stopped');
   }
 
-  private async pollAll(): Promise<void> {
-    if (!this.running || !this.handler) return;
-
-    for (const symbol of this.symbols) {
-      if (!this.running) break;
-      try {
-        await this.pollSymbol(symbol);
-      } catch (err) {
-        this.logger.error('LiveFeed poll error', { symbol, error: safeErrorMessage(err) });
-      }
-    }
+  private subscribe(symbol: string): void {
+    const topic = `kline.${this.interval}.${symbol.toUpperCase()}`;
+    this.wsClient.subscribeV5(topic, this.category);
+    this.logger.debug('WS subscribed', { topic });
   }
 
-  private async pollSymbol(symbol: string): Promise<void> {
-    const now = Date.now();
+  private unsubscribe(symbol: string): void {
+    const topic = `kline.${this.interval}.${symbol.toUpperCase()}`;
+    this.wsClient.unsubscribeV5(topic, this.category);
+    this.logger.debug('WS unsubscribed', { topic });
+  }
 
-    const candles = await this.client.fetchRecentCandles({
-      symbol,
-      interval: this.interval,
-      limit: 5,
-      category: this.category,
-    });
+  private handleUpdate(msg: { topic?: string; data?: unknown[] }): void {
+    const { topic, data: quotes } = msg;
+    if (!topic || !quotes || !Array.isArray(quotes)) return;
 
-    if (candles.length === 0) return;
+    for (const quote of quotes as Record<string, unknown>[]) {
+      if (!quote['confirm']) continue;
 
-    const completed = candles.filter((c) => c.dateUnix + this.candleMs <= now);
-    if (completed.length === 0) return;
+      const symbol = this.extractSymbol(topic);
+      if (!symbol || !this.symbols.has(symbol)) continue;
 
-    const latest = completed[completed.length - 1]!;
-    const lastSeen = this.lastCandleTime.get(symbol);
-
-    if (lastSeen !== undefined && latest.dateUnix <= lastSeen) return;
-
-    const newCandles = lastSeen === undefined
-      ? [latest]
-      : completed.filter((c) => c.dateUnix > lastSeen);
-
-    for (const candle of newCandles) {
+      const candle = this.mapQuote(quote);
       this.logger.info('New candle', {
         symbol,
         date: candle.date,
@@ -153,9 +158,30 @@ export class LiveFeed implements IDataFeed {
         l: String(candle.low),
         c: String(candle.close),
       });
-      await Promise.resolve(this.handler!(symbol, candle));
-    }
 
-    this.lastCandleTime.set(symbol, latest.dateUnix);
+      void Promise.resolve(this.handler!(symbol, candle)).catch((err) => {
+        this.logger.error('LiveFeed handler error', { symbol, error: safeErrorMessage(err) });
+      });
+    }
+  }
+
+  private extractSymbol(topic: string): string | null {
+    // topic format: kline.{interval}.{SYMBOL}
+    const parts = topic.split('.');
+    return parts.length >= 3 ? parts[2]! : null;
+  }
+
+  private mapQuote(quote: Record<string, unknown>): Candle {
+    const ts = Number(quote['timestamp'] ?? quote['start']);
+    return {
+      date: dayjs(ts).tz(TZ).format('YYYY-MM-DD'),
+      time: dayjs(ts).tz(TZ).format('HH:mm:ss'),
+      dateUnix: Number(quote['end'] ?? ts),
+      open: Number(quote['open']),
+      high: Number(quote['high']),
+      low: Number(quote['low']),
+      close: Number(quote['close']),
+      volume: Number(quote['volume']),
+    };
   }
 }

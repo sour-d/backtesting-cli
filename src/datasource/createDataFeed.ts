@@ -2,7 +2,6 @@ import type { RunMode } from '../core/types.js';
 import type { IDataFeed } from './IDataFeed.js';
 import type { IStore } from '../store/IStore.js';
 import type { ILogger } from '../logger/ILogger.js';
-import type { BybitClient } from './exchange/BybitClient.js';
 import { HistoricalFeed } from './feeds/HistoricalFeed.js';
 import { LiveFeed } from './feeds/LiveFeed.js';
 
@@ -15,18 +14,18 @@ export interface CreateDataFeedOptionsBacktest {
 
 export interface CreateDataFeedOptionsStream {
   mode: 'paper' | 'live';
-  client: BybitClient;
   interval: string;
   category?: 'linear' | 'spot' | 'inverse';
+  testnet?: boolean;
   logger: ILogger;
 }
 
 export type CreateDataFeedOptions = CreateDataFeedOptionsBacktest | CreateDataFeedOptionsStream;
 
 /**
- * Create data feed for the given mode. One entry point: same interface, behavior by mode.
+ * Create data feed for the given mode.
  * - backtest: HistoricalFeed (load candles from store by symbol, sync by index)
- * - paper | live: LiveFeed (Bybit kline polling, push new candles to handler)
+ * - paper | live: LiveFeed (Bybit kline WebSocket, push confirmed candles to handler)
  */
 export function createDataFeed(options: CreateDataFeedOptions): IDataFeed {
   if (options.mode === 'backtest') {
@@ -40,11 +39,11 @@ export function createDataFeed(options: CreateDataFeedOptions): IDataFeed {
     });
   }
 
-  const { client, interval, category = 'linear', logger } = options;
+  const { interval, category = 'linear', testnet = false, logger } = options;
   return new LiveFeed({
-    client,
     interval,
     category,
+    testnet,
     logger,
   });
 }

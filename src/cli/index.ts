@@ -177,17 +177,11 @@ async function runEngine(mode: 'paper' | 'live', opts: EngineOpts): Promise<void
       interval,
     });
 
-    // Feed only uses public market-data endpoints (getKline) — no auth needed.
-    // Sending API keys can cause "Forbidden" on some cloud IPs where Bybit restricts authed requests.
-    const feedClient = new BybitClient({
-      logger: logger.child({ component: 'BybitClient' }),
-    });
-
     const feed = createDataFeed({
       mode,
-      client: feedClient,
       interval,
       category,
+      testnet: process.env.BYBIT_TESTNET === 'true',
       logger: logger.child({ component: 'LiveFeed' }),
     }) as LiveFeed;
 
