@@ -10,4 +10,6 @@ export type {
 } from './IStore.js';
 export { FileStore } from './FileStore.js';
 export { SupabaseStore } from './SupabaseStore.js';
-export { aggregateTrades, computeStats } from './analytics.js';
+export { createStore } from './createStore.js';
+export type { CreateStoreOptions } from './createStore.js';
+export { aggregateTrades, computeStats, computeStatsBySymbol } from './analytics.js';

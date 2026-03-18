@@ -1,37 +1,34 @@
 import { Command } from 'commander';
-import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 import { resolveStrategy } from '../strategy/index.js';
 import { Market } from '../market/Market.js';
 import { Bot } from '../trading-bot/Bot.js';
-import { SimulatedBroker } from '../broker/SimulatedBroker.js';
-import { BybitBroker } from '../broker/BybitBroker.js';
-import { FileStore } from '../store/FileStore.js';
-import { SupabaseStore } from '../store/SupabaseStore.js';
+import { createBroker } from '../broker/createBroker.js';
+import { createStore } from '../store/createStore.js';
+import { createLogger } from '../logger/createLogger.js';
+import { createDataFeed } from '../datasource/createDataFeed.js';
 import { aggregateTrades, computeStats, computeStatsBySymbol } from '../store/analytics.js';
-import { HistoricalFeed } from '../datasource/feeds/HistoricalFeed.js';
-import { LiveFeed } from '../datasource/feeds/LiveFeed.js';
 import { BybitClient } from '../datasource/exchange/BybitClient.js';
-import { ConsoleLogger, LogLevel } from '../logger/ConsoleLogger.js';
-import { PersistentLogger } from '../logger/PersistentLogger.js';
+import { LiveFeed } from '../datasource/feeds/LiveFeed.js';
 import { DeploymentManager } from '../deployment/DeploymentManager.js';
 import { createServer } from '../api/server.js';
 import { loadConfig, parseDate } from '../config/loadConfig.js';
+import type { RunMode } from '../core/types.js';
 import type { AppConfig } from '../types/index.js';
 import type { DeployRequest } from '../types/deployment.js';
-import type { IBroker } from '../broker/IBroker.js';
-import type { IStore } from '../store/IStore.js';
+import { ConsoleLogger, LogLevel } from '../logger/ConsoleLogger.js';
+import { FileStore } from '../store/FileStore.js';
 
 dotenv.config();
 
 const program = new Command();
 program.name('quantlab').description('Modular backtesting and trading engine').version('0.2.0');
 
-// ---- Backtest command ----
+// ---- Backtest (run) ----
 
 program
   .command('run')
-  .description('Run a backtest')
+  .description('Run backtest on historical data (file store, simulated broker, minimal logs)')
   .option('-s, --strategy <name>', 'Strategy name')
   .option('-S, --symbols <symbols>', 'Comma-separated symbol list')
   .option('-c, --capital <amount>', 'Starting capital')
@@ -43,9 +40,8 @@ program
   .option('--interval <interval>', 'Candle interval')
   .option('--log-level <level>', 'Log level: DEBUG, INFO, WARN, ERROR', 'INFO')
   .action(async (opts) => {
+    const mode: RunMode = 'backtest';
     const cfg = await loadConfig();
-    const logLevel = LogLevel[opts.logLevel as keyof typeof LogLevel] ?? LogLevel.INFO;
-    const logger = new ConsoleLogger({ component: 'CLI' }, logLevel);
 
     const symbols = opts.symbols
       ? (opts.symbols as string).split(',').map((s: string) => s.trim())
@@ -53,11 +49,11 @@ program
     const strategyName = (opts.strategy as string | undefined) ?? cfg.strategy;
 
     if (!symbols || symbols.length === 0) {
-      logger.error('No symbols specified. Use -S flag or set "symbols" in quantlab.config.json');
+      console.error('No symbols specified. Use -S flag or set "symbols" in quantlab.config.js');
       process.exit(1);
     }
     if (!strategyName) {
-      logger.error('No strategy specified. Use -s flag or set "strategy" in quantlab.config.json');
+      console.error('No strategy specified. Use -s flag or set "strategy" in quantlab.config.js');
       process.exit(1);
     }
 
@@ -74,33 +70,31 @@ program
       feeRate: Number(opts.fee ?? cfg.feeRate ?? 0.001),
     };
 
-    logger.info('Starting backtest', { strategy: config.strategy, symbols: symbols.join(',') });
-
-    const strategy = resolveStrategy(config.strategy);
-    const market = new Market(strategy.getIndicators());
-    const store = new FileStore('.data');
-
-    const broker = new SimulatedBroker({
+    const store = createStore(mode, { baseDir: '.data' });
+    const { root: logger, botLogger } = createLogger(mode, {
+      logLevel: opts.logLevel as keyof typeof LogLevel,
+    });
+    const broker = createBroker(mode, {
       feeRate: config.feeRate,
       riskPercentage: config.riskPercentage,
       maxAllocation: config.maxAllocation,
     });
+
+    logger.info('Starting backtest', { strategy: config.strategy, symbols: symbols.join(',') });
+
+    const strategy = resolveStrategy(config.strategy);
+    const market = new Market(strategy.getIndicators());
     broker.allocateCapital([...config.instruments], config.capital);
 
     const strategyMap = new Map(config.instruments.map((s) => [s, strategy]));
-    // Bot logs (Order placed, Position exited, etc.) at WARN+ only during backtest to keep output quiet.
-    const botLogger = new ConsoleLogger({ component: 'Bot' }, LogLevel.WARN);
-
     const bot = new Bot({ market, broker, store, logger: botLogger, strategyMap });
 
-    const feed = new HistoricalFeed({
+    const feed = createDataFeed({
+      mode: 'backtest',
       symbols: config.instruments,
-      loadCandles: (symbol) => {
-        const label = `${symbol}_${config.interval}`;
-        return store.loadMarketData(label);
-      },
+      store,
+      interval: config.interval,
     });
-
     feed.onCandle((symbol, candle) => bot.onCandle(symbol, candle));
 
     const startTime = Date.now();
@@ -113,7 +107,6 @@ program
       capital: config.capital,
       intervalMinutes: Number(config.interval) || 240,
     });
-
     const stats = computeStats(aggregated);
     const statsBySymbol = computeStatsBySymbol(aggregated);
 
@@ -146,50 +139,40 @@ program
     console.log(`Stats saved to .data/resultsStats/stats_result.json`);
   });
 
-// ---- Live / Paper trading command ----
+// ---- Live (paper or exchange) ----
 
 program
   .command('live')
-  .description('Start the live trading engine with API server')
+  .description('Start engine: paper (stream + sim broker) or real exchange (--exchange)')
   .option('--port <port>', 'API server port', '3000')
   .option('--interval <interval>', 'Candle interval')
   .option('--log-level <level>', 'Log level: DEBUG, INFO, WARN, ERROR', 'INFO')
   .option('--auto-deploy', 'Auto-deploy strategy from quantlab.config.js on startup')
-  .option('--live-exchange', 'Use real Bybit exchange (default: paper trading with SimulatedBroker)')
+  .option('--exchange', 'Use real Bybit exchange (default: paper trading)')
   .action(async (opts) => {
+    const mode: RunMode = opts.exchange ? 'live' : 'paper';
     const cfg = await loadConfig();
-    const logLevel = LogLevel[opts.logLevel as keyof typeof LogLevel] ?? LogLevel.INFO;
-    const consoleLogger = new ConsoleLogger({ component: 'Engine' }, logLevel);
     const port = Number(process.env.PORT || opts.port);
     const interval = (opts.interval as string | undefined) ?? cfg.interval ?? '240';
+    const category = (cfg.category as 'linear' | 'spot' | 'inverse') ?? 'linear';
 
-    consoleLogger.info('Starting live trading engine', { port: String(port), interval });
+    const store = createStore(mode, {
+      baseDir: '.data',
+      supabaseUrl: process.env.SUPABASE_URL,
+      supabaseKey: process.env.SUPABASE_KEY,
+      cleanLiveData: opts.autoDeploy === true,
+    });
 
-    const defaultStrategy = resolveStrategy(cfg.strategy ?? 'MovingAverage_v2');
-    const market = new Market(defaultStrategy.getIndicators());
+    const { root: logger, botLogger } = createLogger(mode, {
+      logLevel: opts.logLevel as keyof typeof LogLevel,
+      component: 'Engine',
+      store: mode === 'live' ? store : undefined,
+    });
 
-    let store: IStore;
-    const supabaseUrl = process.env.SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_KEY;
-
-    if (supabaseUrl && supabaseKey) {
-      const client = createClient(supabaseUrl, supabaseKey);
-      store = new SupabaseStore(client);
-      consoleLogger.info('Using Supabase for persistence');
-    } else {
-      const fileStore = new FileStore('.data');
-      if (opts.autoDeploy) {
-        fileStore.cleanLiveData();
-        consoleLogger.info('Cleaned previous live data');
-      }
-      store = fileStore;
-      consoleLogger.info('Using FileStore for persistence (set SUPABASE_URL and SUPABASE_KEY for DB)');
-    }
-
-    const logger = new PersistentLogger({
-      inner: consoleLogger,
-      store,
-      context: { component: 'Engine' },
+    logger.info('Starting live engine', {
+      mode: mode === 'live' ? 'exchange' : 'paper',
+      port: String(port),
+      interval,
     });
 
     const bybitClient = new BybitClient({
@@ -198,55 +181,36 @@ program
       logger: logger.child({ component: 'BybitClient' }),
     });
 
-    const liveFeed = new LiveFeed({
+    const feed = createDataFeed({
+      mode,
       client: bybitClient,
       interval,
-      category: (cfg.category as 'linear' | 'spot' | 'inverse') ?? 'linear',
+      category,
       logger: logger.child({ component: 'LiveFeed' }),
-    });
+    }) as LiveFeed;
 
-    const useLiveExchange = opts.liveExchange === true;
-    const category = (cfg.category as 'linear' | 'spot' | 'inverse') ?? 'linear';
-
-    let broker: IBroker;
-    if (useLiveExchange) {
-      const apiKey = process.env.BYBIT_API_KEY;
-      const apiSecret = process.env.BYBIT_API_SECRET;
-      if (!apiKey || !apiSecret) {
-        consoleLogger.error('BYBIT_API_KEY and BYBIT_API_SECRET are required for --live-exchange');
-        process.exit(1);
-      }
-      broker = new BybitBroker({
-        apiKey,
-        apiSecret,
-        testnet: process.env.BYBIT_TESTNET === 'true',
-        demoTrading: process.env.DEMO_TRADING === 'true',
-        config: {
-          riskPercentage: cfg.riskPercentage ?? 5,
-          maxAllocation: cfg.maxAllocation ?? 0.8,
-          category,
-        },
-        logger: logger.child({ component: 'BybitBroker' }),
-      });
-      consoleLogger.info('Using live Bybit exchange (real orders)');
-    } else {
-      broker = new SimulatedBroker({
-        feeRate: cfg.feeRate ?? 0.001,
-        riskPercentage: cfg.riskPercentage ?? 5,
-        maxAllocation: cfg.maxAllocation ?? 0.8,
-      });
-      consoleLogger.info('Using paper trading (SimulatedBroker)');
+    if (mode === 'live' && (!process.env.BYBIT_API_KEY || !process.env.BYBIT_API_SECRET)) {
+      logger.error('BYBIT_API_KEY and BYBIT_API_SECRET are required for live exchange (--exchange)');
+      process.exit(1);
     }
-
-    const bot = new Bot({
-      market,
-      broker,
-      store,
-      logger: logger.child({ component: 'Bot' }),
+    const broker = createBroker(mode, {
+      feeRate: cfg.feeRate ?? 0.001,
+      riskPercentage: cfg.riskPercentage ?? 5,
+      maxAllocation: cfg.maxAllocation ?? 0.8,
+      category,
+      apiKey: process.env.BYBIT_API_KEY,
+      apiSecret: process.env.BYBIT_API_SECRET,
+      testnet: process.env.BYBIT_TESTNET === 'true',
+      demoTrading: process.env.DEMO_TRADING === 'true',
+      logger: logger.child({ component: mode === 'live' ? 'BybitBroker' : 'Broker' }),
     });
 
-    liveFeed.onCandle((symbol, candle) => {
-      bot.onCandle(symbol, candle);
+    const defaultStrategy = resolveStrategy(cfg.strategy ?? 'MovingAverage_v2');
+    const market = new Market(defaultStrategy.getIndicators());
+    const bot = new Bot({ market, broker, store, logger: botLogger });
+
+    feed.onCandle(async (symbol, candle) => {
+      await bot.onCandle(symbol, candle);
       const enriched = market.getStock(symbol).now();
       void store.saveCandles(symbol, interval, [enriched]);
     });
@@ -257,13 +221,11 @@ program
       market,
       store,
       logger: logger.child({ component: 'DeploymentManager' }),
-      liveFeed,
+      liveFeed: feed,
     });
 
     const restored = await dm.restoreFromStore();
-    if (restored > 0) {
-      logger.info('Restored deployments from store', { count: String(restored) });
-    }
+    if (restored > 0) logger.info('Restored deployments from store', { count: String(restored) });
 
     if (opts.autoDeploy && restored === 0) {
       const symbols = cfg.symbols ?? [];
@@ -287,35 +249,34 @@ program
       }
     }
 
-    await liveFeed.start();
-
+    await feed.start();
     const server = await createServer(dm, store, logger.child({ component: 'API' }), { port });
 
     const shutdown = () => {
       logger.info('Shutting down...');
-      liveFeed.stop();
+      feed.stop();
       server.close(() => {
-        void logger.flush().then(() => {
-          logger.dispose();
+        const l = logger as { flush?: () => Promise<void>; dispose?: () => void };
+        void (l.flush?.() ?? Promise.resolve()).then(() => {
+          l.dispose?.();
           process.exit(0);
         });
       });
     };
-
     process.on('SIGINT', shutdown);
     process.on('SIGTERM', shutdown);
 
-    logger.info('Engine ready. Use the API to create deployments.');
+    logger.info('Engine ready.');
     logger.info(`  POST http://localhost:${port}/api/deployments`);
     logger.info(`  GET  http://localhost:${port}/api/strategies`);
     logger.info(`  GET  http://localhost:${port}/api/deployments`);
   });
 
-// ---- Download command ----
+// ---- Download ----
 
 program
   .command('download')
-  .description('Download historical market data from Bybit')
+  .description('Download historical market data from Bybit to .data/market/')
   .option('-S, --symbols <symbols>', 'Comma-separated symbol list')
   .option('--start <date>', 'Start date (e.g. "2024-01-01" or unix ms)')
   .option('--end <date>', 'End date (e.g. "2025-12-31" or unix ms)')
@@ -336,11 +297,11 @@ program
     const category = (opts.category as 'linear' | 'spot' | 'inverse' | undefined) ?? cfg.category ?? 'linear';
 
     if (!symbols || symbols.length === 0) {
-      logger.error('No symbols specified. Use -S flag or set "symbols" in quantlab.config.json');
+      logger.error('No symbols specified. Use -S flag or set "symbols" in quantlab.config.js');
       process.exit(1);
     }
     if (start === undefined || end === undefined) {
-      logger.error('Start and end dates are required. Use --start/--end flags or set in quantlab.config.json');
+      logger.error('Start and end dates are required. Use --start/--end or set in quantlab.config.js');
       process.exit(1);
     }
 
@@ -353,12 +314,11 @@ program
 
     for (const symbol of symbols) {
       logger.info(`Downloading ${symbol} ${interval}min candles`, {
-        start: new Date(start).toISOString(),
-        end: new Date(end).toISOString(),
+        start: new Date(start!).toISOString(),
+        end: new Date(end!).toISOString(),
       });
-
       try {
-        const candles = await client.fetchKlines({ symbol, interval, start, end, category });
+        const candles = await client.fetchKlines({ symbol, interval, start: start!, end: end!, category });
         const label = `${symbol}_${interval}`;
         await store.saveMarketData(label, candles);
         logger.info(`Saved ${candles.length} candles to .data/market/${label}.json`);
@@ -367,7 +327,6 @@ program
         logger.error(`Failed to download ${symbol}: ${message}`);
       }
     }
-
     logger.info('Download complete');
   });
 
