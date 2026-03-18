@@ -79,7 +79,7 @@ describe('DeploymentManager', () => {
   it('should list deployments with enriched info', async () => {
     await dm.deploy(baseRequest);
 
-    const list = dm.list();
+    const list = await dm.list();
     expect(list).toHaveLength(2);
     expect(list[0]!.position).toBeNull();
     expect(list[0]!.tradeCount).toBe(0);
@@ -89,23 +89,23 @@ describe('DeploymentManager', () => {
   it('should get a single deployment by id', async () => {
     const [first] = await dm.deploy(baseRequest);
 
-    const info = dm.get(first!.id);
+    const info = await dm.get(first!.id);
     expect(info).not.toBeNull();
     expect(info!.symbol).toBe('SOLUSDT');
   });
 
-  it('should return null for unknown deployment id', () => {
-    expect(dm.get('nonexistent')).toBeNull();
+  it('should return null for unknown deployment id', async () => {
+    expect(await dm.get('nonexistent')).toBeNull();
   });
 
   it('should pause and resume a deployment', async () => {
     const [first] = await dm.deploy(baseRequest);
 
     await dm.pause(first!.id);
-    expect(dm.get(first!.id)!.status).toBe('paused');
+    expect((await dm.get(first!.id))!.status).toBe('paused');
 
     await dm.resume(first!.id);
-    expect(dm.get(first!.id)!.status).toBe('active');
+    expect((await dm.get(first!.id))!.status).toBe('active');
   });
 
   it('should stop a deployment and return capital', async () => {
@@ -113,7 +113,7 @@ describe('DeploymentManager', () => {
 
     const returned = await dm.stop(first!.id);
     expect(returned).toBe(5000);
-    expect(dm.get(first!.id)).toBeNull();
+    expect(await dm.get(first!.id)).toBeNull();
     expect(broker.getCapital('SOLUSDT')).toBe(0);
   });
 

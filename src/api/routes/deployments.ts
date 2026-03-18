@@ -42,13 +42,13 @@ export function registerDeploymentRoutes(app: Express, dm: DeploymentManager): v
     }
   });
 
-  app.get('/api/deployments', (_req: Request, res: Response) => {
-    const deployments = dm.list();
+  app.get('/api/deployments', async (_req: Request, res: Response) => {
+    const deployments = await dm.list();
     res.json({ deployments });
   });
 
-  app.get('/api/deployments/:id', (req: Request, res: Response) => {
-    const info = dm.get(paramId(req));
+  app.get('/api/deployments/:id', async (req: Request, res: Response) => {
+    const info = await dm.get(paramId(req));
     if (!info) {
       res.status(404).json({ error: 'Deployment not found' });
       return;

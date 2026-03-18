@@ -153,7 +153,7 @@ export class LiveFeed implements IDataFeed {
         l: String(candle.low),
         c: String(candle.close),
       });
-      this.handler!(symbol, candle);
+      await Promise.resolve(this.handler!(symbol, candle));
     }
 
     this.lastCandleTime.set(symbol, latest.dateUnix);

@@ -64,7 +64,7 @@ export class Bot {
     return [...this.strategyMap.keys()].filter((s) => !this.pausedSymbols.has(s));
   }
 
-  onCandle(symbol: string, candle: Candle): void {
+  async onCandle(symbol: string, candle: Candle): Promise<void> {
     this.candleCount++;
     const symbolCount = (this.symbolCandleCount.get(symbol) ?? 0) + 1;
     this.symbolCandleCount.set(symbol, symbolCount);
@@ -79,31 +79,31 @@ export class Bot {
     const strategy = this.strategyMap.get(symbol);
     if (!strategy) return;
 
-    const slEntry = this.broker.checkStopLoss(symbol, candle);
+    const slEntry = await Promise.resolve(this.broker.checkStopLoss(symbol, candle));
     if (slEntry) {
       this.store.recordTrade(slEntry);
       this.logger.info('Stop-loss triggered', { symbol, price: slEntry.price });
       return;
     }
 
-    const position = this.broker.getPosition(symbol);
+    const position = await Promise.resolve(this.broker.getPosition(symbol));
     const signal = strategy.evaluate(stock, position);
 
     if (!signal) return;
 
     if (signal.action === 'EXIT') {
-      const result = this.broker.exitPosition(symbol, signal.price, candle.dateUnix);
+      const result = await Promise.resolve(this.broker.exitPosition(symbol, signal.price, candle.dateUnix));
       if (result.ok) {
         this.store.recordTrade(result.value);
         this.logger.info('Position exited', { symbol, price: signal.price, reason: signal.reason });
 
-        this.tryEntry(symbol, strategy, stock, candle.dateUnix);
+        await this.tryEntry(symbol, strategy, stock, candle.dateUnix);
       }
       return;
     }
 
     if (signal.action === 'BUY' || signal.action === 'SELL') {
-      const result = this.broker.placeOrder(symbol, signal, candle.dateUnix);
+      const result = await Promise.resolve(this.broker.placeOrder(symbol, signal, candle.dateUnix));
       if (result.ok) {
         const entryRecord: TradeEntry = {
           timestamp: candle.dateUnix,
@@ -125,17 +125,17 @@ export class Bot {
     }
   }
 
-  private tryEntry(
+  private async tryEntry(
     symbol: string,
     strategy: IStrategy,
     stock: import('../market/OHLCStorage.js').OHLCStorage,
     timestamp: number,
-  ): void {
+  ): Promise<void> {
     const signal = strategy.evaluate(stock, null);
     if (!signal || signal.action === 'EXIT') return;
 
     if (signal.action === 'BUY' || signal.action === 'SELL') {
-      const result = this.broker.placeOrder(symbol, signal, timestamp);
+      const result = await Promise.resolve(this.broker.placeOrder(symbol, signal, timestamp));
       if (result.ok) {
         const entryRecord: TradeEntry = {
           timestamp,

@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "tsx src/cli/index.ts live",
-    "dev:live": "tsx src/cli/index.ts live --auto-deploy",
+    "dev:live": "tsx src/cli/index.ts live --auto-deploy --live-exchange",
     "dev:backtest": "tsx src/cli/index.ts run",
     "download": "tsx src/cli/index.ts download",
     "prebuild": "rm -rf dist",
@@ -19,7 +19,8 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "clean": "rm -rf dist .data/*/*",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "verify-bybit": "tsx scripts/verify-bybit-trading.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.97.0",

@@ -5,10 +5,10 @@ export interface IBroker {
   allocateCapitalForSymbol(symbol: string, amount: number): void;
   deallocateCapitalForSymbol(symbol: string): Result<number>;
   restorePosition(symbol: string, position: Position): void;
-  placeOrder(symbol: string, signal: Signal & { action: 'BUY' | 'SELL' }, timestamp: number): Result<Position>;
-  exitPosition(symbol: string, price: number, timestamp: number): Result<TradeEntry>;
-  getPosition(symbol: string): Position | null;
-  checkStopLoss(symbol: string, candle: Candle): TradeEntry | null;
+  placeOrder(symbol: string, signal: Signal & { action: 'BUY' | 'SELL' }, timestamp: number): Result<Position> | Promise<Result<Position>>;
+  exitPosition(symbol: string, price: number, timestamp: number): Result<TradeEntry> | Promise<Result<TradeEntry>>;
+  getPosition(symbol: string): Position | null | Promise<Position | null>;
+  checkStopLoss(symbol: string, candle: Candle): TradeEntry | null | Promise<TradeEntry | null>;
   getCapital(symbol: string): number;
   getTotalCapital(): number;
   getTotalEquity(prices: ReadonlyMap<string, number>): number;

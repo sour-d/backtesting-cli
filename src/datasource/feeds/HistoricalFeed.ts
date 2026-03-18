@@ -43,7 +43,7 @@ export class HistoricalFeed implements IDataFeed {
       for (const [symbol, candles] of symbolCandles) {
         const candle = candles[i];
         if (candle) {
-          this.handler(symbol, candle);
+          await Promise.resolve(this.handler!(symbol, candle));
         }
       }
     }

@@ -5,6 +5,7 @@ import { resolveStrategy } from '../strategy/index.js';
 import { Market } from '../market/Market.js';
 import { Bot } from '../trading-bot/Bot.js';
 import { SimulatedBroker } from '../broker/SimulatedBroker.js';
+import { BybitBroker } from '../broker/BybitBroker.js';
 import { FileStore } from '../store/FileStore.js';
 import { SupabaseStore } from '../store/SupabaseStore.js';
 import { aggregateTrades, computeStats, computeStatsBySymbol } from '../store/analytics.js';
@@ -18,6 +19,7 @@ import { createServer } from '../api/server.js';
 import { loadConfig, parseDate } from '../config/loadConfig.js';
 import type { AppConfig } from '../types/index.js';
 import type { DeployRequest } from '../types/deployment.js';
+import type { IBroker } from '../broker/IBroker.js';
 import type { IStore } from '../store/IStore.js';
 
 dotenv.config();
@@ -153,6 +155,7 @@ program
   .option('--interval <interval>', 'Candle interval')
   .option('--log-level <level>', 'Log level: DEBUG, INFO, WARN, ERROR', 'INFO')
   .option('--auto-deploy', 'Auto-deploy strategy from quantlab.config.js on startup')
+  .option('--live-exchange', 'Use real Bybit exchange (default: paper trading with SimulatedBroker)')
   .action(async (opts) => {
     const cfg = await loadConfig();
     const logLevel = LogLevel[opts.logLevel as keyof typeof LogLevel] ?? LogLevel.INFO;
@@ -202,11 +205,38 @@ program
       logger: logger.child({ component: 'LiveFeed' }),
     });
 
-    const broker = new SimulatedBroker({
-      feeRate: cfg.feeRate ?? 0.001,
-      riskPercentage: cfg.riskPercentage ?? 5,
-      maxAllocation: cfg.maxAllocation ?? 0.8,
-    });
+    const useLiveExchange = opts.liveExchange === true;
+    const category = (cfg.category as 'linear' | 'spot' | 'inverse') ?? 'linear';
+
+    let broker: IBroker;
+    if (useLiveExchange) {
+      const apiKey = process.env.BYBIT_API_KEY;
+      const apiSecret = process.env.BYBIT_API_SECRET;
+      if (!apiKey || !apiSecret) {
+        consoleLogger.error('BYBIT_API_KEY and BYBIT_API_SECRET are required for --live-exchange');
+        process.exit(1);
+      }
+      broker = new BybitBroker({
+        apiKey,
+        apiSecret,
+        testnet: process.env.BYBIT_TESTNET === 'true',
+        demoTrading: process.env.DEMO_TRADING === 'true',
+        config: {
+          riskPercentage: cfg.riskPercentage ?? 5,
+          maxAllocation: cfg.maxAllocation ?? 0.8,
+          category,
+        },
+        logger: logger.child({ component: 'BybitBroker' }),
+      });
+      consoleLogger.info('Using live Bybit exchange (real orders)');
+    } else {
+      broker = new SimulatedBroker({
+        feeRate: cfg.feeRate ?? 0.001,
+        riskPercentage: cfg.riskPercentage ?? 5,
+        maxAllocation: cfg.maxAllocation ?? 0.8,
+      });
+      consoleLogger.info('Using paper trading (SimulatedBroker)');
+    }
 
     const bot = new Bot({
       market,

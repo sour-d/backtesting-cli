@@ -97,10 +97,10 @@ export class DeploymentManager {
     const deployment = this.deployments.get(deploymentId);
     if (!deployment) throw new Error(`Deployment ${deploymentId} not found`);
 
-    const position = this.broker.getPosition(deployment.symbol);
+    const position = await Promise.resolve(this.broker.getPosition(deployment.symbol));
     if (position) {
       const lastCandle = this.market.getStock(deployment.symbol).now();
-      this.broker.exitPosition(deployment.symbol, lastCandle.close, lastCandle.dateUnix);
+      await Promise.resolve(this.broker.exitPosition(deployment.symbol, lastCandle.close, lastCandle.dateUnix));
       await this.store.removePosition(deploymentId);
     }
 
@@ -166,21 +166,21 @@ export class DeploymentManager {
     return deployment;
   }
 
-  list(): DeploymentInfo[] {
+  async list(): Promise<DeploymentInfo[]> {
     const result: DeploymentInfo[] = [];
     for (const deployment of this.deployments.values()) {
-      result.push(this.enrichDeployment(deployment));
+      result.push(await this.enrichDeployment(deployment));
     }
     return result;
   }
 
-  get(deploymentId: string): DeploymentInfo | null {
+  async get(deploymentId: string): Promise<DeploymentInfo | null> {
     const deployment = this.deployments.get(deploymentId);
     if (!deployment) return null;
     return this.enrichDeployment(deployment);
   }
 
-  getBySymbol(symbol: string): DeploymentInfo | null {
+  async getBySymbol(symbol: string): Promise<DeploymentInfo | null> {
     const id = this.deploymentsBySymbol.get(symbol);
     if (!id) return null;
     return this.get(id);
@@ -253,8 +253,8 @@ export class DeploymentManager {
     return restored;
   }
 
-  private enrichDeployment(deployment: Deployment): DeploymentInfo {
-    const position = this.broker.getPosition(deployment.symbol);
+  private async enrichDeployment(deployment: Deployment): Promise<DeploymentInfo> {
+    const position = await Promise.resolve(this.broker.getPosition(deployment.symbol));
     const currentCapital = this.broker.getCapital(deployment.symbol);
     const trades = this.store.getTrades().filter((t) => t.symbol === deployment.symbol);
     const exitCount = trades.filter((t) => t.type === 'EXIT' || t.type === 'STOP_LOSS').length;
