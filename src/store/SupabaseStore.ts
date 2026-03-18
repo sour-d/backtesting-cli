@@ -12,6 +12,7 @@ import type {
   LogQueryFilters,
   PositionWithDeployment,
 } from './IStore.js';
+import { safeErrorMessage, sanitizeLogData } from '../utils/safeErrorMessage.js';
 
 export class SupabaseStore implements IStore {
   private readonly client: SupabaseClient;
@@ -267,20 +268,23 @@ export class SupabaseStore implements IStore {
 
   async saveLiveEvent(event: LiveEvent): Promise<void> {
     try {
+      const payload = event.payload && Object.keys(event.payload).length > 0
+        ? sanitizeLogData(event.payload as Record<string, unknown>)
+        : null;
       const { error } = await this.client.from('live_events').insert({
         session_id: event.sessionId,
         event_type: event.eventType,
         deployment_id: event.deploymentId ?? null,
         symbol: event.symbol ?? null,
         message: event.message,
-        payload: event.payload ?? null,
+        payload,
       });
       if (error) {
         // Persistence failure: do not throw so main flow never crashes
         console.error('[SupabaseStore] saveLiveEvent failed:', error.message);
       }
     } catch (e) {
-      console.error('[SupabaseStore] saveLiveEvent threw:', e);
+      console.error('[SupabaseStore] saveLiveEvent threw:', safeErrorMessage(e));
     }
   }
 

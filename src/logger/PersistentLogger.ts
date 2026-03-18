@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { ILogger } from './ILogger.js';
 import type { IStore, LogEntry } from '../store/IStore.js';
+import { sanitizeLogData } from '../utils/safeErrorMessage.js';
 
 type PersistableLevel = 'INFO' | 'WARN' | 'ERROR';
 
@@ -93,13 +94,14 @@ export class PersistentLogger implements ILogger {
   }
 
   private capture(level: PersistableLevel, message: string, data?: Record<string, unknown>): void {
+    const sanitizedData = data && Object.keys(data).length > 0 ? sanitizeLogData(data) : undefined;
     const entry: LogEntry = {
       sessionId: this.sessionId,
       timestamp: new Date().toISOString(),
       level,
       component: this.context['component'] ?? '',
       message,
-      ...(data && Object.keys(data).length > 0 ? { data } : {}),
+      ...(sanitizedData ? { data: sanitizedData } : {}),
       ...(Object.keys(this.context).length > 0 ? { context: this.context } : {}),
     };
 

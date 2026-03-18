@@ -233,7 +233,7 @@ export class BybitBroker implements IBroker {
     if (!triggered) return null;
     const result = await this.exitPositionAsync(symbol, pos.stopLoss, candle.dateUnix);
     if (!result.ok) {
-      this.logger?.error('Stop-loss exit failed', { symbol, error: result.error });
+      this.logger?.error('Stop-loss exit failed', { symbol, error: safeErrorMessage(result.error) });
       this.onLiveEvent?.({
         eventType: 'stop_loss_exit_failed',
         symbol,

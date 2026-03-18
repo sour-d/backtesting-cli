@@ -20,3 +20,25 @@ export function safeErrorMessage(value: unknown): string {
   }
   return String(value);
 }
+
+/**
+ * Sanitize log data so no value is stored as an object that would display as "[object Object]".
+ * Use before persisting to DB (e.g. in PersistentLogger).
+ */
+export function sanitizeLogData(data: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(data)) {
+    if (v === null || v === undefined) {
+      out[k] = v;
+    } else if (typeof v === 'object') {
+      if (Array.isArray(v)) {
+        out[k] = v.map((x) => (typeof x === 'object' && x !== null ? safeErrorMessage(x) : x));
+      } else {
+        out[k] = safeErrorMessage(v);
+      }
+    } else {
+      out[k] = v;
+    }
+  }
+  return out;
+}

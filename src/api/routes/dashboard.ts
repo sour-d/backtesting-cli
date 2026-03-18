@@ -7,6 +7,7 @@ import type {
   CandleQueryFilters,
   LogQueryFilters,
 } from '../../store/IStore.js';
+import { safeErrorMessage } from '../../utils/safeErrorMessage.js';
 
 function strParam(req: Request, key: string): string | undefined {
   const val = req.query[key];
@@ -157,7 +158,7 @@ export function registerDashboardRoutes(app: Express, store: IStore): void {
 }
 
 function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
+  return safeErrorMessage(err);
 }
 
 interface SymbolStats {

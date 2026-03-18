@@ -2,6 +2,7 @@ import type { Candle } from '../../types/index.js';
 import type { IDataFeed, CandleHandler } from '../IDataFeed.js';
 import type { BybitClient } from '../exchange/BybitClient.js';
 import type { ILogger } from '../../logger/ILogger.js';
+import { safeErrorMessage } from '../../utils/safeErrorMessage.js';
 
 export interface LiveFeedConfig {
   readonly client: BybitClient;
@@ -113,8 +114,7 @@ export class LiveFeed implements IDataFeed {
       try {
         await this.pollSymbol(symbol);
       } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        this.logger.error('LiveFeed poll error', { symbol, error: msg });
+        this.logger.error('LiveFeed poll error', { symbol, error: safeErrorMessage(err) });
       }
     }
   }

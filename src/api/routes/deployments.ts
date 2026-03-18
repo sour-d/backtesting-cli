@@ -1,6 +1,7 @@
 import type { Express, Request, Response } from 'express';
 import type { DeploymentManager } from '../../deployment/DeploymentManager.js';
 import type { DeployRequest, DeploymentConfig } from '../../types/deployment.js';
+import { safeErrorMessage } from '../../utils/safeErrorMessage.js';
 
 function paramId(req: Request): string {
   const id = req.params.id;
@@ -37,7 +38,7 @@ export function registerDeploymentRoutes(app: Express, dm: DeploymentManager): v
       const deployments = await dm.deploy(body);
       res.status(201).json({ deployments });
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = safeErrorMessage(err);
       res.status(400).json({ error: message });
     }
   });
@@ -61,7 +62,7 @@ export function registerDeploymentRoutes(app: Express, dm: DeploymentManager): v
       const returnedCapital = await dm.stop(paramId(req));
       res.json({ success: true, returnedCapital });
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = safeErrorMessage(err);
       res.status(400).json({ error: message });
     }
   });
@@ -71,7 +72,7 @@ export function registerDeploymentRoutes(app: Express, dm: DeploymentManager): v
       const deployment = await dm.update(paramId(req), req.body as Partial<DeploymentConfig>);
       res.json(deployment);
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = safeErrorMessage(err);
       res.status(400).json({ error: message });
     }
   });
@@ -81,7 +82,7 @@ export function registerDeploymentRoutes(app: Express, dm: DeploymentManager): v
       await dm.pause(paramId(req));
       res.json({ success: true });
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = safeErrorMessage(err);
       res.status(400).json({ error: message });
     }
   });
@@ -91,7 +92,7 @@ export function registerDeploymentRoutes(app: Express, dm: DeploymentManager): v
       await dm.resume(paramId(req));
       res.json({ success: true });
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = safeErrorMessage(err);
       res.status(400).json({ error: message });
     }
   });
@@ -101,7 +102,7 @@ export function registerDeploymentRoutes(app: Express, dm: DeploymentManager): v
       const trades = await dm['store'].loadTrades(paramId(req));
       res.json({ trades });
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = safeErrorMessage(err);
       res.status(400).json({ error: message });
     }
   });
