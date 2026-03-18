@@ -19,6 +19,7 @@ import type { AppConfig } from '../types/index.js';
 import type { DeployRequest } from '../types/deployment.js';
 import { ConsoleLogger, LogLevel } from '../logger/ConsoleLogger.js';
 import { FileStore } from '../store/FileStore.js';
+import { safeErrorMessage } from '../utils/safeErrorMessage.js';
 
 dotenv.config();
 
@@ -224,7 +225,7 @@ async function runEngine(mode: 'paper' | 'live', opts: EngineOpts): Promise<void
         const enriched = market.getStock(symbol).now();
         void store.saveCandles(symbol, interval, [enriched]);
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
+        const message = safeErrorMessage(err);
         logger.error('Live candle handler error (server continues)', { symbol, message });
         // Bot already catches and persists runtime_error; this is a safety net so server never crashes
       }
@@ -366,11 +367,61 @@ program
         await store.saveMarketData(label, candles);
         logger.info(`Saved ${candles.length} candles to .data/market/${label}.json`);
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        logger.error(`Failed to download ${symbol}: ${message}`);
+        logger.error(`Failed to download ${symbol}: ${safeErrorMessage(err)}`);
       }
     }
     logger.info('Download complete');
+  });
+
+// ---- Logs (fetch from DB) ----
+
+program
+  .command('logs')
+  .description('Fetch recent logs and live_events from Supabase (requires SUPABASE_URL and SUPABASE_KEY)')
+  .option('-n, --limit <n>', 'Max entries per query', '50')
+  .option('--level <level>', 'Filter logs by level: INFO, WARN, ERROR')
+  .option('--events-only', 'Only show live_events (order_failed, exit_failed, runtime_error, etc.)')
+  .option('--logs-only', 'Only show application logs')
+  .action(async (opts) => {
+    const url = process.env.SUPABASE_URL;
+    const key = process.env.SUPABASE_KEY;
+    if (!url || !key) {
+      console.error('SUPABASE_URL and SUPABASE_KEY are required. Set them in .env or environment.');
+      process.exit(1);
+    }
+    const store = createStore('live', { supabaseUrl: url, supabaseKey: key });
+    const limit = Math.min(100, Math.max(1, parseInt(String(opts.limit), 10) || 50));
+
+    if (!opts.logsOnly && store.queryLiveEvents) {
+      const events = await store.queryLiveEvents({ limit });
+      console.log('\n--- live_events (most recent first) ---');
+      if (events.length === 0) {
+        console.log('(none)');
+      } else {
+        for (const e of events) {
+          const created = (e as { createdAt?: string }).createdAt ?? '';
+          console.log(
+            `${created} [${e.eventType}] ${e.symbol ?? '-'} ${e.message} ${e.payload ? JSON.stringify(e.payload) : ''}`,
+          );
+        }
+      }
+    }
+
+    if (!opts.eventsOnly && store.queryLogs) {
+      const logs = await store.queryLogs({
+        limit,
+        ...(opts.level ? { level: opts.level } : {}),
+      });
+      console.log('\n--- logs (most recent first) ---');
+      if (logs.length === 0) {
+        console.log('(none)');
+      } else {
+        for (const l of logs) {
+          const dataStr = l.data && Object.keys(l.data).length > 0 ? ' ' + JSON.stringify(l.data) : '';
+          console.log(`${l.timestamp} [${l.level}] ${l.component} ${l.message}${dataStr}`);
+        }
+      }
+    }
   });
 
 program.parse();

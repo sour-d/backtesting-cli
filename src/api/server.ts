@@ -6,6 +6,7 @@ import type { IStore } from '../store/IStore.js';
 import { registerStrategyRoutes } from './routes/strategies.js';
 import { registerDeploymentRoutes } from './routes/deployments.js';
 import { registerDashboardRoutes } from './routes/dashboard.js';
+import { safeErrorMessage } from '../utils/safeErrorMessage.js';
 
 export interface ServerConfig {
   port: number;
@@ -62,7 +63,7 @@ export function startKeepAlivePing(baseUrl: string, logger?: ILogger): () => voi
         if (logger && !res.ok) logger.warn('Keep-alive ping failed', { url, status: res.status });
       })
       .catch((err) => {
-        if (logger) logger.warn('Keep-alive ping error', { url, error: String(err) });
+        if (logger) logger.warn('Keep-alive ping error', { url, error: safeErrorMessage(err) });
       });
   }, PING_INTERVAL_MS);
   return () => clearInterval(timer);

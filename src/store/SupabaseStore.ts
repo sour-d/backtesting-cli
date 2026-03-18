@@ -309,6 +309,7 @@ export class SupabaseStore implements IStore {
       ...(row.symbol ? { symbol: row.symbol as string } : {}),
       message: row.message as string,
       ...(row.payload ? { payload: row.payload as Record<string, unknown> } : {}),
+      ...(row.created_at ? { createdAt: row.created_at as string } : {}),
     }));
   }
 

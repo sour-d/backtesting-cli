@@ -2,6 +2,7 @@ import type { Candle, TradeEntry } from '../types/index.js';
 import type { Market } from '../market/Market.js';
 import type { IBroker } from '../broker/IBroker.js';
 import type { IStore, LiveEvent } from '../store/IStore.js';
+import { safeErrorMessage } from '../utils/safeErrorMessage.js';
 import type { ILogger } from '../logger/ILogger.js';
 import type { IStrategy } from '../strategy/IStrategy.js';
 
@@ -88,7 +89,7 @@ export class Bot {
     try {
       await this.onCandleInner(symbol, candle);
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = safeErrorMessage(err);
       const stack = err instanceof Error ? err.stack : undefined;
       this.logger.error('Runtime error in onCandle', { symbol, message, stack });
       await this.persistLiveEvent('runtime_error', symbol, message, { stack });
@@ -130,8 +131,9 @@ export class Bot {
         this.logger.info('Position exited', { symbol, price: signal.price, reason: signal.reason });
         await this.tryEntry(symbol, strategy, stock, candle.dateUnix);
       } else {
-        this.logger.error('Exit position failed', { symbol, price: signal.price, error: result.error });
-        await this.persistLiveEvent('exit_failed', symbol, result.error, { price: signal.price, reason: signal.reason });
+        const errMsg = safeErrorMessage(result.error);
+        this.logger.error('Exit position failed', { symbol, price: signal.price, error: errMsg });
+        await this.persistLiveEvent('exit_failed', symbol, errMsg, { price: signal.price, reason: signal.reason });
       }
       return;
     }
@@ -156,8 +158,9 @@ export class Bot {
           quantity: result.value.quantity,
         });
       } else {
-        this.logger.error('Order placement failed', { symbol, action: signal.action, error: result.error });
-        await this.persistLiveEvent('order_failed', symbol, result.error, {
+        const errMsg = safeErrorMessage(result.error);
+        this.logger.error('Order placement failed', { symbol, action: signal.action, error: errMsg });
+        await this.persistLiveEvent('order_failed', symbol, errMsg, {
           action: signal.action,
           price: signal.price,
           stopLoss: signal.stopLoss,
@@ -194,8 +197,9 @@ export class Bot {
           price: result.value.entryPrice,
         });
       } else {
-        this.logger.error('Reversal order failed', { symbol, action: signal.action, error: result.error });
-        await this.persistLiveEvent('order_failed', symbol, result.error, {
+        const errMsg = safeErrorMessage(result.error);
+        this.logger.error('Reversal order failed', { symbol, action: signal.action, error: errMsg });
+        await this.persistLiveEvent('order_failed', symbol, errMsg, {
           context: 'reversal',
           action: signal.action,
           price: signal.price,

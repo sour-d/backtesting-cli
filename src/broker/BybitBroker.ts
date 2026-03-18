@@ -8,6 +8,7 @@ import { ok, err } from '../types/result.js';
 import type { IBroker } from './IBroker.js';
 import type { LiveEvent } from '../store/IStore.js';
 import { calculateQuantity } from './riskManager.js';
+import { safeErrorMessage } from '../utils/safeErrorMessage.js';
 import type { ILogger } from '../logger/ILogger.js';
 
 const CATEGORY = 'linear';
@@ -127,12 +128,14 @@ export class BybitBroker implements IBroker {
         timeInForce: 'GTC',
       })
       .catch((e) => {
-        this.logger?.error('submitOrder failed', { symbol, error: String(e) });
-        return { retCode: -1, retMsg: String(e), result: null };
+        const msg = safeErrorMessage(e);
+        this.logger?.error('submitOrder failed', { symbol, error: msg });
+        return { retCode: -1, retMsg: msg, result: null };
       });
 
     if (!orderRes || orderRes.retCode !== 0) {
-      return err(orderRes?.retMsg ?? 'Order failed');
+      const msg = orderRes?.retMsg != null ? safeErrorMessage(orderRes.retMsg) : 'Order failed';
+      return err(msg);
     }
 
     const position: Position = {
@@ -168,12 +171,14 @@ export class BybitBroker implements IBroker {
         qty: '0',
       })
       .catch((e) => {
-        this.logger?.error('exitPosition submitOrder failed', { symbol, error: String(e) });
-        return { retCode: -1, retMsg: String(e), result: null };
+        const msg = safeErrorMessage(e);
+        this.logger?.error('exitPosition submitOrder failed', { symbol, error: msg });
+        return { retCode: -1, retMsg: msg, result: null };
       });
 
     if (!res || res.retCode !== 0) {
-      return err(res?.retMsg ?? 'Exit failed');
+      const msg = res?.retMsg != null ? safeErrorMessage(res.retMsg) : 'Exit failed';
+      return err(msg);
     }
 
     const entry: TradeEntry = {

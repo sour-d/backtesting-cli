@@ -8,6 +8,7 @@ import type { Bot } from '../trading-bot/Bot.js';
 import type { Market } from '../market/Market.js';
 import type { LiveFeed } from '../datasource/feeds/LiveFeed.js';
 import { resolveStrategy, getStrategyDefinitions } from '../strategy/index.js';
+import { safeErrorMessage } from '../utils/safeErrorMessage.js';
 
 export interface DeploymentManagerDeps {
   bot: Bot;
@@ -109,10 +110,11 @@ export class DeploymentManager {
           this.broker.exitPosition(deployment.symbol, lastCandle.close, lastCandle.dateUnix),
         );
         if (!exitResult.ok) {
+          const errMsg = safeErrorMessage(exitResult.error);
           this.logger.error('Exit failed on stop', {
             deploymentId,
             symbol: deployment.symbol,
-            error: exitResult.error,
+            error: errMsg,
           });
           if (this.sessionId && this.store.saveLiveEvent) {
             try {
@@ -121,7 +123,7 @@ export class DeploymentManager {
                 eventType: 'exit_failed',
                 deploymentId,
                 symbol: deployment.symbol,
-                message: exitResult.error,
+                message: errMsg,
                 payload: { context: 'stop_deployment' },
               });
             } catch {
@@ -130,7 +132,7 @@ export class DeploymentManager {
           }
         }
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
+        const message = safeErrorMessage(err);
         this.logger.error('Error during stop (exit or getStock)', { deploymentId, symbol: deployment.symbol, message });
         if (this.sessionId && this.store.saveLiveEvent) {
           try {
@@ -291,7 +293,7 @@ export class DeploymentManager {
         this.logger.error('Failed to restore deployment', {
           id: deployment.id,
           symbol: deployment.symbol,
-          error: err instanceof Error ? err.message : String(err),
+          error: safeErrorMessage(err),
         });
       }
     }
