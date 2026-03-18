@@ -47,11 +47,13 @@ export class BybitClient {
   constructor(opts?: {
     apiKey?: string;
     apiSecret?: string;
+    testnet?: boolean;
     logger?: ILogger;
   }) {
     this.client = new RestClientV5({
       key: opts?.apiKey,
       secret: opts?.apiSecret,
+      testnet: opts?.testnet ?? false,
     });
     this.logger = opts?.logger ?? null;
   }
