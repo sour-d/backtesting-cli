@@ -110,6 +110,8 @@ export class SimulatedBroker implements IBroker {
       quantity: position.quantity,
       risk: 0,
       type: 'EXIT',
+      positionEntryPrice: position.entryPrice,
+      positionEntryTime: position.entryTime,
     };
 
     return ok(entry);

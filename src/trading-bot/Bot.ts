@@ -5,6 +5,7 @@ import type { IStore, LiveEvent } from '../store/IStore.js';
 import { safeErrorMessage } from '../utils/safeErrorMessage.js';
 import type { ILogger } from '../logger/ILogger.js';
 import type { IStrategy } from '../strategy/IStrategy.js';
+import type { ILiveDeploymentSync } from '../deployment/liveDeploymentSync.js';
 
 export interface BotDeps {
   market: Market;
@@ -15,6 +16,8 @@ export interface BotDeps {
   sessionId?: string;
   strategyMap?: ReadonlyMap<string, IStrategy>;
   warmupPeriod?: number;
+  /** Live: persist positions / completed trades / capital to DB via DeploymentManager */
+  liveDeploymentSync?: ILiveDeploymentSync;
 }
 
 export class Bot {
@@ -25,8 +28,11 @@ export class Bot {
   private readonly sessionId: string;
   private readonly strategyMap: Map<string, IStrategy>;
   private readonly warmupPeriod: number;
+  private readonly liveDeploymentSync: ILiveDeploymentSync | undefined;
   private readonly symbolCandleCount: Map<string, number> = new Map();
   private readonly pausedSymbols: Set<string> = new Set();
+  /** Last entry risk per symbol (for StoredTrade.risk on exit). */
+  private readonly lastEntryRisk: Map<string, number> = new Map();
   private candleCount = 0;
 
   constructor(deps: BotDeps) {
@@ -37,6 +43,7 @@ export class Bot {
     this.sessionId = deps.sessionId ?? '';
     this.strategyMap = new Map(deps.strategyMap ?? []);
     this.warmupPeriod = deps.warmupPeriod ?? 20;
+    this.liveDeploymentSync = deps.liveDeploymentSync;
   }
 
   private async persistLiveEvent(eventType: LiveEvent['eventType'], symbol: string, message: string, payload?: Record<string, unknown>): Promise<void> {
@@ -69,6 +76,7 @@ export class Bot {
     this.strategyMap.delete(symbol);
     this.symbolCandleCount.delete(symbol);
     this.pausedSymbols.delete(symbol);
+    this.lastEntryRisk.delete(symbol);
     this.logger.info('Symbol removed', { symbol });
   }
 
@@ -141,6 +149,17 @@ export class Bot {
         price: slEntry.price,
         quantity: slEntry.quantity,
       });
+      await this.liveDeploymentSync?.onPositionClosed(symbol, {
+        side: slEntry.side,
+        quantity: slEntry.quantity,
+        exitPrice: slEntry.price,
+        exitTime: slEntry.timestamp,
+        entryPrice: slEntry.positionEntryPrice ?? slEntry.price,
+        entryTime: slEntry.positionEntryTime ?? slEntry.timestamp,
+        risk: this.lastEntryRisk.get(symbol) ?? 0,
+        exitType: 'stop_loss',
+      });
+      this.lastEntryRisk.delete(symbol);
       return;
     }
 
@@ -179,23 +198,35 @@ export class Bot {
       });
       const result = await Promise.resolve(this.broker.exitPosition(symbol, signal.price, candle.dateUnix));
       if (result.ok) {
-        this.store.recordTrade(result.value);
+        const exitRec = result.value;
+        this.store.recordTrade(exitRec);
         this.logger.info('Exit position success', {
           flow: 'exit_result',
           symbol,
           success: true,
           exitPrice: signal.price,
-          side: result.value.side,
-          quantity: result.value.quantity,
+          side: exitRec.side,
+          quantity: exitRec.quantity,
         });
         this.logger.info('Trade recorded (in-memory)', {
           flow: 'trade_recorded',
           type: 'EXIT',
           symbol,
-          side: result.value.side,
-          price: result.value.price,
-          quantity: result.value.quantity,
+          side: exitRec.side,
+          price: exitRec.price,
+          quantity: exitRec.quantity,
         });
+        await this.liveDeploymentSync?.onPositionClosed(symbol, {
+          side: exitRec.side,
+          quantity: exitRec.quantity,
+          exitPrice: exitRec.price,
+          exitTime: exitRec.timestamp,
+          entryPrice: exitRec.positionEntryPrice ?? exitRec.price,
+          entryTime: exitRec.positionEntryTime ?? exitRec.timestamp,
+          risk: this.lastEntryRisk.get(symbol) ?? 0,
+          exitType: 'signal',
+        });
+        this.lastEntryRisk.delete(symbol);
         await this.tryEntry(symbol, strategy, stock, candle.dateUnix);
       } else {
         const errMsg = safeErrorMessage(result.error);
@@ -222,12 +253,14 @@ export class Bot {
       });
       const result = await Promise.resolve(this.broker.placeOrder(symbol, signal, candle.dateUnix));
       if (result.ok) {
+        const pos = result.value;
+        this.lastEntryRisk.set(symbol, signal.risk);
         const entryRecord: TradeEntry = {
           timestamp: candle.dateUnix,
           symbol,
-          side: result.value.side,
-          price: result.value.entryPrice,
-          quantity: result.value.quantity,
+          side: pos.side,
+          price: pos.entryPrice,
+          quantity: pos.quantity,
           risk: signal.risk,
           type: 'ENTRY',
         };
@@ -236,19 +269,20 @@ export class Bot {
           flow: 'order_place_result',
           symbol,
           success: true,
-          side: result.value.side,
-          entryPrice: result.value.entryPrice,
-          quantity: result.value.quantity,
-          stopLoss: result.value.stopLoss,
+          side: pos.side,
+          entryPrice: pos.entryPrice,
+          quantity: pos.quantity,
+          stopLoss: pos.stopLoss,
         });
         this.logger.info('Trade recorded (in-memory)', {
           flow: 'trade_recorded',
           type: 'ENTRY',
           symbol,
-          side: result.value.side,
-          price: result.value.entryPrice,
-          quantity: result.value.quantity,
+          side: pos.side,
+          price: pos.entryPrice,
+          quantity: pos.quantity,
         });
+        await this.liveDeploymentSync?.onPositionOpened(symbol, pos);
       } else {
         const errMsg = safeErrorMessage(result.error);
         this.logger.error('Order placement failed', {
@@ -287,12 +321,14 @@ export class Bot {
       });
       const result = await Promise.resolve(this.broker.placeOrder(symbol, signal, timestamp));
       if (result.ok) {
+        const pos = result.value;
+        this.lastEntryRisk.set(symbol, signal.risk);
         const entryRecord: TradeEntry = {
           timestamp,
           symbol,
-          side: result.value.side,
-          price: result.value.entryPrice,
-          quantity: result.value.quantity,
+          side: pos.side,
+          price: pos.entryPrice,
+          quantity: pos.quantity,
           risk: signal.risk,
           type: 'ENTRY',
         };
@@ -301,19 +337,20 @@ export class Bot {
           flow: 'order_place_result',
           context: 'reversal',
           symbol,
-          side: result.value.side,
-          entryPrice: result.value.entryPrice,
-          quantity: result.value.quantity,
+          side: pos.side,
+          entryPrice: pos.entryPrice,
+          quantity: pos.quantity,
         });
         this.logger.info('Trade recorded (in-memory)', {
           flow: 'trade_recorded',
           type: 'ENTRY',
           context: 'reversal',
           symbol,
-          side: result.value.side,
-          price: result.value.entryPrice,
-          quantity: result.value.quantity,
+          side: pos.side,
+          price: pos.entryPrice,
+          quantity: pos.quantity,
         });
+        await this.liveDeploymentSync?.onPositionOpened(symbol, pos);
       } else {
         const errMsg = safeErrorMessage(result.error);
         this.logger.error('Reversal order failed', {

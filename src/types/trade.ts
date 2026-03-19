@@ -8,6 +8,9 @@ export interface TradeEntry {
   readonly quantity: number;
   readonly risk: number;
   readonly type: 'ENTRY' | 'EXIT' | 'STOP_LOSS';
+  /** Filled on EXIT / STOP_LOSS when broker had position context (for DB StoredTrade). */
+  readonly positionEntryPrice?: number;
+  readonly positionEntryTime?: number;
 }
 
 export interface AggregatedTrade {

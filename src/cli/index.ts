@@ -13,6 +13,7 @@ import { aggregateTrades, computeStats, computeStatsBySymbol } from '../store/an
 import { BybitClient } from '../datasource/exchange/BybitClient.js';
 import { LiveFeed } from '../datasource/feeds/LiveFeed.js';
 import { DeploymentManager } from '../deployment/DeploymentManager.js';
+import type { ILiveDeploymentSync } from '../deployment/liveDeploymentSync.js';
 import { createServer, startKeepAlivePing } from '../api/server.js';
 import { loadConfig, parseDate } from '../config/loadConfig.js';
 import type { RunMode } from '../core/types.js';
@@ -207,12 +208,22 @@ async function runEngine(mode: 'paper' | 'live', opts: EngineOpts): Promise<void
 
     const defaultStrategy = resolveStrategy(cfg.strategy ?? 'MovingAverage_v2');
     const market = new Market(defaultStrategy.getIndicators());
+
+    const liveSyncRef: { current: ILiveDeploymentSync | null } = { current: null };
     const bot = new Bot({
       market,
       broker,
       store,
       logger: botLogger,
       sessionId: mode === 'live' ? sessionId : undefined,
+      liveDeploymentSync:
+        mode === 'live'
+          ? {
+              getDeploymentId: (s) => liveSyncRef.current?.getDeploymentId(s),
+              onPositionOpened: (s, p) => liveSyncRef.current?.onPositionOpened(s, p) ?? Promise.resolve(),
+              onPositionClosed: (s, c) => liveSyncRef.current?.onPositionClosed(s, c) ?? Promise.resolve(),
+            }
+          : undefined,
     });
 
     feed.onCandle(async (symbol, candle) => {
@@ -245,6 +256,9 @@ async function runEngine(mode: 'paper' | 'live', opts: EngineOpts): Promise<void
       liveFeed: feed,
       sessionId: mode === 'live' ? sessionId : undefined,
     });
+    if (mode === 'live') {
+      liveSyncRef.current = dm.createLiveDeploymentSync();
+    }
 
     const restored = await dm.restoreFromStore();
     if (restored > 0) logger.info('Restored deployments from store', { count: String(restored) });
@@ -269,6 +283,11 @@ async function runEngine(mode: 'paper' | 'live', opts: EngineOpts): Promise<void
       } else {
         logger.warn('--auto-deploy set but quantlab.config.js has no symbols or strategy');
       }
+    }
+
+    if (mode === 'live') {
+      await dm.reconcileExchangeStateAfterRestart();
+      logger.info('Exchange state reconciled with DB (positions + deployment capital)');
     }
 
     // Pre-fetch instrument info (lot size) for all symbols at startup; cache + DB so first order is fast

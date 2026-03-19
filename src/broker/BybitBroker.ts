@@ -315,6 +315,8 @@ export class BybitBroker implements IBroker {
       quantity: pos.quantity,
       risk: 0,
       type: 'EXIT',
+      positionEntryPrice: pos.entryPrice,
+      positionEntryTime: pos.entryTime,
     };
     return ok(entry);
   }

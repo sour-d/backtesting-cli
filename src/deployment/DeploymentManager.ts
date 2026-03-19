@@ -9,6 +9,7 @@ import type { Market } from '../market/Market.js';
 import type { LiveFeed } from '../datasource/feeds/LiveFeed.js';
 import { resolveStrategy, getStrategyDefinitions } from '../strategy/index.js';
 import { safeErrorMessage } from '../utils/safeErrorMessage.js';
+import type { ILiveDeploymentSync, LiveCloseParams } from './liveDeploymentSync.js';
 
 export interface DeploymentManagerDeps {
   bot: Bot;
@@ -232,6 +233,90 @@ export class DeploymentManager {
     const id = this.deploymentsBySymbol.get(symbol);
     if (!id) return null;
     return this.get(id);
+  }
+
+  /** Resolve deployment UUID for a symbol (live state / DB sync). */
+  getDeploymentId(symbol: string): string | undefined {
+    return this.deploymentsBySymbol.get(symbol);
+  }
+
+  /** Factory for Bot: persist positions, trades, and capital to Supabase after fills. */
+  createLiveDeploymentSync(): ILiveDeploymentSync {
+    return {
+      getDeploymentId: (s) => this.getDeploymentId(s),
+      onPositionOpened: (s, p) => this.handleLivePositionOpened(s, p),
+      onPositionClosed: (s, params) => this.handleLivePositionClosed(s, params),
+    };
+  }
+
+  private async handleLivePositionOpened(symbol: string, position: Position): Promise<void> {
+    const deploymentId = this.deploymentsBySymbol.get(symbol);
+    if (!deploymentId) return;
+    await this.store.savePosition(deploymentId, position);
+    const deployment = this.deployments.get(deploymentId);
+    if (deployment) {
+      deployment.currentCapital = this.broker.getCapital(symbol);
+      await this.store.updateDeployment(deploymentId, { currentCapital: deployment.currentCapital });
+    }
+  }
+
+  private async handleLivePositionClosed(symbol: string, params: LiveCloseParams): Promise<void> {
+    const deploymentId = this.deploymentsBySymbol.get(symbol);
+    if (!deploymentId) return;
+    await this.store.removePosition(deploymentId);
+    const deployment = this.deployments.get(deploymentId);
+    if (!deployment) return;
+    const stored = this.buildStoredTrade(deployment, params);
+    await this.recordCompletedTrade(stored);
+  }
+
+  private buildStoredTrade(deployment: Deployment, p: LiveCloseParams): StoredTrade {
+    const feeRate = deployment.config.feeRate;
+    const grossPnl =
+      p.side === 'Buy'
+        ? (p.exitPrice - p.entryPrice) * p.quantity
+        : (p.entryPrice - p.exitPrice) * p.quantity;
+    const fee = (p.entryPrice + p.exitPrice) * p.quantity * feeRate;
+    const netPnl = grossPnl - fee;
+    return {
+      id: crypto.randomUUID(),
+      deploymentId: deployment.id,
+      symbol: deployment.symbol,
+      side: p.side,
+      entryPrice: p.entryPrice,
+      exitPrice: p.exitPrice,
+      quantity: p.quantity,
+      entryTime: p.entryTime,
+      exitTime: p.exitTime,
+      grossPnl,
+      fee,
+      netPnl,
+      risk: p.risk,
+      result: netPnl >= 0 ? 'Profit' : 'Loss',
+      exitType: p.exitType,
+    };
+  }
+
+  /**
+   * After restart: align DB positions with exchange (source of truth) and refresh deployment.currentCapital in DB.
+   * Clears stale DB rows if exchange has no position; upserts if exchange has an open position.
+   */
+  async reconcileExchangeStateAfterRestart(): Promise<void> {
+    for (const deployment of this.deployments.values()) {
+      if (deployment.status !== 'active' && deployment.status !== 'paused') continue;
+      const symbol = deployment.symbol;
+      const exchPos = await Promise.resolve(this.broker.getPosition(symbol));
+      const dbPos = await this.store.loadPosition(deployment.id);
+
+      if (exchPos) {
+        await this.store.savePosition(deployment.id, exchPos);
+      } else if (dbPos) {
+        await this.store.removePosition(deployment.id);
+      }
+
+      deployment.currentCapital = this.broker.getCapital(symbol);
+      await this.store.updateDeployment(deployment.id, { currentCapital: deployment.currentCapital });
+    }
   }
 
   async syncPositionToDB(deploymentId: string, position: Position): Promise<void> {
