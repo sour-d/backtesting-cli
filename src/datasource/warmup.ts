@@ -4,7 +4,7 @@ import type { ILogger } from '../logger/ILogger.js';
 import type { Market } from '../market/Market.js';
 import type { Bot } from '../trading-bot/Bot.js';
 import { BybitClient } from './exchange/BybitClient.js';
-import { safeErrorMessage } from '../utils/safeErrorMessage.js';
+import { safeErrorMessage, serializeErrorForLog } from '../utils/safeErrorMessage.js';
 
 export interface WarmupOpts {
   symbols: readonly string[];
@@ -141,6 +141,25 @@ async function fetchFromApi(
   const endMs = Date.now();
   const startMs = endMs - (count + 2) * candleMs;
 
+  const requestArgs = {
+    symbol,
+    interval,
+    start: startMs,
+    end: endMs,
+    startISO: new Date(startMs).toISOString(),
+    endISO: new Date(endMs).toISOString(),
+    category,
+    count,
+    hasApiKey: !!opts.apiKey,
+    hasApiSecret: !!opts.apiSecret,
+    testnet: opts.testnet ?? false,
+  };
+
+  opts.logger.info('Warmup fetch request', {
+    flow: 'warmup_fetch_request',
+    ...requestArgs,
+  });
+
   try {
     const client = new BybitClient({
       apiKey: opts.apiKey,
@@ -155,11 +174,20 @@ async function fetchFromApi(
       end: endMs,
       category,
     });
+    opts.logger.info('Warmup fetch success', {
+      flow: 'warmup_fetch_result',
+      symbol,
+      downloaded: candles.length,
+    });
     return candles;
   } catch (err) {
-    opts.logger.warn('REST API warmup fetch failed (will use DB data)', {
+    const fullError = serializeErrorForLog(err);
+    opts.logger.error('REST API warmup fetch failed (will use DB data)', {
+      flow: 'warmup_fetch_result',
       symbol,
       error: safeErrorMessage(err),
+      requestArgs,
+      fullError,
     });
     return [];
   }
