@@ -73,6 +73,19 @@ export interface PositionWithDeployment extends Position {
   readonly deploymentId: string;
 }
 
+/** Bybit lot size filter for order quantity (from getInstrumentsInfo). */
+export interface InstrumentLotSize {
+  readonly minOrderQty: string;
+  readonly qtyStep: string;
+  readonly maxOrderQty?: string;
+  readonly maxMktOrderQty?: string;
+}
+
+export interface StoredInstrumentInfo {
+  readonly lotSizeFilter: InstrumentLotSize;
+  readonly updatedAt: string;
+}
+
 export interface IStore {
   // --- Trade recording (backtest + live) ---
   recordTrade(entry: TradeEntry): void;
@@ -107,6 +120,12 @@ export interface IStore {
 
   /** Optional: persist structured live events for debugging (live mode). No-op on FileStore. */
   saveLiveEvent?(event: LiveEvent): Promise<void>;
+
+  /** Optional: get instrument lot size from DB (live). Used to avoid fetching from API on every order. */
+  getInstrumentInfo?(symbol: string): Promise<StoredInstrumentInfo | null>;
+
+  /** Optional: save instrument lot size to DB after fetching from Bybit (live). */
+  saveInstrumentInfo?(symbol: string, category: string, lotSizeFilter: InstrumentLotSize): Promise<void>;
 
   /** Optional: query live_events for debugging (SupabaseStore). */
   queryLiveEvents?(filters: LiveEventQueryFilters): Promise<LiveEvent[]>;

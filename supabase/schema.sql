@@ -123,3 +123,17 @@ CREATE TABLE live_events (
 CREATE INDEX idx_live_events_type ON live_events (event_type);
 CREATE INDEX idx_live_events_created ON live_events (created_at);
 CREATE INDEX idx_live_events_session ON live_events (session_id);
+
+-- ============================================================
+-- 7. instrument_info (Bybit lot size / qty step per symbol, refreshed at engine start)
+-- ============================================================
+DROP TABLE IF EXISTS instrument_info CASCADE;
+
+CREATE TABLE instrument_info (
+  symbol    TEXT        PRIMARY KEY,
+  category  TEXT        NOT NULL DEFAULT 'linear',
+  lot_size  JSONB       NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+COMMENT ON TABLE instrument_info IS 'Bybit instrument lot size (qtyStep, minOrderQty) per symbol; filled at live engine start.';

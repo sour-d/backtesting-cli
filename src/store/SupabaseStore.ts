@@ -3,9 +3,11 @@ import type { Candle, TradeEntry, AggregatedTrade, PerformanceStats, Position } 
 import type { Deployment, StoredTrade } from '../types/deployment.js';
 import type {
   IStore,
+  InstrumentLotSize,
   LiveEvent,
   LiveEventQueryFilters,
   LogEntry,
+  StoredInstrumentInfo,
   TradeQueryFilters,
   DeploymentQueryFilters,
   CandleQueryFilters,
@@ -150,6 +152,45 @@ export class SupabaseStore implements IStore {
       .delete()
       .eq('deployment_id', deploymentId);
     if (error) throw new Error(`Failed to remove position: ${error.message}`);
+  }
+
+  // --- Instrument info (lot size per symbol, filled at live engine start) ---
+
+  async getInstrumentInfo(symbol: string): Promise<StoredInstrumentInfo | null> {
+    const { data, error } = await this.client
+      .from('instrument_info')
+      .select('lot_size, updated_at')
+      .eq('symbol', symbol)
+      .maybeSingle();
+
+    if (error) throw new Error(`Failed to load instrument info: ${error.message}`);
+    if (!data?.lot_size) return null;
+
+    const lot = data.lot_size as Record<string, string>;
+    return {
+      lotSizeFilter: {
+        minOrderQty: lot.minOrderQty ?? '',
+        qtyStep: lot.qtyStep ?? '',
+        maxOrderQty: lot.maxOrderQty,
+        maxMktOrderQty: lot.maxMktOrderQty,
+      },
+      updatedAt: data.updated_at as string,
+    };
+  }
+
+  async saveInstrumentInfo(symbol: string, category: string, lotSizeFilter: InstrumentLotSize): Promise<void> {
+    const { error } = await this.client.from('instrument_info').upsert({
+      symbol,
+      category,
+      lot_size: {
+        minOrderQty: lotSizeFilter.minOrderQty,
+        qtyStep: lotSizeFilter.qtyStep,
+        maxOrderQty: lotSizeFilter.maxOrderQty,
+        maxMktOrderQty: lotSizeFilter.maxMktOrderQty,
+      },
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'symbol' });
+    if (error) throw new Error(`Failed to save instrument info: ${error.message}`);
   }
 
   // --- Completed trade storage (slim, no running-state fields) ---

@@ -6,7 +6,7 @@ import { RestClientV5 } from 'bybit-api';
 import type { Signal, Position, TradeEntry, Result, Candle } from '../types/index.js';
 import { ok, err } from '../types/result.js';
 import type { IBroker } from './IBroker.js';
-import type { LiveEvent } from '../store/IStore.js';
+import type { IStore, LiveEvent } from '../store/IStore.js';
 import { calculateQuantity } from './riskManager.js';
 import { safeErrorMessage } from '../utils/safeErrorMessage.js';
 import type { ILogger } from '../logger/ILogger.js';
@@ -51,6 +51,7 @@ export class BybitBroker implements IBroker {
 
   /** Called when stop-loss exit fails (so caller can persist to live_events). Caller adds sessionId. */
   private readonly onLiveEvent?: (event: Omit<LiveEvent, 'sessionId'>) => void;
+  private readonly store?: IStore;
 
   constructor(opts: {
     apiKey?: string;
@@ -60,6 +61,7 @@ export class BybitBroker implements IBroker {
     config: BybitBrokerConfig;
     logger?: ILogger;
     onLiveEvent?: (event: Omit<LiveEvent, 'sessionId'>) => void;
+    store?: IStore;
   }) {
     this.client = new RestClientV5({
       key: opts.apiKey,
@@ -70,6 +72,7 @@ export class BybitBroker implements IBroker {
     this.config = opts.config;
     this.logger = opts.logger ?? null;
     this.onLiveEvent = opts.onLiveEvent;
+    this.store = opts.store;
   }
 
   allocateCapital(symbols: string[], totalCapital: number): void {
@@ -100,11 +103,37 @@ export class BybitBroker implements IBroker {
     this.symbolConfigs.set(symbol, config);
   }
 
-  /** Fetch and cache instrument info (lot size) per symbol, same as old repo getInstrumentInfo. */
+  /** Load instrument info from store (DB) only into cache; no API call. Used at engine start. */
+  private async loadInstrumentInfoFromStore(symbol: string): Promise<void> {
+    if (this.instrumentCache.has(symbol)) return;
+    const fromStore = await this.store?.getInstrumentInfo?.(symbol);
+    if (!fromStore?.lotSizeFilter) return;
+    const lot = fromStore.lotSizeFilter;
+    this.instrumentCache.set(symbol, {
+      lotSizeFilter: {
+        minOrderQty: lot.minOrderQty,
+        qtyStep: lot.qtyStep,
+        maxOrderQty: lot.maxOrderQty,
+        maxMktOrderQty: lot.maxMktOrderQty,
+      },
+    });
+  }
+
+  /** Fetch and cache instrument info (lot size). Uses cache, then store (DB), then Bybit API only if missing. */
   private async getInstrumentInfo(symbol: string): Promise<{ lotSizeFilter: LotSizeFilter } | null> {
     const cached = this.instrumentCache.get(symbol);
     if (cached) return cached;
+
     const category = this.config.category ?? CATEGORY;
+
+    const fromStore = await this.store?.getInstrumentInfo?.(symbol);
+    if (fromStore?.lotSizeFilter) {
+      const lot = fromStore.lotSizeFilter;
+      const entry = { lotSizeFilter: { minOrderQty: lot.minOrderQty, qtyStep: lot.qtyStep, maxOrderQty: lot.maxOrderQty, maxMktOrderQty: lot.maxMktOrderQty } };
+      this.instrumentCache.set(symbol, entry);
+      return entry;
+    }
+
     const res = await this.client.getInstrumentsInfo({ category, symbol }).catch(() => null);
     if (res?.retCode !== 0 || !res?.result?.list?.length) {
       this.logger?.warn('Failed to get instrument info', { symbol });
@@ -113,9 +142,15 @@ export class BybitBroker implements IBroker {
     const info = res.result.list[0] as { lotSizeFilter: LotSizeFilter };
     if (info?.lotSizeFilter) {
       this.instrumentCache.set(symbol, { lotSizeFilter: info.lotSizeFilter });
+      await this.store?.saveInstrumentInfo?.(symbol, category, info.lotSizeFilter);
       return { lotSizeFilter: info.lotSizeFilter };
     }
     return null;
+  }
+
+  /** At engine start: load instrument info from DB only into cache; no API calls. API is used only when placing an order for a symbol not in DB. */
+  async warmInstrumentInfo(symbols: string[]): Promise<void> {
+    await Promise.all(symbols.map((s) => this.loadInstrumentInfoFromStore(s)));
   }
 
   placeOrder(symbol: string, signal: Signal & { action: 'BUY' | 'SELL' }, timestamp: number): Result<Position> | Promise<Result<Position>> {

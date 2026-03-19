@@ -5,6 +5,7 @@ import { resolveStrategy } from '../strategy/index.js';
 import { Market } from '../market/Market.js';
 import { Bot } from '../trading-bot/Bot.js';
 import { createBroker } from '../broker/createBroker.js';
+import type { BybitBroker } from '../broker/BybitBroker.js';
 import { createStore } from '../store/createStore.js';
 import { createLogger } from '../logger/createLogger.js';
 import { createDataFeed } from '../datasource/createDataFeed.js';
@@ -270,8 +271,14 @@ async function runEngine(mode: 'paper' | 'live', opts: EngineOpts): Promise<void
       }
     }
 
-    // Pre-load historical candles so indicators are ready before the first live candle
+    // Pre-fetch instrument info (lot size) for all symbols at startup; cache + DB so first order is fast
     const trackedSymbols = feed.getTrackedSymbols();
+    if (mode === 'live' && trackedSymbols.length > 0 && 'warmInstrumentInfo' in broker) {
+      await (broker as BybitBroker).warmInstrumentInfo(trackedSymbols);
+      logger.info('Instrument info loaded', { symbols: trackedSymbols.join(','), count: String(trackedSymbols.length) });
+    }
+
+    // Pre-load historical candles so indicators are ready before the first live candle
     if (trackedSymbols.length > 0) {
       await warmupMarket({
         symbols: trackedSymbols,

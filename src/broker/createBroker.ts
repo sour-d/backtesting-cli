@@ -48,6 +48,7 @@ export function createBroker(mode: RunMode, options: BrokerOptions): IBroker {
       config: { riskPercentage, maxAllocation, category },
       logger,
       onLiveEvent,
+      store,
     });
   }
 
