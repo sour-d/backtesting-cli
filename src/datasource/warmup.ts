@@ -1,15 +1,24 @@
-import type { Candle } from '../types/index.js';
-import type { IStore } from '../store/IStore.js';
-import type { ILogger } from '../logger/ILogger.js';
-import type { Market } from '../market/Market.js';
-import type { Bot } from '../trading-bot/Bot.js';
-import { BybitClient } from './exchange/BybitClient.js';
-import { safeErrorMessage, serializeErrorForLog } from '../utils/safeErrorMessage.js';
+import type { Candle } from "../types/index.js";
+import type { IStore } from "../store/IStore.js";
+import type { ILogger } from "../logger/ILogger.js";
+import type { Market } from "../market/Market.js";
+import type { Bot } from "../trading-bot/Bot.js";
+import { safeErrorMessage } from "../utils/safeErrorMessage.js";
+import { RestClientV5 } from "bybit-api";
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc.js";
+import timezone from "dayjs/plugin/timezone.js";
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
+const TZ = "Asia/Kolkata";
+const MAX_KLINES_PER_REQUEST = 1000;
 
 export interface WarmupOpts {
   symbols: readonly string[];
   interval: string;
-  category?: 'linear' | 'spot' | 'inverse';
+  category?: "linear" | "spot" | "inverse";
   count: number;
   store: IStore;
   market: Market;
@@ -33,31 +42,44 @@ export interface WarmupOpts {
  */
 export async function warmupMarket(opts: WarmupOpts): Promise<void> {
   const { symbols, interval, count, store, market, bot, logger } = opts;
-  const category = opts.category ?? 'linear';
+  const category = opts.category ?? "linear";
   const candleMs = intervalMs(interval);
 
   for (const symbol of symbols) {
     try {
       const dbCandles = await loadFromDb(store, symbol, interval, count);
 
-      const latestDbTs = dbCandles.length > 0 ? dbCandles[dbCandles.length - 1]!.dateUnix : 0;
-      const isFresh = latestDbTs > 0 && (Date.now() - latestDbTs) <= 2 * candleMs;
+      const latestDbTs =
+        dbCandles.length > 0 ? dbCandles[dbCandles.length - 1]!.dateUnix : 0;
+      const isFresh = latestDbTs > 0 && Date.now() - latestDbTs <= 2 * candleMs;
       const isSufficient = dbCandles.length >= count;
 
       let candles: Candle[];
 
       if (isFresh && isSufficient) {
         candles = dbCandles;
-        logger.info('Warmup loaded from DB', { symbol, count: String(candles.length) });
+        logger.info("Warmup loaded from DB", {
+          symbol,
+          count: String(candles.length),
+        });
       } else {
-        const reason = !isFresh ? 'stale' : 'insufficient';
-        logger.info('DB warmup data ' + reason + ', fetching from API', {
+        const reason = !isFresh ? "stale" : "insufficient";
+        logger.info("DB warmup data " + reason + ", fetching from API", {
           symbol,
           dbCount: String(dbCandles.length),
-          latestAge: latestDbTs > 0 ? String(Math.round((Date.now() - latestDbTs) / 60_000)) + 'min' : 'none',
+          latestAge:
+            latestDbTs > 0
+              ? String(Math.round((Date.now() - latestDbTs) / 60_000)) + "min"
+              : "none",
         });
 
-        const apiCandles = await fetchFromApi(opts, symbol, interval, count, category);
+        const apiCandles = await fetchFromApi(
+          opts,
+          symbol,
+          interval,
+          count,
+          category,
+        );
 
         if (apiCandles.length > 0) {
           candles = mergeCandles(dbCandles, apiCandles);
@@ -67,7 +89,7 @@ export async function warmupMarket(opts: WarmupOpts): Promise<void> {
       }
 
       if (candles.length === 0) {
-        logger.warn('No historical candles available for warmup', { symbol });
+        logger.warn("No historical candles available for warmup", { symbol });
         continue;
       }
 
@@ -79,7 +101,9 @@ export async function warmupMarket(opts: WarmupOpts): Promise<void> {
       candles = candles.filter((c) => c.dateUnix + candleMs <= now);
 
       if (candles.length === 0) {
-        logger.warn('No completed candles for warmup after filtering', { symbol });
+        logger.warn("No completed candles for warmup after filtering", {
+          symbol,
+        });
         continue;
       }
 
@@ -91,14 +115,17 @@ export async function warmupMarket(opts: WarmupOpts): Promise<void> {
       const enriched = market.getStock(symbol).all();
       await saveToDb(store, symbol, interval, enriched, logger);
 
-      logger.info('Warmup complete', {
+      logger.info("Warmup complete", {
         symbol,
         candles: String(candles.length),
-        from: candles[0]!.date + ' ' + candles[0]!.time,
-        to: candles[candles.length - 1]!.date + ' ' + candles[candles.length - 1]!.time,
+        from: candles[0]!.date + " " + candles[0]!.time,
+        to:
+          candles[candles.length - 1]!.date +
+          " " +
+          candles[candles.length - 1]!.time,
       });
     } catch (err) {
-      logger.error('Warmup failed for symbol (continuing without history)', {
+      logger.error("Warmup failed for symbol (continuing without history)", {
         symbol,
         error: safeErrorMessage(err),
       });
@@ -118,7 +145,7 @@ async function loadFromDb(
       symbol,
       interval,
       limit: count,
-      order: 'desc',
+      order: "desc",
     });
     return rows.reverse();
   } catch {
@@ -135,7 +162,7 @@ async function fetchFromApi(
   symbol: string,
   interval: string,
   count: number,
-  category: 'linear' | 'spot' | 'inverse',
+  category: "linear" | "spot" | "inverse",
 ): Promise<Candle[]> {
   const candleMs = intervalMs(interval);
   const endMs = Date.now();
@@ -155,42 +182,103 @@ async function fetchFromApi(
     testnet: opts.testnet ?? false,
   };
 
-  opts.logger.info('Warmup fetch request', {
-    flow: 'warmup_fetch_request',
+  opts.logger.info("Warmup fetch request", {
+    flow: "warmup_fetch_request",
     ...requestArgs,
   });
 
   try {
-    const client = new BybitClient({
-      apiKey: opts.apiKey,
-      apiSecret: opts.apiSecret,
+    const client = new RestClientV5({
+      key: opts.apiKey,
+      secret: opts.apiSecret,
       testnet: opts.testnet ?? false,
-      logger: opts.logger.child({ component: 'WarmupClient' }),
     });
-    const candles = await client.fetchKlines({
+    const candles = await fetchKlineHistory(client, {
       symbol,
       interval,
       start: startMs,
       end: endMs,
       category,
     });
-    opts.logger.info('Warmup fetch success', {
-      flow: 'warmup_fetch_result',
+    opts.logger.info("Warmup fetch success", {
+      flow: "warmup_fetch_result",
       symbol,
       downloaded: candles.length,
     });
     return candles;
   } catch (err) {
-    const fullError = serializeErrorForLog(err);
-    opts.logger.error('REST API warmup fetch failed (will use DB data)', {
-      flow: 'warmup_fetch_result',
+    opts.logger.error("REST API warmup fetch failed (will use DB data)", {
+      flow: "warmup_fetch_result",
       symbol,
       error: safeErrorMessage(err),
-      requestArgs,
-      fullError,
     });
     return [];
   }
+}
+
+/**
+ * Fetch kline history via RestClientV5.getKline with chunking (max 1000 per request).
+ */
+async function fetchKlineHistory(
+  client: RestClientV5,
+  opts: {
+    symbol: string;
+    interval: string;
+    start: number;
+    end: number;
+    category: "linear" | "spot" | "inverse";
+  },
+): Promise<Candle[]> {
+  const { symbol, interval, start, end, category } = opts;
+  const candleMs = intervalMs(interval);
+  const chunkDurationMs = MAX_KLINES_PER_REQUEST * candleMs;
+
+  const chunks: { start: number; end: number }[] = [];
+  let chunkStart = start;
+  while (chunkStart < end) {
+    const chunkEnd = Math.min(chunkStart + chunkDurationMs - 1, end);
+    chunks.push({ start: chunkStart, end: chunkEnd });
+    chunkStart = chunkEnd + 1;
+  }
+
+  const results = await Promise.all(
+    chunks.map(async ({ start: s, end: e }) => {
+      const response = await client.getKline({
+        category,
+        symbol,
+        interval: interval as Parameters<RestClientV5["getKline"]>[0]["interval"],
+        start: s,
+        end: e,
+        limit: MAX_KLINES_PER_REQUEST,
+      });
+      const list = response.result?.list ?? [];
+      return list.map((k) => mapKlineToCandle(k)).reverse();
+    }),
+  );
+
+  const allCandles = results.flat();
+  allCandles.sort((a, b) => a.dateUnix - b.dateUnix);
+
+  const seen = new Set<number>();
+  return allCandles.filter((c) => {
+    if (seen.has(c.dateUnix)) return false;
+    seen.add(c.dateUnix);
+    return true;
+  });
+}
+
+function mapKlineToCandle(kline: string[]): Candle {
+  const ts = Number(kline[0]);
+  return {
+    date: dayjs(ts).tz(TZ).format("YYYY-MM-DD"),
+    time: dayjs(ts).tz(TZ).format("HH:mm:ss"),
+    dateUnix: ts,
+    open: Number(kline[1]),
+    high: Number(kline[2]),
+    low: Number(kline[3]),
+    close: Number(kline[4]),
+    volume: Number(kline[5]),
+  };
 }
 
 async function saveToDb(
@@ -203,7 +291,10 @@ async function saveToDb(
   try {
     await store.saveCandles(symbol, interval, candles);
   } catch (err) {
-    logger.error('Failed to save warmup candles to DB', { symbol, error: safeErrorMessage(err) });
+    logger.error("Failed to save warmup candles to DB", {
+      symbol,
+      error: safeErrorMessage(err),
+    });
     throw err;
   }
 }
@@ -222,9 +313,19 @@ function mergeCandles(a: Candle[], b: Candle[]): Candle[] {
 
 function intervalMs(interval: string): number {
   const minutes: Record<string, number> = {
-    '1': 1, '3': 3, '5': 5, '15': 15, '30': 30,
-    '60': 60, '120': 120, '240': 240, '360': 360, '720': 720,
-    D: 1440, W: 10080, M: 43200,
+    "1": 1,
+    "3": 3,
+    "5": 5,
+    "15": 15,
+    "30": 30,
+    "60": 60,
+    "120": 120,
+    "240": 240,
+    "360": 360,
+    "720": 720,
+    D: 1440,
+    W: 10080,
+    M: 43200,
   };
   return (minutes[interval] ?? 240) * 60_000;
 }
