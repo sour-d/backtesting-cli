@@ -243,6 +243,19 @@ export class DeploymentManager {
   }
 
   async recordCompletedTrade(trade: StoredTrade): Promise<void> {
+    this.logger.info('Trade saved to DB', {
+      flow: 'trade_saved',
+      id: trade.id,
+      deploymentId: trade.deploymentId,
+      symbol: trade.symbol,
+      side: trade.side,
+      entryPrice: trade.entryPrice,
+      exitPrice: trade.exitPrice,
+      quantity: trade.quantity,
+      netPnl: trade.netPnl,
+      result: trade.result,
+      exitType: trade.exitType,
+    });
     await this.store.saveTrade(trade);
     const deployment = this.deployments.get(trade.deploymentId);
     if (deployment) {

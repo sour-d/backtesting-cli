@@ -110,11 +110,15 @@ export class BybitBroker implements IBroker {
     const qtyStr = roundQty(Math.max(0.001, quantity)).toFixed(3);
 
     this.logger?.info('Placing order (live)', {
+      flow: 'broker_place_order',
       symbol,
       side: signal.action,
       price: signal.price,
       qty: qtyStr,
-      stopLoss: signal.stopLoss,
+      stopLoss: String(signal.stopLoss),
+      capital,
+      riskPercentage: riskPercentage,
+      maxAllocation: maxAllocation,
     });
 
     const orderRes = await this.client
@@ -135,8 +139,25 @@ export class BybitBroker implements IBroker {
 
     if (!orderRes || orderRes.retCode !== 0) {
       const msg = orderRes?.retMsg != null ? safeErrorMessage(orderRes.retMsg) : 'Order failed';
+      this.logger?.error('Place order failed', {
+        flow: 'broker_place_order_result',
+        symbol,
+        success: false,
+        error: msg,
+        retCode: orderRes?.retCode,
+      });
       return err(msg);
     }
+
+    this.logger?.info('Place order success', {
+      flow: 'broker_place_order_result',
+      symbol,
+      success: true,
+      side: signal.action,
+      entryPrice: signal.price,
+      quantity: qtyStr,
+      stopLoss: String(signal.stopLoss),
+    });
 
     const position: Position = {
       symbol,
@@ -159,7 +180,15 @@ export class BybitBroker implements IBroker {
     if (!pos) return err(`No position in ${symbol}`);
 
     const closeSide = pos.side === 'Buy' ? 'Sell' : 'Buy';
-    this.logger?.info('Exiting position (live)', { symbol, side: closeSide, exitPrice });
+    this.logger?.info('Exiting position (live)', {
+      flow: 'broker_exit_request',
+      symbol,
+      side: closeSide,
+      exitPrice,
+      positionSide: pos.side,
+      quantity: pos.quantity,
+      entryPrice: pos.entryPrice,
+    });
 
     const res = await this.client
       .submitOrder({
@@ -178,8 +207,24 @@ export class BybitBroker implements IBroker {
 
     if (!res || res.retCode !== 0) {
       const msg = res?.retMsg != null ? safeErrorMessage(res.retMsg) : 'Exit failed';
+      this.logger?.error('Exit position failed', {
+        flow: 'broker_exit_result',
+        symbol,
+        success: false,
+        error: msg,
+        retCode: res?.retCode,
+      });
       return err(msg);
     }
+
+    this.logger?.info('Exit position success', {
+      flow: 'broker_exit_result',
+      symbol,
+      success: true,
+      side: pos.side,
+      exitPrice,
+      quantity: pos.quantity,
+    });
 
     const entry: TradeEntry = {
       timestamp,

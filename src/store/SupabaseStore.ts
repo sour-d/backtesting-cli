@@ -223,20 +223,22 @@ export class SupabaseStore implements IStore {
     const rows = candles.map((c) => {
       const technicals: Record<string, unknown> = {};
       for (const [key, val] of Object.entries(c)) {
-        if (!BASE_KEYS.has(key)) technicals[key] = val;
+        if (!BASE_KEYS.has(key)) {
+          technicals[key] = typeof val === 'number' && Number.isNaN(val) ? null : val;
+        }
       }
 
       return {
         symbol,
         interval,
-        date_unix: c.dateUnix,
-        date: c.date,
-        time: c.time,
-        open: c.open,
-        high: c.high,
-        low: c.low,
-        close: c.close,
-        volume: c.volume,
+        date_unix: Math.floor(Number(c.dateUnix)),
+        date: String(c.date ?? ''),
+        time: String(c.time ?? ''),
+        open: Number(c.open),
+        high: Number(c.high),
+        low: Number(c.low),
+        close: Number(c.close),
+        volume: Number(c.volume),
         technicals: Object.keys(technicals).length > 0 ? technicals : null,
       };
     });

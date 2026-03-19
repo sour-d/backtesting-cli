@@ -150,13 +150,16 @@ export class LiveFeed implements IDataFeed {
 
       const candle = this.mapQuote(quote);
       this.logger.info('New candle', {
+        flow: 'candle_received',
         symbol,
         date: candle.date,
         time: candle.time,
+        dateUnix: candle.dateUnix,
         o: String(candle.open),
         h: String(candle.high),
         l: String(candle.low),
         c: String(candle.close),
+        volume: String(candle.volume),
       });
 
       void Promise.resolve(this.handler!(symbol, candle)).catch((err) => {

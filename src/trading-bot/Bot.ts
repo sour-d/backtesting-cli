@@ -108,6 +108,12 @@ export class Bot {
     this.symbolCandleCount.set(symbol, symbolCount);
 
     this.market.update(symbol, candle);
+    this.logger.info('Candle enriched', {
+      flow: 'candle_enriched',
+      symbol,
+      dateUnix: candle.dateUnix,
+      candleCount: symbolCount,
+    });
 
     if (symbolCount <= this.warmupPeriod) return;
 
@@ -120,30 +126,100 @@ export class Bot {
     const slEntry = await Promise.resolve(this.broker.checkStopLoss(symbol, candle));
     if (slEntry) {
       this.store.recordTrade(slEntry);
-      this.logger.info('Stop-loss triggered', { symbol, price: slEntry.price });
+      this.logger.info('Stop-loss triggered', {
+        flow: 'stop_loss_triggered',
+        symbol,
+        price: slEntry.price,
+        side: slEntry.side,
+        quantity: slEntry.quantity,
+      });
+      this.logger.info('Trade recorded (in-memory)', {
+        flow: 'trade_recorded',
+        type: 'STOP_LOSS',
+        symbol,
+        side: slEntry.side,
+        price: slEntry.price,
+        quantity: slEntry.quantity,
+      });
       return;
     }
 
     const position = await Promise.resolve(this.broker.getPosition(symbol));
+    this.logger.debug('Strategy evaluating', {
+      flow: 'strategy_eval',
+      symbol,
+      hasPosition: !!position,
+      positionSide: position?.side,
+      dateUnix: candle.dateUnix,
+    });
     const signal = strategy.evaluate(stock, position);
 
-    if (!signal) return;
+    if (!signal) {
+      this.logger.debug('No signal', { flow: 'strategy_signal', symbol, signal: null });
+      return;
+    }
+
+    this.logger.info('Strategy signal', {
+      flow: 'strategy_signal',
+      symbol,
+      action: signal.action,
+      price: signal.price,
+      reason: signal.reason,
+      ...(signal.action !== 'EXIT'
+        ? { stopLoss: signal.stopLoss, risk: signal.risk }
+        : {}),
+    });
 
     if (signal.action === 'EXIT') {
+      this.logger.info('Exit position request', {
+        flow: 'exit_request',
+        symbol,
+        exitPrice: signal.price,
+        reason: signal.reason,
+      });
       const result = await Promise.resolve(this.broker.exitPosition(symbol, signal.price, candle.dateUnix));
       if (result.ok) {
         this.store.recordTrade(result.value);
-        this.logger.info('Position exited', { symbol, price: signal.price, reason: signal.reason });
+        this.logger.info('Exit position success', {
+          flow: 'exit_result',
+          symbol,
+          success: true,
+          exitPrice: signal.price,
+          side: result.value.side,
+          quantity: result.value.quantity,
+        });
+        this.logger.info('Trade recorded (in-memory)', {
+          flow: 'trade_recorded',
+          type: 'EXIT',
+          symbol,
+          side: result.value.side,
+          price: result.value.price,
+          quantity: result.value.quantity,
+        });
         await this.tryEntry(symbol, strategy, stock, candle.dateUnix);
       } else {
         const errMsg = safeErrorMessage(result.error);
-        this.logger.error('Exit position failed', { symbol, price: signal.price, error: errMsg });
+        this.logger.error('Exit position failed', {
+          flow: 'exit_result',
+          symbol,
+          success: false,
+          error: errMsg,
+          exitPrice: signal.price,
+        });
         await this.persistLiveEvent('exit_failed', symbol, errMsg, { price: signal.price, reason: signal.reason });
       }
       return;
     }
 
     if (signal.action === 'BUY' || signal.action === 'SELL') {
+      this.logger.info('Place order request', {
+        flow: 'order_place_request',
+        symbol,
+        action: signal.action,
+        price: signal.price,
+        stopLoss: signal.stopLoss,
+        risk: signal.risk,
+      });
       const result = await Promise.resolve(this.broker.placeOrder(symbol, signal, candle.dateUnix));
       if (result.ok) {
         const entryRecord: TradeEntry = {
@@ -156,7 +232,18 @@ export class Bot {
           type: 'ENTRY',
         };
         this.store.recordTrade(entryRecord);
-        this.logger.info('Order placed', {
+        this.logger.info('Order placed success', {
+          flow: 'order_place_result',
+          symbol,
+          success: true,
+          side: result.value.side,
+          entryPrice: result.value.entryPrice,
+          quantity: result.value.quantity,
+          stopLoss: result.value.stopLoss,
+        });
+        this.logger.info('Trade recorded (in-memory)', {
+          flow: 'trade_recorded',
+          type: 'ENTRY',
           symbol,
           side: result.value.side,
           price: result.value.entryPrice,
@@ -164,7 +251,13 @@ export class Bot {
         });
       } else {
         const errMsg = safeErrorMessage(result.error);
-        this.logger.error('Order placement failed', { symbol, action: signal.action, error: errMsg });
+        this.logger.error('Order placement failed', {
+          flow: 'order_place_result',
+          symbol,
+          success: false,
+          action: signal.action,
+          error: errMsg,
+        });
         await this.persistLiveEvent('order_failed', symbol, errMsg, {
           action: signal.action,
           price: signal.price,
@@ -184,6 +277,14 @@ export class Bot {
     if (!signal || signal.action === 'EXIT') return;
 
     if (signal.action === 'BUY' || signal.action === 'SELL') {
+      this.logger.info('Reversal entry request', {
+        flow: 'order_place_request',
+        context: 'reversal',
+        symbol,
+        action: signal.action,
+        price: signal.price,
+        stopLoss: signal.stopLoss,
+      });
       const result = await Promise.resolve(this.broker.placeOrder(symbol, signal, timestamp));
       if (result.ok) {
         const entryRecord: TradeEntry = {
@@ -196,14 +297,32 @@ export class Bot {
           type: 'ENTRY',
         };
         this.store.recordTrade(entryRecord);
-        this.logger.info('Reversal entry', {
+        this.logger.info('Reversal entry success', {
+          flow: 'order_place_result',
+          context: 'reversal',
+          symbol,
+          side: result.value.side,
+          entryPrice: result.value.entryPrice,
+          quantity: result.value.quantity,
+        });
+        this.logger.info('Trade recorded (in-memory)', {
+          flow: 'trade_recorded',
+          type: 'ENTRY',
+          context: 'reversal',
           symbol,
           side: result.value.side,
           price: result.value.entryPrice,
+          quantity: result.value.quantity,
         });
       } else {
         const errMsg = safeErrorMessage(result.error);
-        this.logger.error('Reversal order failed', { symbol, action: signal.action, error: errMsg });
+        this.logger.error('Reversal order failed', {
+          flow: 'order_place_result',
+          context: 'reversal',
+          symbol,
+          action: signal.action,
+          error: errMsg,
+        });
         await this.persistLiveEvent('order_failed', symbol, errMsg, {
           context: 'reversal',
           action: signal.action,

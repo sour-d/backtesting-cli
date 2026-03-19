@@ -217,8 +217,17 @@ async function runEngine(mode: 'paper' | 'live', opts: EngineOpts): Promise<void
     feed.onCandle(async (symbol, candle) => {
       try {
         await bot.onCandle(symbol, candle);
+        // Live data: indicators added in market.update (enrichSingle); save enriched candle
         const enriched = market.getStock(symbol).now();
-        void store.saveCandles(symbol, interval, [enriched]);
+        await store.saveCandles(symbol, interval, [enriched]);
+        logger.info('Candle persisted to store', {
+          flow: 'candle_persisted',
+          symbol,
+          interval,
+          dateUnix: enriched.dateUnix,
+          date: enriched.date,
+          time: enriched.time,
+        });
       } catch (err) {
         const message = safeErrorMessage(err);
         logger.error('Live candle handler error (server continues)', { symbol, message });
@@ -274,7 +283,11 @@ async function runEngine(mode: 'paper' | 'live', opts: EngineOpts): Promise<void
         bot,
         logger: logger.child({ component: 'Warmup' }),
         testnet: process.env.BYBIT_TESTNET === 'true',
+        apiKey: mode === 'live' ? process.env.BYBIT_API_KEY : undefined,
+        apiSecret: mode === 'live' ? process.env.BYBIT_API_SECRET : undefined,
       });
+      const storeWithFlush = store as { flushAllCandles?: () => Promise<void> };
+      await storeWithFlush.flushAllCandles?.();
     }
 
     await feed.start();

@@ -16,6 +16,9 @@ export interface WarmupOpts {
   bot: Bot;
   logger: ILogger;
   testnet?: boolean;
+  /** Optional: use for one-time REST fetch (e.g. live mode on Render where unauthenticated may be Forbidden) */
+  apiKey?: string;
+  apiSecret?: string;
 }
 
 /**
@@ -58,7 +61,6 @@ export async function warmupMarket(opts: WarmupOpts): Promise<void> {
 
         if (apiCandles.length > 0) {
           candles = mergeCandles(dbCandles, apiCandles);
-          void saveToDb(store, symbol, interval, apiCandles, logger);
         } else {
           candles = dbCandles;
         }
@@ -81,8 +83,13 @@ export async function warmupMarket(opts: WarmupOpts): Promise<void> {
         continue;
       }
 
+      // Past data: add indicators via registerSymbol (enrichAll)
       market.registerSymbol(symbol, candles);
       bot.setHistoryCount(symbol, candles.length);
+
+      // Persist enriched candles (with indicators) so DB matches live path
+      const enriched = market.getStock(symbol).all();
+      await saveToDb(store, symbol, interval, enriched, logger);
 
       logger.info('Warmup complete', {
         symbol,
@@ -119,6 +126,10 @@ async function loadFromDb(
   }
 }
 
+/**
+ * Fetch historical candles by time range (same as old repo: getKline with start/end).
+ * Uses authenticated client when apiKey/apiSecret provided.
+ */
 async function fetchFromApi(
   opts: WarmupOpts,
   symbol: string,
@@ -126,15 +137,22 @@ async function fetchFromApi(
   count: number,
   category: 'linear' | 'spot' | 'inverse',
 ): Promise<Candle[]> {
+  const candleMs = intervalMs(interval);
+  const endMs = Date.now();
+  const startMs = endMs - (count + 2) * candleMs;
+
   try {
     const client = new BybitClient({
+      apiKey: opts.apiKey,
+      apiSecret: opts.apiSecret,
       testnet: opts.testnet ?? false,
       logger: opts.logger.child({ component: 'WarmupClient' }),
     });
-    const candles = await client.fetchRecentCandles({
+    const candles = await client.fetchKlines({
       symbol,
       interval,
-      limit: count + 5,
+      start: startMs,
+      end: endMs,
       category,
     });
     return candles;
@@ -147,16 +165,19 @@ async function fetchFromApi(
   }
 }
 
-function saveToDb(
+async function saveToDb(
   store: IStore,
   symbol: string,
   interval: string,
   candles: readonly Candle[],
   logger: ILogger,
 ): Promise<void> {
-  return store.saveCandles(symbol, interval, candles).catch((err) => {
-    logger.warn('Failed to save warmup candles to DB', { symbol, error: safeErrorMessage(err) });
-  });
+  try {
+    await store.saveCandles(symbol, interval, candles);
+  } catch (err) {
+    logger.error('Failed to save warmup candles to DB', { symbol, error: safeErrorMessage(err) });
+    throw err;
+  }
 }
 
 function mergeCandles(a: Candle[], b: Candle[]): Candle[] {
