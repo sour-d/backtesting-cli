@@ -277,7 +277,7 @@ async function runEngine(mode: 'paper' | 'live', opts: EngineOpts): Promise<void
         symbols: trackedSymbols,
         interval,
         category,
-        count: 40,
+        count: 300,
         store,
         market,
         bot,
