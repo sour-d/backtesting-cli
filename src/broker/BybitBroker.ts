@@ -12,11 +12,20 @@ import { safeErrorMessage } from '../utils/safeErrorMessage.js';
 import type { ILogger } from '../logger/ILogger.js';
 
 const CATEGORY = 'linear';
-const POSITION_IDX_ONE_WAY = 0;
 
-function roundQty(qty: number, step = 0.001): number {
-  const s = Number(step);
-  return Math.floor(qty / s) * s;
+/** Round quantity down to exchange qty step (same as old repo roundLikeSize). */
+function roundQtyToStep(qty: number, qtyStep: number): number {
+  if (qtyStep <= 0) return qty;
+  return Math.floor(qty / qtyStep) * qtyStep;
+}
+
+/** Format quantity string for Bybit API using symbol's qty step precision. */
+function formatQtyForApi(qty: number, qtyStepStr: string): string {
+  const step = Number(qtyStepStr);
+  if (step >= 1) return String(Math.round(qty));
+  const afterDot = qtyStepStr.split('.')[1];
+  const decimals = afterDot ? afterDot.length : 0;
+  return qty.toFixed(decimals);
 }
 
 export interface BybitBrokerConfig {
@@ -25,12 +34,20 @@ export interface BybitBrokerConfig {
   category?: 'linear' | 'spot' | 'inverse';
 }
 
+interface LotSizeFilter {
+  minOrderQty: string;
+  qtyStep: string;
+  maxOrderQty?: string;
+  maxMktOrderQty?: string;
+}
+
 export class BybitBroker implements IBroker {
   private readonly client: RestClientV5;
   private readonly config: BybitBrokerConfig;
   private readonly logger: ILogger | null;
   private readonly capitalPool: Map<string, number> = new Map();
   private readonly symbolConfigs: Map<string, { riskPercentage: number; maxAllocation: number }> = new Map();
+  private readonly instrumentCache: Map<string, { lotSizeFilter: LotSizeFilter }> = new Map();
 
   /** Called when stop-loss exit fails (so caller can persist to live_events). Caller adds sessionId. */
   private readonly onLiveEvent?: (event: Omit<LiveEvent, 'sessionId'>) => void;
@@ -83,6 +100,24 @@ export class BybitBroker implements IBroker {
     this.symbolConfigs.set(symbol, config);
   }
 
+  /** Fetch and cache instrument info (lot size) per symbol, same as old repo getInstrumentInfo. */
+  private async getInstrumentInfo(symbol: string): Promise<{ lotSizeFilter: LotSizeFilter } | null> {
+    const cached = this.instrumentCache.get(symbol);
+    if (cached) return cached;
+    const category = this.config.category ?? CATEGORY;
+    const res = await this.client.getInstrumentsInfo({ category, symbol }).catch(() => null);
+    if (res?.retCode !== 0 || !res?.result?.list?.length) {
+      this.logger?.warn('Failed to get instrument info', { symbol });
+      return null;
+    }
+    const info = res.result.list[0] as { lotSizeFilter: LotSizeFilter };
+    if (info?.lotSizeFilter) {
+      this.instrumentCache.set(symbol, { lotSizeFilter: info.lotSizeFilter });
+      return { lotSizeFilter: info.lotSizeFilter };
+    }
+    return null;
+  }
+
   placeOrder(symbol: string, signal: Signal & { action: 'BUY' | 'SELL' }, timestamp: number): Result<Position> | Promise<Result<Position>> {
     return this.placeOrderAsync(symbol, signal, timestamp);
   }
@@ -100,14 +135,25 @@ export class BybitBroker implements IBroker {
     const riskPercentage = symConfig?.riskPercentage ?? this.config.riskPercentage;
     const maxAllocation = symConfig?.maxAllocation ?? this.config.maxAllocation;
 
-    const quantity = calculateQuantity({
+    let quantity = calculateQuantity({
       capital,
       riskPerStock: signal.risk,
       price: signal.price,
       riskPercentage,
       maxAllocation,
     });
-    const qtyStr = roundQty(Math.max(0.001, quantity)).toFixed(3);
+    if (quantity <= 0) return err('Calculated quantity is zero');
+
+    const instrument = await this.getInstrumentInfo(symbol);
+    const qtyStepStr = instrument?.lotSizeFilter?.qtyStep ?? '0.001';
+    const minOrderQty = instrument?.lotSizeFilter?.minOrderQty != null
+      ? Number(instrument.lotSizeFilter.minOrderQty)
+      : 0.001;
+    const qtyStepNum = Number(qtyStepStr) || 0.001;
+
+    quantity = roundQtyToStep(quantity, qtyStepNum);
+    if (quantity < minOrderQty) quantity = minOrderQty;
+    const qtyStr = formatQtyForApi(quantity, qtyStepStr);
 
     this.logger?.info('Placing order (live)', {
       flow: 'broker_place_order',
