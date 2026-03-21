@@ -1,6 +1,4 @@
-import { randomUUID } from 'node:crypto';
 import type { CategoryV5 } from 'bybit-api';
-import type { OrderRecord } from '../core/types.js';
 import type { Instrument } from '../instrument/Instrument.js';
 import type { ILogger } from '../logger/ILogger.js';
 import type { IPositionBook } from '../position/IPositionBook.js';
@@ -45,7 +43,7 @@ export class TestBroker implements IBroker {
   }
 
   async placeOrder(input: PlaceOrderInput): Promise<void> {
-    const { instrument, side, qty, price } = input;
+    const { instrument, side, qty, price, roundTripId, deploymentId } = input;
     const q = instrument.roundQty(qty);
     const last = instrument.getCandles(1);
     if (last.length === 0) {
@@ -67,22 +65,29 @@ export class TestBroker implements IBroker {
     this.getPositionBook().applyEntry(instrument.symbol, side, q, refPrice, fee);
 
     const orderType = price !== undefined ? 'Limit' : 'Market';
-    const rec: OrderRecord = {
-      id: randomUUID(),
+    const barUnix = last[last.length - 1]!.dateUnix;
+    const tsMs = barUnix < 1e12 ? barUnix * 1000 : barUnix;
+    const now = Date.now();
+    await this.store.upsertOrderHistory({
+      id: roundTripId,
+      deploymentId,
       symbol: instrument.symbol,
-      side,
-      qty: String(q),
-      price: price !== undefined ? String(price) : undefined,
-      orderType,
-      status: 'filled',
-      createdAt: last[last.length - 1]?.dateUnix ?? Date.now(),
+      status: 'open',
+      updatedAtMs: now,
+      entrySide: side,
+      entryQty: q,
+      entryPrice: price ?? refPrice,
+      entryOrderType: orderType,
+      venueEntryOrderId: 'backtest',
+      entryAtMs: tsMs,
+      entryFee: fee,
+      entryTimestampMs: tsMs,
       raw: { mode: 'backtest', category: this.category },
-    };
-    await this.store.saveOrder(rec);
+    });
     this.logger.info('TestBroker fill', { symbol: instrument.symbol, side, qty: q, refPrice, fee });
   }
 
-  async closePosition(symbol: string, qty?: number, price?: number): Promise<void> {
+  async closePosition(symbol: string, roundTripId: string, qty?: number, price?: number): Promise<void> {
     const instrument = this.getInstrument(symbol);
     if (!instrument) {
       this.logger.warn('TestBroker.closePosition: unknown symbol', { symbol });
@@ -114,21 +119,25 @@ export class TestBroker implements IBroker {
     const fee = Math.abs(rounded * refPrice) * this.feeRate;
     book.applyEntry(symbol, closeSide, rounded, refPrice, fee);
 
-    const rec: OrderRecord = {
-      id: randomUUID(),
-      symbol,
-      side: closeSide,
-      qty: String(rounded),
-      orderType: 'Market',
-      status: 'filled',
-      createdAt: last[last.length - 1]?.dateUnix ?? Date.now(),
+    const barUnix = last[last.length - 1]!.dateUnix;
+    const tsMs = barUnix < 1e12 ? barUnix * 1000 : barUnix;
+    const now = Date.now();
+    await this.store.upsertOrderHistory({
+      id: roundTripId,
+      updatedAtMs: now,
+      status: 'closed',
+      venueExitOrderId: 'backtest',
+      exitAtMs: tsMs,
+      exitQty: rounded,
+      exitPrice: refPrice,
+      exitFee: fee,
+      exitTimestampMs: tsMs,
       raw: { mode: 'backtest', reduceOnly: true },
-    };
-    await this.store.saveOrder(rec);
+    });
     this.logger.info('TestBroker position closed', { symbol, side: closeSide, qty: rounded, refPrice, fee });
   }
 
-  async updateStopLoss(symbol: string, stopLoss: number): Promise<void> {
+  async updateStopLoss(symbol: string, stopLoss: number, roundTripId: string): Promise<void> {
     const instrument = this.getInstrument(symbol);
     if (!instrument) {
       this.logger.warn('TestBroker.updateStopLoss: unknown symbol', { symbol });
@@ -139,6 +148,11 @@ export class TestBroker implements IBroker {
       return;
     }
     const sl = instrument.roundPrice(stopLoss);
+    await this.store.upsertOrderHistory({
+      id: roundTripId,
+      updatedAtMs: Date.now(),
+      stopLoss: sl,
+    });
     this.logger.info('TestBroker updateStopLoss (no venue API)', { symbol, stopLoss: sl });
   }
 }

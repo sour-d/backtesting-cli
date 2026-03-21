@@ -1,6 +1,6 @@
 import { mkdir, appendFile, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import type { Candle, LogRecord, OrderRecord, TradeRecord } from '../core/types.js';
+import type { Candle, LogRecord, OrderHistoryPatch, TradeRecord } from '../core/types.js';
 import type { DeploymentState } from '../deployment/types.js';
 import type { PositionRecord } from '../position/types.js';
 import type { IStore, WarmupBarRow } from './IStore.js';
@@ -74,10 +74,8 @@ export class BacktestStore implements IStore {
     await appendFile(file, `${JSON.stringify(record)}\n`, 'utf8');
   }
 
-  async saveOrder(record: OrderRecord): Promise<void> {
-    const file = join(this.root, 'orders.jsonl');
-    await this.ensureDir(file);
-    await appendFile(file, `${JSON.stringify(record)}\n`, 'utf8');
+  async upsertOrderHistory(_patch: OrderHistoryPatch): Promise<void> {
+    /* no-op — backtest avoids order_history I/O */
   }
 
   async saveDeployment(state: DeploymentState): Promise<void> {

@@ -1,4 +1,4 @@
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -6,7 +6,9 @@ import { Instrument } from '../../instrument/Instrument.js';
 import type { InstrumentStatic } from '../../instrument/types.js';
 import type { ILogger } from '../../logger/ILogger.js';
 import { PositionManager } from '../../position/PositionManager.js';
+import type { IStore } from '../../store/IStore.js';
 import { BacktestStore } from '../../store/BacktestStore.js';
+import { FileStore } from '../../store/FileStore.js';
 import type { IBroker } from '../IBroker.js';
 import { TestBroker } from '../TestBroker.js';
 
@@ -26,6 +28,9 @@ const stubBroker = {
   stop: () => {},
 } as IBroker;
 
+const ROUND_TRIP_ID = '00000000-0000-4000-8000-0000000000a1';
+const DEPLOYMENT_ID = '00000000-0000-4000-8000-0000000000b2';
+
 const spec: InstrumentStatic = {
   symbol: 'SOLUSDT',
   category: 'linear',
@@ -37,7 +42,7 @@ const spec: InstrumentStatic = {
   qtyPrecision: 1,
 };
 
-function wirePm(store: BacktestStore, getInstrument: () => Instrument): void {
+function wirePm(store: IStore, getInstrument: () => Instrument): void {
   PositionManager.resetForTests();
   PositionManager.configure({
     broker: stubBroker,
@@ -83,6 +88,8 @@ describe('TestBroker', () => {
       side: 'Buy',
       qty: 0.5,
       price: undefined,
+      roundTripId: ROUND_TRIP_ID,
+      deploymentId: DEPLOYMENT_ID,
     });
 
     const snap = PositionManager.getInstance().getSnapshot(spec.symbol);
@@ -113,12 +120,19 @@ describe('TestBroker', () => {
       getPositionBook: () => PositionManager.getInstance(),
     });
 
-    await broker.placeOrder({ instrument: inst, side: 'Buy', qty: 0.5, price: undefined });
+    await broker.placeOrder({
+      instrument: inst,
+      side: 'Buy',
+      qty: 0.5,
+      price: undefined,
+      roundTripId: ROUND_TRIP_ID,
+      deploymentId: DEPLOYMENT_ID,
+    });
     expect(
       PositionManager.getInstance().getSnapshot(spec.symbol).currentPositionQty,
     ).toBeGreaterThan(0);
 
-    await broker.closePosition('SOLUSDT');
+    await broker.closePosition('SOLUSDT', ROUND_TRIP_ID);
     expect(
       Math.abs(PositionManager.getInstance().getSnapshot(spec.symbol).currentPositionQty),
     ).toBeLessThan(1e-9);
@@ -164,8 +178,10 @@ describe('TestBroker', () => {
       side: 'Buy',
       qty: 0.5,
       price: undefined,
+      roundTripId: ROUND_TRIP_ID,
+      deploymentId: DEPLOYMENT_ID,
     });
-    await brokerExplicit.closePosition('SOLUSDT', undefined, 96);
+    await brokerExplicit.closePosition('SOLUSDT', ROUND_TRIP_ID, undefined, 96);
     const capExplicit = PositionManager.getInstance().getSnapshot(spec.symbol).availableCapital;
 
     const instBarClose = mkInstrument();
@@ -184,10 +200,53 @@ describe('TestBroker', () => {
       side: 'Buy',
       qty: 0.5,
       price: undefined,
+      roundTripId: ROUND_TRIP_ID,
+      deploymentId: DEPLOYMENT_ID,
     });
-    await brokerBarClose.closePosition('SOLUSDT');
+    await brokerBarClose.closePosition('SOLUSDT', ROUND_TRIP_ID);
     const capBarClose = PositionManager.getInstance().getSnapshot(spec.symbol).availableCapital;
 
     expect(capExplicit).not.toBe(capBarClose);
+  });
+
+  it('FileStore order_history keeps one row id for entry then close', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'ql-oh-'));
+    const store = new FileStore(dir, 'paper');
+    const inst = new Instrument(spec, []);
+    inst.addCandle({
+      dateUnix: 1,
+      open: 100,
+      high: 101,
+      low: 99,
+      close: 100,
+      volume: 1,
+    });
+
+    wirePm(store, () => inst);
+
+    const broker = new TestBroker({
+      logger: noopLogger,
+      store,
+      category: 'linear',
+      feeRate: 0.001,
+      getInstrument: () => inst,
+      getPositionBook: () => PositionManager.getInstance(),
+    });
+
+    const rt = 'rt-single-id';
+    await broker.placeOrder({
+      instrument: inst,
+      side: 'Buy',
+      qty: 0.5,
+      price: undefined,
+      roundTripId: rt,
+      deploymentId: DEPLOYMENT_ID,
+    });
+    await broker.closePosition(spec.symbol, rt);
+
+    const raw = readFileSync(join(dir, 'paper', 'order_history.json'), 'utf8');
+    const map = JSON.parse(raw) as Record<string, { status?: string }>;
+    expect(Object.keys(map)).toEqual([rt]);
+    expect(map[rt]?.status).toBe('closed');
   });
 });

@@ -1,6 +1,5 @@
 import { RestClientV5 } from 'bybit-api';
 import type { CategoryV5 } from 'bybit-api';
-import type { OrderRecord } from '../core/types.js';
 import type { Instrument } from '../instrument/Instrument.js';
 import type { ILogger } from '../logger/ILogger.js';
 import type { IStore } from '../store/IStore.js';
@@ -68,7 +67,7 @@ export class LiveBroker implements IBroker {
   }
 
   async placeOrder(input: PlaceOrderInput): Promise<void> {
-    const { instrument, side, qty, price } = input;
+    const { instrument, side, qty, price, roundTripId, deploymentId } = input;
     const q = instrument.roundQty(qty);
     const last = instrument.getCandles(1);
     const lastClose = last[last.length - 1]?.close;
@@ -93,24 +92,31 @@ export class LiveBroker implements IBroker {
     });
 
     const orderId = res.result?.orderId ?? 'unknown';
-    const rec: OrderRecord = {
-      id: orderId,
+    const notional = Math.abs(q * refPrice);
+    const entryFee = notional * this.feeRate;
+    const now = Date.now();
+    await this.store.upsertOrderHistory({
+      id: roundTripId,
+      deploymentId,
       symbol: instrument.symbol,
-      side,
-      qty: String(q),
-      price: price !== undefined ? String(price) : undefined,
-      orderType,
-      status: 'submitted',
-      createdAt: Date.now(),
+      status: 'open',
+      updatedAtMs: now,
+      entrySide: side,
+      entryQty: q,
+      entryPrice: price ?? refPrice,
+      entryOrderType: orderType,
+      venueEntryOrderId: orderId,
+      entryAtMs: now,
+      entryFee,
+      entryTimestampMs: now,
       raw: res as unknown as Record<string, unknown>,
-    };
-    await this.store.saveOrder(rec);
+    });
 
     await this.syncPositionFromExchange(instrument.symbol);
     this.logger.info('Order submitted', { symbol: instrument.symbol, side, qty: q, orderType, orderId });
   }
 
-  async closePosition(symbol: string, qty?: number, price?: number): Promise<void> {
+  async closePosition(symbol: string, roundTripId: string, qty?: number, price?: number): Promise<void> {
     const instrument = this.getInstrument(symbol);
     if (!instrument) {
       this.logger.warn('closePosition: unknown symbol', { symbol });
@@ -129,7 +135,7 @@ export class LiveBroker implements IBroker {
     if (qClose <= 0) return;
 
     /** Live path: still market close; optional `price` is logged as strategy hint only. */
-    await this.rest.submitOrder({
+    const res = await this.rest.submitOrder({
       category: this.category,
       symbol,
       side: closeSide,
@@ -138,6 +144,24 @@ export class LiveBroker implements IBroker {
       reduceOnly: true,
     });
     await this.syncPositionFromExchange(symbol);
+    const last = instrument.getCandles(1);
+    const lastClose = last[last.length - 1]?.close;
+    const exitPx = price ?? lastClose ?? 0;
+    const exitFee = exitPx > 0 ? Math.abs(qClose * exitPx) * this.feeRate : 0;
+    const exitOid = res.result?.orderId ?? null;
+    const now = Date.now();
+    await this.store.upsertOrderHistory({
+      id: roundTripId,
+      updatedAtMs: now,
+      status: 'closed',
+      venueExitOrderId: exitOid,
+      exitAtMs: now,
+      exitQty: qClose,
+      exitPrice: exitPx > 0 ? exitPx : null,
+      exitFee,
+      exitTimestampMs: now,
+      raw: res as unknown as Record<string, unknown>,
+    });
     this.logger.info('Position close requested', {
       symbol,
       side: closeSide,
@@ -146,7 +170,7 @@ export class LiveBroker implements IBroker {
     });
   }
 
-  async updateStopLoss(symbol: string, stopLoss: number): Promise<void> {
+  async updateStopLoss(symbol: string, stopLoss: number, roundTripId: string): Promise<void> {
     if (this.category === 'spot' || this.category === 'option') {
       this.logger.warn('updateStopLoss: not supported for category', { category: this.category, symbol });
       return;
@@ -171,6 +195,12 @@ export class LiveBroker implements IBroker {
       stopLoss: String(sl),
       positionIdx: 0,
       slTriggerBy: 'LastPrice',
+    });
+    const now = Date.now();
+    await this.store.upsertOrderHistory({
+      id: roundTripId,
+      updatedAtMs: now,
+      stopLoss: sl,
     });
     this.logger.info('Trading stop updated', { symbol, stopLoss: sl });
   }

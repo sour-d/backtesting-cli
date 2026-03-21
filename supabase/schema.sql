@@ -6,6 +6,7 @@ DROP TABLE IF EXISTS positions CASCADE;
 DROP TABLE IF EXISTS trades CASCADE;
 DROP TABLE IF EXISTS live_trades CASCADE;
 DROP TABLE IF EXISTS live_orders CASCADE;
+DROP TABLE IF EXISTS order_history CASCADE;
 DROP TABLE IF EXISTS candles CASCADE;
 DROP TABLE IF EXISTS logs CASCADE;
 DROP TABLE IF EXISTS instrument_info CASCADE;
@@ -47,6 +48,7 @@ CREATE INDEX idx_positions_deployment ON positions (deployment_id);
 
 -- ============================================================
 -- candles (OHLCV + indicator snapshot per bar)
+-- date / time = wall clock in Asia/Kolkata (IST) for display; date_unix is canonical bar open (sec or ms).
 -- ============================================================
 CREATE TABLE candles (
   symbol      TEXT    NOT NULL,
@@ -66,37 +68,34 @@ CREATE TABLE candles (
 CREATE INDEX idx_candles_symbol_interval ON candles (symbol, interval);
 
 -- ============================================================
--- live_trades (TradeRecord — entry / exit / reconcile)
+-- order_history (one row per round-trip; same id as positions.id while open)
 -- ============================================================
-CREATE TABLE live_trades (
-  id            TEXT    PRIMARY KEY,
-  symbol        TEXT    NOT NULL,
-  side          TEXT    NOT NULL,
-  qty           NUMERIC NOT NULL,
-  price         NUMERIC NOT NULL,
-  fee           NUMERIC NOT NULL,
-  timestamp_ms  BIGINT  NOT NULL,
-  kind          TEXT    NOT NULL,
-  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+CREATE TABLE order_history (
+  id                    TEXT    PRIMARY KEY,
+  deployment_id         TEXT    NOT NULL REFERENCES deployments (id) ON DELETE CASCADE,
+  symbol                TEXT    NOT NULL,
+  status                TEXT    NOT NULL DEFAULT 'open',
+  entry_side            TEXT,
+  entry_qty             NUMERIC,
+  entry_price           NUMERIC,
+  entry_order_type      TEXT,
+  venue_entry_order_id  TEXT,
+  entry_at_ms           BIGINT,
+  entry_fee             NUMERIC,
+  entry_timestamp_ms    BIGINT,
+  stop_loss             NUMERIC,
+  venue_exit_order_id   TEXT,
+  exit_at_ms            BIGINT,
+  exit_qty              NUMERIC,
+  exit_price            NUMERIC,
+  exit_fee              NUMERIC,
+  exit_timestamp_ms     BIGINT,
+  updated_at_ms         BIGINT  NOT NULL,
+  raw                   JSONB
 );
 
-CREATE INDEX idx_live_trades_symbol ON live_trades (symbol);
-CREATE INDEX idx_live_trades_ts ON live_trades (timestamp_ms);
-
--- ============================================================
--- live_orders (OrderRecord)
--- ============================================================
-CREATE TABLE live_orders (
-  id             TEXT    PRIMARY KEY,
-  symbol         TEXT    NOT NULL,
-  side           TEXT    NOT NULL,
-  qty            TEXT    NOT NULL,
-  price          TEXT,
-  order_type     TEXT    NOT NULL,
-  status         TEXT    NOT NULL,
-  created_at_ms  BIGINT  NOT NULL,
-  raw            JSONB
-);
+CREATE INDEX idx_order_history_deployment_symbol ON order_history (deployment_id, symbol);
+CREATE INDEX idx_order_history_status ON order_history (status);
 
 -- ============================================================
 -- logs (DbSink / saveLog)
@@ -122,13 +121,11 @@ CREATE INDEX idx_logs_level ON logs (level);
 ALTER TABLE deployments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE positions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE candles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE live_trades ENABLE ROW LEVEL SECURITY;
-ALTER TABLE live_orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE order_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE logs ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "deployments_all" ON deployments FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "positions_all" ON positions FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "candles_all" ON candles FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "live_trades_all" ON live_trades FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "live_orders_all" ON live_orders FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "order_history_all" ON order_history FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "logs_all" ON logs FOR ALL USING (true) WITH CHECK (true);

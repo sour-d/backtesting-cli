@@ -275,6 +275,20 @@ export class PositionManager implements IPositionBook {
           exitSide,
           timestamp,
         });
+        const tsMs = timestamp < 1e12 ? timestamp * 1000 : timestamp;
+        const exitFee = this.feeRate > 0 ? exitQty * price * this.feeRate : 0;
+        await this.store.upsertOrderHistory({
+          id: row.id,
+          deploymentId: row.deploymentId,
+          symbol: row.symbol,
+          status: 'closed',
+          updatedAtMs: Date.now(),
+          exitQty,
+          exitPrice: price,
+          exitFee,
+          exitTimestampMs: tsMs,
+          venueExitOrderId: 'venue',
+        });
       }
       await this.store.deletePosition(row.id);
       this.clearSymbol(symbol);
@@ -352,8 +366,14 @@ export class PositionManager implements IPositionBook {
       signal.price > 0
         ? signal.price
         : undefined;
+    const roundTripId = this.getOpenPositionId(symbol);
+    if (!roundTripId) {
+      this.logger.debug('CLOSE ignored — no open position id', { symbol });
+      return;
+    }
     await this.broker.closePosition(
       symbol,
+      roundTripId,
       closeAll ? undefined : exitQty,
       strategyExitPrice,
     );
@@ -410,10 +430,14 @@ export class PositionManager implements IPositionBook {
       return;
     }
     const uid = this.getOpenPositionId(instrument.symbol);
-    await this.broker.updateStopLoss(instrument.symbol, signal.stopLoss);
-    if (uid) {
-      await this.store.updatePositionStopLoss(uid, signal.stopLoss, Date.now());
+    if (!uid) {
+      this.logger.debug('UPDATE_SL ignored — no position id', {
+        symbol: instrument.symbol,
+      });
+      return;
     }
+    await this.broker.updateStopLoss(instrument.symbol, signal.stopLoss, uid);
+    await this.store.updatePositionStopLoss(uid, signal.stopLoss, Date.now());
     this.logger.info('Signal UPDATE_SL executed', {
       symbol: instrument.symbol,
       stopLoss: signal.stopLoss,
@@ -430,11 +454,16 @@ export class PositionManager implements IPositionBook {
     deploymentId: string,
   ): Promise<void> {
     const side = signal.action === 'BUY' ? 'Buy' : 'Sell';
+    const symbol = instrument.symbol;
+    const preUid = this.getOpenPositionId(symbol);
+    const roundTripId = preUid ?? randomUUID();
     await this.broker.placeOrder({
       instrument,
       side,
       qty: signal.qty,
       price: signal.price,
+      roundTripId,
+      deploymentId,
     });
 
     await this.persistTrade({
@@ -446,7 +475,6 @@ export class PositionManager implements IPositionBook {
       side,
     });
 
-    const symbol = instrument.symbol;
     const uid = this.getOpenPositionId(symbol);
     const now = Date.now();
     const q = this.getSnapshot(symbol).currentPositionQty;
@@ -469,9 +497,8 @@ export class PositionManager implements IPositionBook {
         updatedAtMs: now,
       });
     } else {
-      const id = randomUUID();
       const rec: PositionRecord = {
-        id,
+        id: roundTripId,
         deploymentId,
         symbol,
         side: posSide,
@@ -482,7 +509,7 @@ export class PositionManager implements IPositionBook {
         updatedAtMs: now,
       };
       await this.store.createPosition(rec);
-      this.registerOpenPosition(symbol, id, deploymentId);
+      this.registerOpenPosition(symbol, roundTripId, deploymentId);
     }
 
     this.logger.info('Signal executed', {

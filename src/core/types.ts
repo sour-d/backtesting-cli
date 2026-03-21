@@ -15,17 +15,36 @@ export interface EnrichedCandle extends Candle {
 
 export type OrderSide = 'Buy' | 'Sell';
 
-export interface OrderRecord {
+/** One DB row per round-trip (same id as `positions.id` while open). */
+export type OrderHistoryStatus = 'open' | 'closed';
+
+export interface OrderHistoryRecord {
   readonly id: string;
+  readonly deploymentId: string;
   readonly symbol: string;
-  readonly side: OrderSide;
-  readonly qty: string;
-  readonly price?: string;
-  readonly orderType: string;
-  readonly status: string;
-  readonly createdAt: number;
-  readonly raw?: Record<string, unknown>;
+  readonly status: OrderHistoryStatus;
+  readonly updatedAtMs: number;
+  readonly entrySide?: OrderSide;
+  readonly entryQty?: number;
+  readonly entryPrice?: number | null;
+  readonly entryOrderType?: string;
+  readonly venueEntryOrderId?: string | null;
+  readonly entryAtMs?: number | null;
+  readonly entryFee?: number | null;
+  readonly entryTimestampMs?: number | null;
+  readonly stopLoss?: number | null;
+  readonly venueExitOrderId?: string | null;
+  readonly exitAtMs?: number | null;
+  readonly exitQty?: number | null;
+  readonly exitPrice?: number | null;
+  readonly exitFee?: number | null;
+  readonly exitTimestampMs?: number | null;
+  readonly raw?: Record<string, unknown> | null;
 }
+
+/** Patch for merge; first insert must include deploymentId, symbol, status. */
+export type OrderHistoryPatch = Partial<Omit<OrderHistoryRecord, 'id'>> &
+  Pick<OrderHistoryRecord, 'id' | 'updatedAtMs'>;
 
 export interface FillRecord {
   readonly id: string;

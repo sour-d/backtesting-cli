@@ -1,9 +1,10 @@
 import { mkdir, appendFile, readFile, unlink, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import type { Candle, LogRecord, OrderRecord, TradeRecord } from '../core/types.js';
+import type { Candle, LogRecord, OrderHistoryPatch, OrderHistoryRecord, TradeRecord } from '../core/types.js';
 import type { DeploymentState } from '../deployment/types.js';
 import type { PositionRecord } from '../position/types.js';
 import type { IStore, WarmupBarRow } from './IStore.js';
+import { mergeOrderHistory } from './orderHistoryMerge.js';
 
 export class FileStore implements IStore {
   private readonly root: string;
@@ -19,6 +20,10 @@ export class FileStore implements IStore {
 
   private positionsPath(): string {
     return join(this.root, 'positions.json');
+  }
+
+  private orderHistoryPath(): string {
+    return join(this.root, 'order_history.json');
   }
 
   private async readPositions(): Promise<PositionRecord[]> {
@@ -115,10 +120,23 @@ export class FileStore implements IStore {
     await appendFile(file, `${JSON.stringify(record)}\n`, 'utf8');
   }
 
-  async saveOrder(record: OrderRecord): Promise<void> {
-    const file = join(this.root, 'orders.jsonl');
+  async upsertOrderHistory(patch: OrderHistoryPatch): Promise<void> {
+    const file = this.orderHistoryPath();
+    let map: Record<string, OrderHistoryRecord> = {};
+    try {
+      const raw = await readFile(file, 'utf8');
+      const parsed = JSON.parse(raw) as unknown;
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        map = parsed as Record<string, OrderHistoryRecord>;
+      }
+    } catch {
+      /* empty file */
+    }
+    const existing = map[patch.id] ?? null;
+    const merged = mergeOrderHistory(existing, patch);
+    map[patch.id] = merged;
     await this.ensureDir(file);
-    await appendFile(file, `${JSON.stringify(record)}\n`, 'utf8');
+    await writeFile(file, JSON.stringify(map, null, 2), 'utf8');
   }
 
   async saveDeployment(state: DeploymentState): Promise<void> {

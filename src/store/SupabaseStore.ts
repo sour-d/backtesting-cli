@@ -1,8 +1,63 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import type { Candle, LogRecord, OrderRecord, TradeRecord } from '../core/types.js';
+import type { Candle, LogRecord, OrderHistoryPatch, OrderHistoryRecord, TradeRecord } from '../core/types.js';
 import type { DeploymentState } from '../deployment/types.js';
 import type { PositionRecord } from '../position/types.js';
 import type { IStore, WarmupBarRow } from './IStore.js';
+import { candleDatePartsIST } from './candleTime.js';
+import { mergeOrderHistory } from './orderHistoryMerge.js';
+
+function mapOrderHistoryRow(row: Record<string, unknown>): OrderHistoryRecord {
+  const side = row.entry_side;
+  return {
+    id: String(row.id),
+    deploymentId: String(row.deployment_id),
+    symbol: String(row.symbol),
+    status: row.status === 'closed' ? 'closed' : 'open',
+    updatedAtMs: Number(row.updated_at_ms),
+    entrySide: side === 'Sell' || side === 'Buy' ? side : undefined,
+    entryQty: row.entry_qty != null && row.entry_qty !== '' ? Number(row.entry_qty) : undefined,
+    entryPrice: row.entry_price != null && row.entry_price !== '' ? Number(row.entry_price) : null,
+    entryOrderType: row.entry_order_type != null ? String(row.entry_order_type) : undefined,
+    venueEntryOrderId: row.venue_entry_order_id != null ? String(row.venue_entry_order_id) : null,
+    entryAtMs: row.entry_at_ms != null ? Number(row.entry_at_ms) : null,
+    entryFee: row.entry_fee != null && row.entry_fee !== '' ? Number(row.entry_fee) : null,
+    entryTimestampMs: row.entry_timestamp_ms != null ? Number(row.entry_timestamp_ms) : null,
+    stopLoss: row.stop_loss != null && row.stop_loss !== '' ? Number(row.stop_loss) : null,
+    venueExitOrderId: row.venue_exit_order_id != null ? String(row.venue_exit_order_id) : null,
+    exitAtMs: row.exit_at_ms != null ? Number(row.exit_at_ms) : null,
+    exitQty: row.exit_qty != null && row.exit_qty !== '' ? Number(row.exit_qty) : null,
+    exitPrice: row.exit_price != null && row.exit_price !== '' ? Number(row.exit_price) : null,
+    exitFee: row.exit_fee != null && row.exit_fee !== '' ? Number(row.exit_fee) : null,
+    exitTimestampMs: row.exit_timestamp_ms != null ? Number(row.exit_timestamp_ms) : null,
+    raw: row.raw != null && typeof row.raw === 'object' ? (row.raw as Record<string, unknown>) : null,
+  };
+}
+
+function orderHistoryToRow(rec: OrderHistoryRecord): Record<string, unknown> {
+  return {
+    id: rec.id,
+    deployment_id: rec.deploymentId,
+    symbol: rec.symbol,
+    status: rec.status,
+    entry_side: rec.entrySide ?? null,
+    entry_qty: rec.entryQty ?? null,
+    entry_price: rec.entryPrice ?? null,
+    entry_order_type: rec.entryOrderType ?? null,
+    venue_entry_order_id: rec.venueEntryOrderId ?? null,
+    entry_at_ms: rec.entryAtMs ?? null,
+    entry_fee: rec.entryFee ?? null,
+    entry_timestamp_ms: rec.entryTimestampMs ?? null,
+    stop_loss: rec.stopLoss ?? null,
+    venue_exit_order_id: rec.venueExitOrderId ?? null,
+    exit_at_ms: rec.exitAtMs ?? null,
+    exit_qty: rec.exitQty ?? null,
+    exit_price: rec.exitPrice ?? null,
+    exit_fee: rec.exitFee ?? null,
+    exit_timestamp_ms: rec.exitTimestampMs ?? null,
+    updated_at_ms: rec.updatedAtMs,
+    raw: rec.raw ?? null,
+  };
+}
 
 function mapPositionRow(row: Record<string, unknown>): PositionRecord {
   return {
@@ -22,13 +77,6 @@ function mapPositionRow(row: Record<string, unknown>): PositionRecord {
   };
 }
 
-function candleDateParts(dateUnix: number): { date: string; time: string } {
-  const ms = dateUnix < 1e12 ? dateUnix * 1000 : dateUnix;
-  const d = new Date(ms);
-  const iso = d.toISOString();
-  return { date: iso.slice(0, 10), time: iso.slice(11, 19) };
-}
-
 export class SupabaseStore implements IStore {
   private readonly client: SupabaseClient;
 
@@ -44,7 +92,7 @@ export class SupabaseStore implements IStore {
     candle: Candle,
     indicators: Record<string, unknown>,
   ): Promise<void> {
-    const { date, time } = candleDateParts(candle.dateUnix);
+    const { date, time } = candleDatePartsIST(candle.dateUnix);
     const { error } = await this.client.from('candles').upsert(
       {
         symbol,
@@ -119,33 +167,19 @@ export class SupabaseStore implements IStore {
       }));
   }
 
-  async saveTrade(record: TradeRecord): Promise<void> {
-    const { error } = await this.client.from('live_trades').insert({
-      id: record.id,
-      symbol: record.symbol,
-      side: record.side,
-      qty: record.qty,
-      price: record.price,
-      fee: record.fee,
-      timestamp_ms: record.timestamp,
-      kind: record.kind,
-    });
-    if (error) throw new Error(`saveTrade: ${error.message}`);
+  /** `live_trades` removed from schema; trade history will live in `order_history` when implemented. */
+  async saveTrade(_record: TradeRecord): Promise<void> {
+    /* no-op for Supabase */
   }
 
-  async saveOrder(record: OrderRecord): Promise<void> {
-    const { error } = await this.client.from('live_orders').insert({
-      id: record.id,
-      symbol: record.symbol,
-      side: record.side,
-      qty: record.qty,
-      price: record.price ?? null,
-      order_type: record.orderType,
-      status: record.status,
-      created_at_ms: record.createdAt,
-      raw: record.raw ?? null,
-    });
-    if (error) throw new Error(`saveOrder: ${error.message}`);
+  async upsertOrderHistory(patch: OrderHistoryPatch): Promise<void> {
+    const { data } = await this.client.from('order_history').select('*').eq('id', patch.id).maybeSingle();
+    const existing = data ? mapOrderHistoryRow(data as Record<string, unknown>) : null;
+    const merged = mergeOrderHistory(existing, patch);
+    const { error } = await this.client
+      .from('order_history')
+      .upsert(orderHistoryToRow(merged), { onConflict: 'id' });
+    if (error) throw new Error(`upsertOrderHistory: ${error.message}`);
   }
 
   async saveDeployment(state: DeploymentState): Promise<void> {

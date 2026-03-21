@@ -1,4 +1,4 @@
-import type { Candle, LogRecord, OrderRecord, TradeRecord } from '../core/types.js';
+import type { Candle, LogRecord, OrderHistoryPatch, TradeRecord } from '../core/types.js';
 import type { DeploymentState } from '../deployment/types.js';
 import type { PositionRecord } from '../position/types.js';
 
@@ -33,7 +33,8 @@ export interface IStore {
   loadRecentCandles(symbol: string, klineInterval: string, limit: number): Promise<Candle[]>;
 
   saveTrade(record: TradeRecord): Promise<void>;
-  saveOrder(record: OrderRecord): Promise<void>;
+  /** Merge by `id` into `order_history` (file/Supabase). */
+  upsertOrderHistory(patch: OrderHistoryPatch): Promise<void>;
 
   saveDeployment(state: DeploymentState): Promise<void>;
   loadDeployments(): Promise<DeploymentState[]>;
