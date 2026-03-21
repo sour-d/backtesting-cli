@@ -1,6 +1,7 @@
 import type { CategoryV5 } from "bybit-api";
 import { createBot } from "../bot/createBot.js";
 import { createBroker } from "../broker/createBroker.js";
+import { PositionManager } from "../position/PositionManager.js";
 import { parseKlineInterval } from "../config/klineInterval.js";
 import { createLogger } from "../logger/createLogger.js";
 import { createMarketRuntime } from "../market-runtime/createMarketRuntime.js";
@@ -73,6 +74,7 @@ export function createLiveEngine(config: LiveEngineConfig): LiveEngineHandles {
     testnet: config.testnet,
     demoTrading: config.demoTrading,
     getInstrument: (symbol) => marketRuntime.getInstrument(symbol),
+    getPositionBook: () => PositionManager.getInstance(),
   });
 
   const bot = createBot(MODE, {
@@ -82,6 +84,7 @@ export function createLiveEngine(config: LiveEngineConfig): LiveEngineHandles {
     marketRuntime,
     strategies,
     defaultKlineInterval: config.klineInterval,
+    positionReconcileIntervalMs: 30_000,
   });
 
   return { store, logger, marketRuntime, broker, bot, strategies };

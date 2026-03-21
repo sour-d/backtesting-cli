@@ -1,5 +1,5 @@
-import type { EnrichedCandle } from '../../core/types.js';
 import type { Instrument } from '../../instrument/Instrument.js';
+import type { PositionBookSnapshot } from '../../position/types.js';
 import type { ILogger } from '../../logger/ILogger.js';
 import type { IndicatorCompute } from '../../indicator/types.js';
 import type { IStrategy } from '../IStrategy.js';
@@ -15,7 +15,7 @@ export class NoopStrategy implements IStrategy {
     return [];
   }
 
-  async evaluate(_instrument: Instrument, _candle: EnrichedCandle): Promise<StrategyEvaluateResult | StrategyEvaluateResult[]> {
+  async evaluate(_instrument: Instrument, _position: PositionBookSnapshot): Promise<StrategyEvaluateResult | StrategyEvaluateResult[]> {
     this.logger.debug('noop evaluate');
     return { action: 'HOLD' };
   }

@@ -1,7 +1,26 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { Candle, LogRecord, OrderRecord, TradeRecord } from '../core/types.js';
 import type { DeploymentState } from '../deployment/types.js';
+import type { PositionRecord } from '../position/types.js';
 import type { IStore, WarmupBarRow } from './IStore.js';
+
+function mapPositionRow(row: Record<string, unknown>): PositionRecord {
+  return {
+    id: String(row.id),
+    deploymentId: String(row.deployment_id),
+    symbol: String(row.symbol),
+    side: row.side === 'Sell' ? 'Sell' : 'Buy',
+    qty: Number(row.qty),
+    avgEntryPrice:
+      row.avg_entry_price != null && row.avg_entry_price !== ''
+        ? Number(row.avg_entry_price)
+        : undefined,
+    stopLoss:
+      row.stop_loss != null && row.stop_loss !== '' ? Number(row.stop_loss) : null,
+    openedAtMs: Number(row.opened_at_ms),
+    updatedAtMs: Number(row.updated_at_ms),
+  };
+}
 
 function candleDateParts(dateUnix: number): { date: string; time: string } {
   const ms = dateUnix < 1e12 ? dateUnix * 1000 : dateUnix;
@@ -166,6 +185,66 @@ export class SupabaseStore implements IStore {
   async deleteDeployment(id: string): Promise<void> {
     const { error } = await this.client.from('deployments').delete().eq('id', id);
     if (error) throw new Error(`deleteDeployment: ${error.message}`);
+  }
+
+  async createPosition(record: PositionRecord): Promise<void> {
+    const { error } = await this.client.from('positions').insert({
+      id: record.id,
+      deployment_id: record.deploymentId,
+      symbol: record.symbol,
+      side: record.side,
+      qty: record.qty,
+      avg_entry_price: record.avgEntryPrice ?? null,
+      stop_loss: record.stopLoss,
+      opened_at_ms: record.openedAtMs,
+      updated_at_ms: record.updatedAtMs,
+    });
+    if (error) throw new Error(`createPosition: ${error.message}`);
+  }
+
+  async updatePositionStopLoss(id: string, stopLoss: number, updatedAtMs: number): Promise<void> {
+    const { error } = await this.client
+      .from('positions')
+      .update({ stop_loss: stopLoss, updated_at_ms: updatedAtMs })
+      .eq('id', id);
+    if (error) throw new Error(`updatePositionStopLoss: ${error.message}`);
+  }
+
+  async updatePositionOpenSnapshot(
+    id: string,
+    fields: {
+      readonly qty: number;
+      readonly avgEntryPrice: number | undefined;
+      readonly side: 'Buy' | 'Sell';
+      readonly updatedAtMs: number;
+    },
+  ): Promise<void> {
+    const { error } = await this.client
+      .from('positions')
+      .update({
+        qty: fields.qty,
+        avg_entry_price: fields.avgEntryPrice ?? null,
+        side: fields.side,
+        updated_at_ms: fields.updatedAtMs,
+      })
+      .eq('id', id);
+    if (error) throw new Error(`updatePositionOpenSnapshot: ${error.message}`);
+  }
+
+  async deletePosition(id: string): Promise<void> {
+    const { error } = await this.client.from('positions').delete().eq('id', id);
+    if (error) throw new Error(`deletePosition: ${error.message}`);
+  }
+
+  async loadPositionByDeploymentId(deploymentId: string): Promise<PositionRecord | null> {
+    const { data, error } = await this.client
+      .from('positions')
+      .select('*')
+      .eq('deployment_id', deploymentId)
+      .maybeSingle();
+    if (error) throw new Error(`loadPositionByDeploymentId: ${error.message}`);
+    if (!data) return null;
+    return mapPositionRow(data as Record<string, unknown>);
   }
 
   async saveLog(record: LogRecord): Promise<void> {

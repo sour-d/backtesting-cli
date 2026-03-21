@@ -1,6 +1,7 @@
 import type { EnrichedCandle } from "../../core/types.js";
 import type { IndicatorCompute } from "../../indicator/types.js";
 import type { Instrument } from "../../instrument/Instrument.js";
+import type { PositionBookSnapshot } from "../../position/types.js";
 import { atrEmaFromLast } from "../indicators/atrEma.js";
 import { smaAt } from "../indicators/rollingSma.js";
 import {
@@ -54,10 +55,10 @@ function qtyFromRisk(
   return qty;
 }
 
-function positionSideFromInstrument(
-  instrument: Instrument,
+function positionSideFromSnapshot(
+  position: PositionBookSnapshot,
 ): PositionSide | null {
-  const q = instrument.currentPositionQty;
+  const q = position.currentPositionQty;
   if (Math.abs(q) < 1e-12) return null;
   return q > 0 ? "Buy" : "Sell";
 }
@@ -123,6 +124,7 @@ export class MovingAverageV2Strategy implements IStrategy {
    */
   async evaluate(
     instrument: Instrument,
+    position: PositionBookSnapshot,
   ): Promise<StrategyEvaluateResult | StrategyEvaluateResult[]> {
     const candles = instrument.getCandles(2);
     if (candles.length < 2) {
@@ -135,34 +137,34 @@ export class MovingAverageV2Strategy implements IStrategy {
 
     const now = candles[candles.length - 1]!;
     const prev = candles[candles.length - 2]!;
-    const pos = positionSideFromInstrument(instrument);
+    const pos = positionSideFromSnapshot(position);
 
     mav2Log("evaluate", {
       symbol: instrument.symbol,
       dateUnix: now.dateUnix,
       position: pos ?? "flat",
-      capital: instrument.allocatedCapital,
+      capital: position.allocatedCapital,
       barCount: instrument.getCandles().length,
     });
 
     if (pos === "Buy") {
-      const out = this.coalesce(this.longSquareOff(instrument, now, prev));
+      const out = this.coalesce(this.longSquareOff(instrument, position, now, prev));
       mav2Log("evaluate: long path (longSquareOff)", { result: out });
       return out;
     }
     if (pos === "Sell") {
-      const out = this.coalesce(this.shortSquareOff(instrument, now, prev));
+      const out = this.coalesce(this.shortSquareOff(instrument, position, now, prev));
       mav2Log("evaluate: short path (shortSquareOff)", { result: out });
       return out;
     }
 
-    const longSignals = this.buy(instrument, now, prev);
+    const longSignals = this.buy(instrument, position, now, prev);
     if (longSignals.length > 0) {
       mav2Log("evaluate: BUY", { signals: longSignals });
       return this.coalesce(longSignals);
     }
 
-    const shortSignals = this.sell(instrument, now, prev);
+    const shortSignals = this.sell(instrument, position, now, prev);
     if (shortSignals.length > 0) {
       mav2Log("evaluate: SELL", { signals: shortSignals });
       return this.coalesce(shortSignals);
@@ -175,6 +177,7 @@ export class MovingAverageV2Strategy implements IStrategy {
   /** Long entry — same conditions as legacy `buy()`. */
   private buy(
     instrument: Instrument,
+    position: PositionBookSnapshot,
     today: EnrichedCandle,
     yesterday: EnrichedCandle,
   ): StrategyEvaluateResult[] {
@@ -182,7 +185,11 @@ export class MovingAverageV2Strategy implements IStrategy {
     const ma200close = today.indicators.ma200close as number | undefined;
     const st = stDirection(today);
 
-    if (ma200close !== undefined && ma200close > 0 && today.close <= ma200close) {
+    if (
+      ma200close !== undefined &&
+      ma200close > 0 &&
+      today.close <= ma200close
+    ) {
       mav2Log("buy: skip — close <= SMA200", {
         close: today.close,
         ma200close,
@@ -194,7 +201,9 @@ export class MovingAverageV2Strategy implements IStrategy {
     const yesterdayBody = yesterday.indicators.body as number;
 
     const aboveMa50High =
-      ma50high !== undefined && Number.isFinite(ma50high) && today.close > ma50high;
+      ma50high !== undefined &&
+      Number.isFinite(ma50high) &&
+      today.close > ma50high;
     const bodiesOk = todayBody > 0 && yesterdayBody > 0;
     const stBuy = st === "Buy";
 
@@ -222,7 +231,7 @@ export class MovingAverageV2Strategy implements IStrategy {
     }
 
     const q = qtyFromRisk(
-      instrument.allocatedCapital,
+      position.allocatedCapital,
       P.riskPercentage,
       P.maxAllocation,
       buyingPrice,
@@ -231,7 +240,7 @@ export class MovingAverageV2Strategy implements IStrategy {
     );
     if (q <= 0) {
       mav2Log("buy: qtyFromRisk returned 0", {
-        capital: instrument.allocatedCapital,
+        capital: position.allocatedCapital,
         riskPct: P.riskPercentage,
         buyingPrice,
         riskPerUnit,
@@ -254,6 +263,7 @@ export class MovingAverageV2Strategy implements IStrategy {
   /** Short entry — same conditions as legacy `sell()`. */
   private sell(
     instrument: Instrument,
+    position: PositionBookSnapshot,
     today: EnrichedCandle,
     yesterday: EnrichedCandle,
   ): StrategyEvaluateResult[] {
@@ -261,7 +271,11 @@ export class MovingAverageV2Strategy implements IStrategy {
     const ma200close = today.indicators.ma200close as number | undefined;
     const st = stDirection(today);
 
-    if (ma200close !== undefined && ma200close > 0 && today.close >= ma200close) {
+    if (
+      ma200close !== undefined &&
+      ma200close > 0 &&
+      today.close >= ma200close
+    ) {
       mav2Log("sell: skip — close >= SMA200", {
         close: today.close,
         ma200close,
@@ -273,7 +287,9 @@ export class MovingAverageV2Strategy implements IStrategy {
     const yesterdayBody = yesterday.indicators.body as number;
 
     const belowMa50Low =
-      ma50low !== undefined && Number.isFinite(ma50low) && today.close < ma50low;
+      ma50low !== undefined &&
+      Number.isFinite(ma50low) &&
+      today.close < ma50low;
     const bodiesOk = todayBody < 0 && yesterdayBody < 0;
     const stSell = st === "Sell";
 
@@ -296,12 +312,15 @@ export class MovingAverageV2Strategy implements IStrategy {
     const initialStopLoss = sellingPrice * (1 + P.stopLossPct);
     const riskPerUnit = initialStopLoss - sellingPrice;
     if (riskPerUnit <= 0) {
-      mav2Log("sell: skip — riskPerUnit <= 0", { sellingPrice, initialStopLoss });
+      mav2Log("sell: skip — riskPerUnit <= 0", {
+        sellingPrice,
+        initialStopLoss,
+      });
       return [];
     }
 
     const q = qtyFromRisk(
-      instrument.allocatedCapital,
+      position.allocatedCapital,
       P.riskPercentage,
       P.maxAllocation,
       sellingPrice,
@@ -310,7 +329,7 @@ export class MovingAverageV2Strategy implements IStrategy {
     );
     if (q <= 0) {
       mav2Log("sell: qtyFromRisk returned 0", {
-        capital: instrument.allocatedCapital,
+        capital: position.allocatedCapital,
         sellingPrice,
         riskPerUnit,
         minQty: instrument.minQty,
@@ -332,11 +351,13 @@ export class MovingAverageV2Strategy implements IStrategy {
   /** Exit long; optional short entry on same bar (legacy `longSquareOff` + `sell`). */
   private longSquareOff(
     instrument: Instrument,
+    position: PositionBookSnapshot,
     today: EnrichedCandle,
     yesterday: EnrichedCandle,
   ): StrategyEvaluateResult[] {
     const todayBody = today.indicators.body as number;
     const ma50highYesterday = yesterday.indicators.ma50high as number;
+    const ma50highToday = today.indicators.ma50high as number;
 
     if (ma50highYesterday > today.low && todayBody < 0) {
       mav2Log("longSquareOff: exit long (+ optional short)", {
@@ -347,21 +368,23 @@ export class MovingAverageV2Strategy implements IStrategy {
       const out: StrategyEvaluateResult[] = [
         { action: "CLOSE", price: ma50highYesterday },
       ];
-      const shortSignals = this.sell(instrument, today, yesterday);
+      const shortSignals = this.sell(instrument, position, today, yesterday);
       if (shortSignals.length > 0) out.push(shortSignals[0]!);
       return out;
     }
-    return [];
+    return [{ action: "UPDATE_SL", stopLoss: ma50highToday }];
   }
 
   /** Exit short; optional long entry on same bar (legacy `shortSquareOff` + `buy`). */
   private shortSquareOff(
     instrument: Instrument,
+    position: PositionBookSnapshot,
     today: EnrichedCandle,
     yesterday: EnrichedCandle,
   ): StrategyEvaluateResult[] {
     const todayBody = today.indicators.body as number;
     const ma50lowYesterday = yesterday.indicators.ma50low as number;
+    const ma50lowToday = today.indicators.ma50low as number;
 
     if (today.high > ma50lowYesterday && todayBody > 0) {
       mav2Log("shortSquareOff: exit short (+ optional long)", {
@@ -372,11 +395,11 @@ export class MovingAverageV2Strategy implements IStrategy {
       const out: StrategyEvaluateResult[] = [
         { action: "CLOSE", price: ma50lowYesterday },
       ];
-      const longSignals = this.buy(instrument, today, yesterday);
+      const longSignals = this.buy(instrument, position, today, yesterday);
       if (longSignals.length > 0) out.push(longSignals[0]!);
       return out;
     }
-    return [];
+    return [{ action: "UPDATE_SL", stopLoss: ma50lowToday }];
   }
 
   private coalesce(

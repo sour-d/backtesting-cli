@@ -1,6 +1,3 @@
-import { randomUUID } from "node:crypto";
-import type { EnrichedCandle } from "../core/types.js";
-import type { TradeRecord } from "../core/types.js";
 import type { DeploymentState } from "../deployment/types.js";
 import { Instrument } from "../instrument/Instrument.js";
 import type { ILogger } from "../logger/ILogger.js";
@@ -9,7 +6,7 @@ import type { IBroker } from "../broker/IBroker.js";
 import type { IStore } from "../store/IStore.js";
 import type { IStrategy } from "../strategy/IStrategy.js";
 import type { StrategyRegistry } from "../strategy/StrategyRegistry.js";
-import type { StrategyEvaluateResult } from "../strategy/types.js";
+import { PositionManager } from "../position/PositionManager.js";
 import { parseKlineInterval } from "../config/klineInterval.js";
 
 function applyIndicatorRegistrations(
@@ -37,10 +34,15 @@ export interface BotDeps {
   readonly broker: IBroker;
   readonly marketRuntime: IMarketRuntime;
   readonly strategies: StrategyRegistry;
-  /** When set (e.g. backtest), used for `TradeRecord.fee` in `persistTrade`. */
+  /** When set (e.g. backtest), used for `TradeRecord.fee` in `PositionManager`. */
   readonly feeRate?: number;
   /** Raw interval string (e.g. from `KLINE_INTERVAL` / `--interval` / quantlab config). */
   readonly defaultKlineInterval: string;
+  /**
+   * Live: interval (ms) for {@link PositionManager} to sync tracked symbols from the venue and align DB + exit trades.
+   * `0` disables (default / backtest).
+   */
+  readonly positionReconcileIntervalMs?: number;
 }
 
 /**
@@ -54,10 +56,10 @@ export class Bot {
   private readonly registry: StrategyRegistry;
   private readonly feeRate: number;
   private readonly defaultKlineInterval: string;
-  /** In-memory routing: which strategy id applies to each deployed symbol (persisted deployments are source of truth). */
+  /** In-memory routing: strategy + deployment id per symbol (persisted deployments are source of truth). */
   private readonly activeDeployments = new Map<
     string,
-    { readonly strategyId: string }
+    { readonly strategyId: string; readonly deploymentId: string }
   >();
 
   constructor(deps: BotDeps) {
@@ -68,6 +70,15 @@ export class Bot {
     this.registry = deps.strategies;
     this.feeRate = deps.feeRate ?? 0;
     this.defaultKlineInterval = deps.defaultKlineInterval;
+
+    PositionManager.configure({
+      broker: deps.broker,
+      store: deps.store,
+      feeRate: this.feeRate,
+      logger: deps.logger,
+      getInstrument: (symbol) => deps.marketRuntime.getInstrument(symbol),
+      reconcileIntervalMs: deps.positionReconcileIntervalMs ?? 0,
+    });
   }
 
   async deploy(req: DeployRequest): Promise<{ readonly klineInterval: string }> {
@@ -81,10 +92,17 @@ export class Bot {
 
     const spec = await this.marketRuntime.fetchInstrumentStatic(req.symbol);
     const instrument = new Instrument(spec, strategy.getIndicators() ?? []);
-    instrument.setCapitalAllocation(req.capital, req.capital);
+    PositionManager.getInstance().setCapitalAllocation(
+      req.symbol,
+      req.capital,
+      req.capital,
+    );
     await this.marketRuntime.registerInstrument(instrument, { klineInterval });
 
-    this.activeDeployments.set(req.symbol, { strategyId: req.strategyId });
+    this.activeDeployments.set(req.symbol, {
+      strategyId: req.strategyId,
+      deploymentId: req.id,
+    });
 
     const state: DeploymentState = {
       id: req.id,
@@ -115,6 +133,7 @@ export class Bot {
       throw new Error(`Deployment not found: ${id}`);
     }
 
+    PositionManager.getInstance().purgeSymbol(d.symbol);
     await this.marketRuntime.unregisterInstrument(d.symbol);
     this.activeDeployments.delete(d.symbol);
     await this.store.deleteDeployment(id);
@@ -124,6 +143,7 @@ export class Bot {
   async restoreDeployments(): Promise<void> {
     const rows = await this.store.loadDeployments();
     const live = rows.filter((r) => r.status === "active");
+    const pm = PositionManager.getInstance();
     for (const d of live) {
       const strategy = this.registry.resolve(d.strategyId);
       if (!strategy) {
@@ -138,11 +158,21 @@ export class Bot {
 
       const spec = await this.marketRuntime.fetchInstrumentStatic(d.symbol);
       const instrument = new Instrument(spec, strategy.getIndicators());
-      instrument.setCapitalAllocation(d.capital, d.capital);
+      pm.setCapitalAllocation(d.symbol, d.capital, d.capital);
       applyIndicatorRegistrations(instrument, strategy);
       await this.marketRuntime.registerInstrument(instrument, { klineInterval });
 
-      this.activeDeployments.set(d.symbol, { strategyId: d.strategyId });
+      this.activeDeployments.set(d.symbol, {
+        strategyId: d.strategyId,
+        deploymentId: d.id,
+      });
+
+      const row = await this.store.loadPositionByDeploymentId(d.id);
+      if (row) {
+        pm.registerOpenPosition(d.symbol, row.id, d.id);
+        pm.hydrateFromStoredRow(d.symbol, row);
+      }
+
       this.logger.info("Restored deployment", { id: d.id, symbol: d.symbol });
     }
   }
@@ -154,116 +184,20 @@ export class Bot {
     const strategy = this.registry.resolve(dep.strategyId);
     if (!strategy) return;
 
-    const raw = await strategy.evaluate(instrument);
+    const pm = PositionManager.getInstance();
+    const sync = this.broker.syncPositionFromVenue;
+    if (typeof sync === "function") {
+      await sync.call(this.broker, instrument.symbol);
+    }
+
+    await pm.reconcileMissingRowIfNeeded(instrument, dep.deploymentId);
+
+    const position = pm.getSnapshot(instrument.symbol);
+    const raw = await strategy.evaluate(instrument, position);
     const signals = Array.isArray(raw) ? raw : [raw];
     for (const signal of signals) {
       const candle = instrument.getCandles(1)[0]!;
-      await this.dispatch(instrument, candle, signal);
+      await pm.processSignal(instrument, candle, signal, dep.deploymentId);
     }
-  }
-
-  private async dispatch(
-    instrument: Instrument,
-    candle: EnrichedCandle,
-    signal: StrategyEvaluateResult,
-  ): Promise<void> {
-    if (signal.action === "HOLD") {
-      return;
-    }
-
-    if (signal.action === "CLOSE") {
-      const exitSide = instrument.getCloseOrderSide();
-      if (!exitSide) {
-        this.logger.debug("CLOSE ignored — flat position", {
-          symbol: instrument.symbol,
-        });
-        return;
-      }
-      const posAbs = Math.abs(instrument.currentPositionQty);
-      const closeAll = signal.qty === undefined;
-      const exitQty = closeAll
-        ? posAbs
-        : Math.min(instrument.roundQty(Math.abs(signal.qty!)), posAbs);
-      if (exitQty <= 0) {
-        this.logger.debug("CLOSE ignored — zero qty", {
-          symbol: instrument.symbol,
-        });
-        return;
-      }
-      const strategyExitPrice =
-        signal.price !== undefined &&
-        Number.isFinite(signal.price) &&
-        signal.price > 0
-          ? signal.price
-          : undefined;
-      await this.broker.closePosition(
-        instrument.symbol,
-        closeAll ? undefined : exitQty,
-        strategyExitPrice,
-      );
-      const exitFillPrice = strategyExitPrice ?? candle.close;
-      await this.persistTrade({
-        instrument,
-        candle,
-        kind: "exit",
-        qty: exitQty,
-        price: exitFillPrice,
-        side: exitSide,
-      });
-      this.logger.info("Signal CLOSE executed", {
-        symbol: instrument.symbol,
-        exitRefPrice: exitFillPrice,
-        strategyPrice: signal.price,
-        closeAll,
-        qty: exitQty,
-      });
-      return;
-    }
-
-    const side = signal.action === "BUY" ? "Buy" : "Sell";
-    await this.broker.placeOrder({
-      instrument,
-      side,
-      qty: signal.qty,
-      price: signal.price,
-    });
-
-    await this.persistTrade({
-      instrument,
-      candle,
-      kind: "entry",
-      qty: signal.qty,
-      price: signal.price,
-      side,
-    });
-    this.logger.info("Signal executed", {
-      symbol: instrument.symbol,
-      action: signal.action,
-      qty: signal.qty,
-      price: signal.price,
-      stopLoss: signal.stopLoss,
-    });
-  }
-
-  private async persistTrade(params: {
-    instrument: Instrument;
-    candle: EnrichedCandle;
-    kind: TradeRecord["kind"];
-    qty: number;
-    price: number;
-    side: "Buy" | "Sell";
-  }): Promise<void> {
-    const notional = params.qty * params.price;
-    const rec: TradeRecord = {
-      id: randomUUID(),
-      symbol: params.instrument.symbol,
-      side: params.side,
-      qty: params.qty,
-      price: params.price,
-      fee: this.feeRate > 0 ? notional * this.feeRate : 0,
-      timestamp: params.candle.dateUnix,
-      kind: params.kind,
-    };
-    await this.store.saveTrade(rec);
   }
 }

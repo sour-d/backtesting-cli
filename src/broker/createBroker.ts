@@ -2,6 +2,7 @@ import type { RunMode } from '../core/mode.js';
 import type { CategoryV5 } from 'bybit-api';
 import type { Instrument } from '../instrument/Instrument.js';
 import type { ILogger } from '../logger/ILogger.js';
+import type { IPositionBook } from '../position/IPositionBook.js';
 import type { IStore } from '../store/IStore.js';
 import type { IBroker } from './IBroker.js';
 import { LiveBroker, type LiveBrokerOptions } from './LiveBroker.js';
@@ -20,6 +21,8 @@ export interface CreateBrokerConfig {
   readonly feeRate?: number;
   readonly reconcileIntervalMs?: number;
   readonly getInstrument: (symbol: string) => Instrument | undefined;
+  /** Runtime position book — {@link PositionManager} after `Bot` wiring. */
+  readonly getPositionBook: () => IPositionBook;
 }
 
 export function createBroker(config: CreateBrokerConfig): IBroker {
@@ -39,6 +42,7 @@ export function createBroker(config: CreateBrokerConfig): IBroker {
         feeRate: config.feeRate ?? 0.0006,
         reconcileIntervalMs: config.reconcileIntervalMs ?? 30_000,
         getInstrument: config.getInstrument,
+        getPositionBook: config.getPositionBook,
       };
       return new LiveBroker(opts);
     }
@@ -51,6 +55,7 @@ export function createBroker(config: CreateBrokerConfig): IBroker {
         category: config.category,
         feeRate: config.feeRate ?? 0.001,
         getInstrument: config.getInstrument,
+        getPositionBook: config.getPositionBook,
       };
       return new TestBroker(opts);
     }

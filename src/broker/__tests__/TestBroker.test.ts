@@ -1,11 +1,13 @@
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { Instrument } from '../../instrument/Instrument.js';
 import type { InstrumentStatic } from '../../instrument/types.js';
 import type { ILogger } from '../../logger/ILogger.js';
+import { PositionManager } from '../../position/PositionManager.js';
 import { BacktestStore } from '../../store/BacktestStore.js';
+import type { IBroker } from '../IBroker.js';
 import { TestBroker } from '../TestBroker.js';
 
 const noopLogger: ILogger = {
@@ -15,6 +17,14 @@ const noopLogger: ILogger = {
   error: () => {},
   child: () => noopLogger,
 };
+
+const stubBroker = {
+  placeOrder: async () => {},
+  closePosition: async () => {},
+  updateStopLoss: async () => {},
+  start: () => {},
+  stop: () => {},
+} as IBroker;
 
 const spec: InstrumentStatic = {
   symbol: 'SOLUSDT',
@@ -27,11 +37,27 @@ const spec: InstrumentStatic = {
   qtyPrecision: 1,
 };
 
+function wirePm(store: BacktestStore, getInstrument: () => Instrument): void {
+  PositionManager.resetForTests();
+  PositionManager.configure({
+    broker: stubBroker,
+    store,
+    feeRate: 0.001,
+    logger: noopLogger,
+    getInstrument,
+    reconcileIntervalMs: 0,
+  });
+  PositionManager.getInstance().setCapitalAllocation(spec.symbol, 10_000, 10_000);
+}
+
+afterEach(() => {
+  PositionManager.resetForTests();
+});
+
 describe('TestBroker', () => {
   it('placeOrder applies entry and updates position', async () => {
     const store = new BacktestStore(mkdtempSync(join(tmpdir(), 'ql-bt-')));
     const inst = new Instrument(spec, []);
-    inst.setCapitalAllocation(10_000, 10_000);
     inst.addCandle({
       dateUnix: 1,
       open: 100,
@@ -41,12 +67,15 @@ describe('TestBroker', () => {
       volume: 1,
     });
 
+    wirePm(store, () => inst);
+
     const broker = new TestBroker({
       logger: noopLogger,
       store,
       category: 'linear',
       feeRate: 0.001,
       getInstrument: () => inst,
+      getPositionBook: () => PositionManager.getInstance(),
     });
 
     await broker.placeOrder({
@@ -56,14 +85,14 @@ describe('TestBroker', () => {
       price: undefined,
     });
 
-    expect(inst.currentPositionQty).toBeCloseTo(0.5, 5);
-    expect(inst.avgEntryPrice).toBeCloseTo(100, 5);
+    const snap = PositionManager.getInstance().getSnapshot(spec.symbol);
+    expect(snap.currentPositionQty).toBeCloseTo(0.5, 5);
+    expect(snap.avgEntryPrice).toBeCloseTo(100, 5);
   });
 
   it('closePosition flattens position', async () => {
     const store = new BacktestStore(mkdtempSync(join(tmpdir(), 'ql-bt-')));
     const inst = new Instrument(spec, []);
-    inst.setCapitalAllocation(10_000, 10_000);
     inst.addCandle({
       dateUnix: 1,
       open: 100,
@@ -73,26 +102,34 @@ describe('TestBroker', () => {
       volume: 1,
     });
 
+    wirePm(store, () => inst);
+
     const broker = new TestBroker({
       logger: noopLogger,
       store,
       category: 'linear',
       feeRate: 0.001,
       getInstrument: () => inst,
+      getPositionBook: () => PositionManager.getInstance(),
     });
 
     await broker.placeOrder({ instrument: inst, side: 'Buy', qty: 0.5, price: undefined });
-    expect(inst.currentPositionQty).toBeGreaterThan(0);
+    expect(
+      PositionManager.getInstance().getSnapshot(spec.symbol).currentPositionQty,
+    ).toBeGreaterThan(0);
 
     await broker.closePosition('SOLUSDT');
-    expect(Math.abs(inst.currentPositionQty)).toBeLessThan(1e-9);
+    expect(
+      Math.abs(PositionManager.getInstance().getSnapshot(spec.symbol).currentPositionQty),
+    ).toBeLessThan(1e-9);
   });
 
   it('closePosition uses strategy price when provided (not last bar close)', async () => {
-    const store = new BacktestStore(mkdtempSync(join(tmpdir(), 'ql-bt-')));
+    const storeA = new BacktestStore(mkdtempSync(join(tmpdir(), 'ql-bt-')));
+    const storeB = new BacktestStore(mkdtempSync(join(tmpdir(), 'ql-bt-')));
+
     const mkInstrument = () => {
       const i = new Instrument(spec, []);
-      i.setCapitalAllocation(10_000, 10_000);
       i.addCandle({
         dateUnix: 1,
         open: 100,
@@ -113,12 +150,14 @@ describe('TestBroker', () => {
     };
 
     const instExplicit = mkInstrument();
+    wirePm(storeA, () => instExplicit);
     const brokerExplicit = new TestBroker({
       logger: noopLogger,
-      store,
+      store: storeA,
       category: 'linear',
       feeRate: 0.001,
       getInstrument: () => instExplicit,
+      getPositionBook: () => PositionManager.getInstance(),
     });
     await brokerExplicit.placeOrder({
       instrument: instExplicit,
@@ -127,14 +166,18 @@ describe('TestBroker', () => {
       price: undefined,
     });
     await brokerExplicit.closePosition('SOLUSDT', undefined, 96);
+    const capExplicit = PositionManager.getInstance().getSnapshot(spec.symbol).availableCapital;
 
     const instBarClose = mkInstrument();
+    PositionManager.resetForTests();
+    wirePm(storeB, () => instBarClose);
     const brokerBarClose = new TestBroker({
       logger: noopLogger,
-      store,
+      store: storeB,
       category: 'linear',
       feeRate: 0.001,
       getInstrument: () => instBarClose,
+      getPositionBook: () => PositionManager.getInstance(),
     });
     await brokerBarClose.placeOrder({
       instrument: instBarClose,
@@ -143,7 +186,8 @@ describe('TestBroker', () => {
       price: undefined,
     });
     await brokerBarClose.closePosition('SOLUSDT');
+    const capBarClose = PositionManager.getInstance().getSnapshot(spec.symbol).availableCapital;
 
-    expect(instExplicit.availableCapital).not.toBe(instBarClose.availableCapital);
+    expect(capExplicit).not.toBe(capBarClose);
   });
 });

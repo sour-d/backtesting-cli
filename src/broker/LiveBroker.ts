@@ -4,6 +4,7 @@ import type { OrderRecord } from '../core/types.js';
 import type { Instrument } from '../instrument/Instrument.js';
 import type { ILogger } from '../logger/ILogger.js';
 import type { IStore } from '../store/IStore.js';
+import type { IPositionBook } from '../position/IPositionBook.js';
 import type { IBroker, PlaceOrderInput } from './IBroker.js';
 
 export interface LiveBrokerOptions {
@@ -17,6 +18,7 @@ export interface LiveBrokerOptions {
   readonly feeRate: number;
   readonly reconcileIntervalMs: number;
   readonly getInstrument: (symbol: string) => Instrument | undefined;
+  readonly getPositionBook: () => IPositionBook;
 }
 
 /**
@@ -29,6 +31,7 @@ export class LiveBroker implements IBroker {
   private readonly rest: RestClientV5;
   private readonly feeRate: number;
   private readonly getInstrument: (symbol: string) => Instrument | undefined;
+  private readonly getPositionBook: () => IPositionBook;
   private readonly reconcileIntervalMs: number;
   private timer: ReturnType<typeof setInterval> | undefined;
 
@@ -38,6 +41,7 @@ export class LiveBroker implements IBroker {
     this.category = opts.category;
     this.feeRate = opts.feeRate;
     this.getInstrument = opts.getInstrument;
+    this.getPositionBook = opts.getPositionBook;
     this.reconcileIntervalMs = opts.reconcileIntervalMs;
     this.rest = new RestClientV5({
       key: opts.apiKey,
@@ -112,10 +116,11 @@ export class LiveBroker implements IBroker {
       this.logger.warn('closePosition: unknown symbol', { symbol });
       return;
     }
-    const closeSide = instrument.getCloseOrderSide();
+    const book = this.getPositionBook();
+    const closeSide = book.getCloseOrderSide(symbol);
     if (!closeSide) return;
 
-    const posAbs = Math.abs(instrument.currentPositionQty);
+    const posAbs = Math.abs(book.getSnapshot(symbol).currentPositionQty);
     const requested =
       qty !== undefined && qty > 0
         ? Math.min(instrument.roundQty(qty), posAbs)
@@ -141,6 +146,39 @@ export class LiveBroker implements IBroker {
     });
   }
 
+  async updateStopLoss(symbol: string, stopLoss: number): Promise<void> {
+    if (this.category === 'spot' || this.category === 'option') {
+      this.logger.warn('updateStopLoss: not supported for category', { category: this.category, symbol });
+      return;
+    }
+    const instrument = this.getInstrument(symbol);
+    if (!instrument) {
+      this.logger.warn('updateStopLoss: unknown symbol', { symbol });
+      return;
+    }
+    if (!Number.isFinite(stopLoss) || stopLoss <= 0) {
+      this.logger.warn('updateStopLoss: invalid stopLoss', { symbol, stopLoss });
+      return;
+    }
+    if (Math.abs(this.getPositionBook().getSnapshot(symbol).currentPositionQty) < 1e-12) {
+      this.logger.debug('updateStopLoss ignored — flat', { symbol });
+      return;
+    }
+    const sl = instrument.roundPrice(stopLoss);
+    await this.rest.setTradingStop({
+      category: this.category,
+      symbol,
+      stopLoss: String(sl),
+      positionIdx: 0,
+      slTriggerBy: 'LastPrice',
+    });
+    this.logger.info('Trading stop updated', { symbol, stopLoss: sl });
+  }
+
+  async syncPositionFromVenue(symbol: string): Promise<void> {
+    await this.syncPositionFromExchange(symbol);
+  }
+
   private async reconcileAll(): Promise<void> {
     try {
       const res = await this.rest.getPositionInfo({
@@ -156,7 +194,7 @@ export class LiveBroker implements IBroker {
         const sizeAbs = Number(p.size ?? 0);
         const avg = Number(p.avgPrice ?? 0);
         const upnl = Number(p.unrealisedPnl ?? 0);
-        inst.setPositionSnapshot(side, sizeAbs, avg, upnl);
+        this.getPositionBook().setPositionSnapshot(sym, side, sizeAbs, avg, upnl);
       }
     } catch (e) {
       this.logger.error('Reconciliation failed', { message: String(e) });
@@ -169,13 +207,12 @@ export class LiveBroker implements IBroker {
       symbol,
     });
     const p = res.result?.list?.[0];
-    const inst = this.getInstrument(symbol);
-    if (!p || !inst) return;
+    if (!p) return;
     const side = String(p.side ?? '');
     const sizeAbs = Number(p.size ?? 0);
     const avg = Number(p.avgPrice ?? 0);
     const upnl = Number(p.unrealisedPnl ?? 0);
-    inst.setPositionSnapshot(side, sizeAbs, avg, upnl);
+    this.getPositionBook().setPositionSnapshot(symbol, side, sizeAbs, avg, upnl);
 
     const fillFee = Math.abs(sizeAbs) * avg * this.feeRate;
     if (fillFee > 0) {

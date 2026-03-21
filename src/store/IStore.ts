@@ -1,5 +1,6 @@
 import type { Candle, LogRecord, OrderRecord, TradeRecord } from '../core/types.js';
 import type { DeploymentState } from '../deployment/types.js';
+import type { PositionRecord } from '../position/types.js';
 
 /** One bar to persist after REST warmup (OHLCV + indicator snapshot at that step). */
 export interface WarmupBarRow {
@@ -38,6 +39,21 @@ export interface IStore {
   loadDeployments(): Promise<DeploymentState[]>;
   /** Remove deployment from persistence (DB row delete for live; entry removed from JSON for file). */
   deleteDeployment(id: string): Promise<void>;
+
+  createPosition(record: PositionRecord): Promise<void>;
+  updatePositionStopLoss(id: string, stopLoss: number, updatedAtMs: number): Promise<void>;
+  /** After adds / partial closes — qty, avg, side from runtime. */
+  updatePositionOpenSnapshot(
+    id: string,
+    fields: {
+      readonly qty: number;
+      readonly avgEntryPrice: number | undefined;
+      readonly side: 'Buy' | 'Sell';
+      readonly updatedAtMs: number;
+    },
+  ): Promise<void>;
+  deletePosition(id: string): Promise<void>;
+  loadPositionByDeploymentId(deploymentId: string): Promise<PositionRecord | null>;
 
   saveLog(record: LogRecord): Promise<void>;
 }

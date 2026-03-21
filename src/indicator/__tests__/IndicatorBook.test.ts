@@ -5,7 +5,8 @@ describe("IndicatorBook", () => {
   it("adds candles and computes registered indicators", () => {
     const book = new IndicatorBook();
     book.registerIndicator("lastClose", {
-      compute: (candles) => candles[candles.length - 1]?.close ?? null,
+      name: "lastClose",
+      compute: (candles, candle) => candles[candles.length - 1]?.close ?? candle.close ?? null,
     });
     book.addCandle({
       dateUnix: 1,

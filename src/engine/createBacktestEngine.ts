@@ -1,6 +1,7 @@
 import type { CategoryV5 } from 'bybit-api';
 import { createBot } from '../bot/createBot.js';
 import { createBroker } from '../broker/createBroker.js';
+import { PositionManager } from '../position/PositionManager.js';
 import { parseKlineInterval } from '../config/klineInterval.js';
 import { createLogger } from '../logger/createLogger.js';
 import { FileMarketRuntime } from '../market-runtime/FileMarketRuntime.js';
@@ -55,6 +56,7 @@ export function createBacktestEngine(config: BacktestEngineConfig): BacktestEngi
     category: config.category as CategoryV5,
     feeRate: config.feeRate,
     getInstrument: (symbol) => marketRuntime.getInstrument(symbol),
+    getPositionBook: () => PositionManager.getInstance(),
   });
 
   const bot = createBot(MODE, {
@@ -65,6 +67,7 @@ export function createBacktestEngine(config: BacktestEngineConfig): BacktestEngi
     strategies,
     feeRate: config.feeRate,
     defaultKlineInterval: config.klineInterval,
+    positionReconcileIntervalMs: 0,
   });
 
   return { store, logger, marketRuntime, broker, bot, strategies };

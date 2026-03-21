@@ -1,4 +1,4 @@
-import type { Candle } from "../core/types.js";
+import type { Candle, EnrichedCandle } from "../core/types.js";
 import type { IndicatorConfigType } from "./types.js";
 
 /**
@@ -6,23 +6,27 @@ import type { IndicatorConfigType } from "./types.js";
  * No I/O, no feed logic — MarketRuntime is the only writer of candles.
  */
 export class IndicatorBook {
-  private readonly candles: Candle[] = [];
+  private readonly candles: EnrichedCandle[] = [];
   private readonly indicators = new Map<string, IndicatorConfigType>();
   private readonly values = new Map<string, unknown>();
 
   addCandle(candle: Candle): void {
-    this.candles.push(candle);
+    const enriched: EnrichedCandle = { ...candle, indicators: {} };
+    this.candles.push(enriched);
     for (const [name, def] of this.indicators) {
-      this.values.set(name, def.compute(this.candles));
+      this.values.set(name, def.compute(this.candles, enriched));
     }
   }
 
   registerIndicator(name: string, config: IndicatorConfigType): void {
     this.indicators.set(name, config);
-    this.values.set(name, config.compute(this.candles));
+    const last = this.candles[this.candles.length - 1];
+    if (last !== undefined) {
+      this.values.set(name, config.compute(this.candles, last));
+    }
   }
 
-  getCandles(limit?: number): readonly Candle[] {
+  getCandles(limit?: number): readonly EnrichedCandle[] {
     if (limit === undefined || limit >= this.candles.length) {
       return [...this.candles];
     }

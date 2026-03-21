@@ -30,7 +30,7 @@ export async function runBacktestLoop(opts: RunBacktestLoopOptions): Promise<voi
     logLevel: opts.logLevel,
   });
 
-  marketRuntime.onCandle((instrument, candle) => bot.onCandle(instrument, candle));
+  marketRuntime.onCandle((instrument) => bot.onCandle(instrument));
 
   for (const symbol of ql.symbols) {
     await bot.deploy({

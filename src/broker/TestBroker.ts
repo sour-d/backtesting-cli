@@ -3,6 +3,7 @@ import type { CategoryV5 } from 'bybit-api';
 import type { OrderRecord } from '../core/types.js';
 import type { Instrument } from '../instrument/Instrument.js';
 import type { ILogger } from '../logger/ILogger.js';
+import type { IPositionBook } from '../position/IPositionBook.js';
 import type { IStore } from '../store/IStore.js';
 import type { IBroker, PlaceOrderInput } from './IBroker.js';
 
@@ -12,10 +13,11 @@ export interface TestBrokerOptions {
   readonly category: CategoryV5;
   readonly feeRate: number;
   readonly getInstrument: (symbol: string) => Instrument | undefined;
+  readonly getPositionBook: () => IPositionBook;
 }
 
 /**
- * Deterministic fills for backtest — updates {@link Instrument} via {@link Instrument.applyEntry}.
+ * Deterministic fills for backtest — updates {@link IPositionBook} (PositionManager) on fills.
  */
 export class TestBroker implements IBroker {
   private readonly logger: ILogger;
@@ -23,6 +25,7 @@ export class TestBroker implements IBroker {
   private readonly category: CategoryV5;
   private readonly feeRate: number;
   private readonly getInstrument: (symbol: string) => Instrument | undefined;
+  private readonly getPositionBook: () => IPositionBook;
 
   constructor(opts: TestBrokerOptions) {
     this.logger = opts.logger;
@@ -30,6 +33,7 @@ export class TestBroker implements IBroker {
     this.category = opts.category;
     this.feeRate = opts.feeRate;
     this.getInstrument = opts.getInstrument;
+    this.getPositionBook = opts.getPositionBook;
   }
 
   start(): void {
@@ -60,7 +64,7 @@ export class TestBroker implements IBroker {
     }
 
     const fee = Math.abs(q * refPrice) * this.feeRate;
-    instrument.applyEntry(side, q, refPrice, fee);
+    this.getPositionBook().applyEntry(instrument.symbol, side, q, refPrice, fee);
 
     const orderType = price !== undefined ? 'Limit' : 'Market';
     const rec: OrderRecord = {
@@ -84,7 +88,8 @@ export class TestBroker implements IBroker {
       this.logger.warn('TestBroker.closePosition: unknown symbol', { symbol });
       return;
     }
-    const closeSide = instrument.getCloseOrderSide();
+    const book = this.getPositionBook();
+    const closeSide = book.getCloseOrderSide(symbol);
     if (!closeSide) return;
 
     const last = instrument.getCandles(1);
@@ -99,7 +104,7 @@ export class TestBroker implements IBroker {
       return;
     }
 
-    const posAbs = Math.abs(instrument.currentPositionQty);
+    const posAbs = Math.abs(book.getSnapshot(symbol).currentPositionQty);
     const requested =
       qty !== undefined && qty > 0
         ? Math.min(instrument.roundQty(qty), posAbs)
@@ -107,7 +112,7 @@ export class TestBroker implements IBroker {
     const rounded = instrument.roundQty(requested);
     if (rounded <= 0 || rounded > posAbs + 1e-12) return;
     const fee = Math.abs(rounded * refPrice) * this.feeRate;
-    instrument.applyEntry(closeSide, rounded, refPrice, fee);
+    book.applyEntry(symbol, closeSide, rounded, refPrice, fee);
 
     const rec: OrderRecord = {
       id: randomUUID(),
@@ -121,5 +126,19 @@ export class TestBroker implements IBroker {
     };
     await this.store.saveOrder(rec);
     this.logger.info('TestBroker position closed', { symbol, side: closeSide, qty: rounded, refPrice, fee });
+  }
+
+  async updateStopLoss(symbol: string, stopLoss: number): Promise<void> {
+    const instrument = this.getInstrument(symbol);
+    if (!instrument) {
+      this.logger.warn('TestBroker.updateStopLoss: unknown symbol', { symbol });
+      return;
+    }
+    if (!Number.isFinite(stopLoss) || stopLoss <= 0) {
+      this.logger.warn('TestBroker.updateStopLoss: invalid stopLoss', { symbol, stopLoss });
+      return;
+    }
+    const sl = instrument.roundPrice(stopLoss);
+    this.logger.info('TestBroker updateStopLoss (no venue API)', { symbol, stopLoss: sl });
   }
 }

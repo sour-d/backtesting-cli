@@ -2,6 +2,7 @@ import { mkdir, appendFile, readFile, unlink, writeFile } from 'node:fs/promises
 import { dirname, join } from 'node:path';
 import type { Candle, LogRecord, OrderRecord, TradeRecord } from '../core/types.js';
 import type { DeploymentState } from '../deployment/types.js';
+import type { PositionRecord } from '../position/types.js';
 import type { IStore, WarmupBarRow } from './IStore.js';
 
 export class FileStore implements IStore {
@@ -14,6 +15,27 @@ export class FileStore implements IStore {
 
   private async ensureDir(file: string): Promise<void> {
     await mkdir(dirname(file), { recursive: true });
+  }
+
+  private positionsPath(): string {
+    return join(this.root, 'positions.json');
+  }
+
+  private async readPositions(): Promise<PositionRecord[]> {
+    const file = this.positionsPath();
+    try {
+      const raw = await readFile(file, 'utf8');
+      const parsed = JSON.parse(raw) as unknown;
+      return Array.isArray(parsed) ? (parsed as PositionRecord[]) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  private async writePositions(rows: PositionRecord[]): Promise<void> {
+    const file = this.positionsPath();
+    await this.ensureDir(file);
+    await writeFile(file, JSON.stringify(rows, null, 2), 'utf8');
   }
 
   async saveCandle(
@@ -124,6 +146,57 @@ export class FileStore implements IStore {
     const file = join(this.root, 'deployments.json');
     await this.ensureDir(file);
     await writeFile(file, JSON.stringify(next, null, 2), 'utf8');
+    const pos = (await this.readPositions()).filter((p) => p.deploymentId !== id);
+    await this.writePositions(pos);
+  }
+
+  async createPosition(record: PositionRecord): Promise<void> {
+    const rows = await this.readPositions();
+    const next = rows.filter((p) => p.id !== record.id && p.deploymentId !== record.deploymentId);
+    next.push(record);
+    await this.writePositions(next);
+  }
+
+  async updatePositionStopLoss(id: string, stopLoss: number, updatedAtMs: number): Promise<void> {
+    const rows = await this.readPositions();
+    const i = rows.findIndex((p) => p.id === id);
+    if (i < 0) return;
+    const cur = rows[i]!;
+    rows[i] = { ...cur, stopLoss, updatedAtMs };
+    await this.writePositions(rows);
+  }
+
+  async updatePositionOpenSnapshot(
+    id: string,
+    fields: {
+      readonly qty: number;
+      readonly avgEntryPrice: number | undefined;
+      readonly side: 'Buy' | 'Sell';
+      readonly updatedAtMs: number;
+    },
+  ): Promise<void> {
+    const rows = await this.readPositions();
+    const i = rows.findIndex((p) => p.id === id);
+    if (i < 0) return;
+    const cur = rows[i]!;
+    rows[i] = {
+      ...cur,
+      qty: fields.qty,
+      avgEntryPrice: fields.avgEntryPrice,
+      side: fields.side,
+      updatedAtMs: fields.updatedAtMs,
+    };
+    await this.writePositions(rows);
+  }
+
+  async deletePosition(id: string): Promise<void> {
+    const rows = (await this.readPositions()).filter((p) => p.id !== id);
+    await this.writePositions(rows);
+  }
+
+  async loadPositionByDeploymentId(deploymentId: string): Promise<PositionRecord | null> {
+    const rows = await this.readPositions();
+    return rows.find((p) => p.deploymentId === deploymentId) ?? null;
   }
 
   async saveLog(record: LogRecord): Promise<void> {

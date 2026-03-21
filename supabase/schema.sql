@@ -27,6 +27,25 @@ CREATE TABLE deployments (
 CREATE INDEX idx_deployments_status ON deployments (status);
 
 -- ============================================================
+-- positions (open position per deployment — FK CASCADE on deployment delete)
+-- ============================================================
+CREATE TABLE positions (
+  id                 TEXT    PRIMARY KEY,
+  deployment_id      TEXT    NOT NULL REFERENCES deployments (id) ON DELETE CASCADE,
+  symbol             TEXT    NOT NULL,
+  side               TEXT    NOT NULL,
+  qty                NUMERIC NOT NULL,
+  avg_entry_price    NUMERIC,
+  stop_loss          NUMERIC,
+  opened_at_ms       BIGINT  NOT NULL,
+  updated_at_ms      BIGINT  NOT NULL,
+  UNIQUE (deployment_id)
+);
+
+CREATE INDEX idx_positions_symbol ON positions (symbol);
+CREATE INDEX idx_positions_deployment ON positions (deployment_id);
+
+-- ============================================================
 -- candles (OHLCV + indicator snapshot per bar)
 -- ============================================================
 CREATE TABLE candles (
@@ -101,12 +120,14 @@ CREATE INDEX idx_logs_level ON logs (level);
 -- Row Level Security — permissive policies for anon key (tighten in production)
 -- ============================================================
 ALTER TABLE deployments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE positions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE candles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE live_trades ENABLE ROW LEVEL SECURITY;
 ALTER TABLE live_orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE logs ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "deployments_all" ON deployments FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "positions_all" ON positions FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "candles_all" ON candles FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "live_trades_all" ON live_trades FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "live_orders_all" ON live_orders FOR ALL USING (true) WITH CHECK (true);
