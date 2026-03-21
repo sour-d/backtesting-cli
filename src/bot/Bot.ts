@@ -10,6 +10,7 @@ import type { IStore } from "../store/IStore.js";
 import type { IStrategy } from "../strategy/IStrategy.js";
 import type { StrategyRegistry } from "../strategy/StrategyRegistry.js";
 import type { StrategyEvaluateResult } from "../strategy/types.js";
+import { parseKlineInterval } from "../config/klineInterval.js";
 
 function applyIndicatorRegistrations(
   instrument: Instrument,
@@ -26,6 +27,8 @@ export interface DeployRequest {
   readonly symbol: string;
   readonly strategyId: string;
   readonly capital: number;
+  /** Bybit interval code (e.g. "60", "240", "D"). Defaults to engine default (live: CLI / `KLINE_INTERVAL`). */
+  readonly klineInterval?: string;
 }
 
 export interface BotDeps {
@@ -36,6 +39,8 @@ export interface BotDeps {
   readonly strategies: StrategyRegistry;
   /** When set (e.g. backtest), used for `TradeRecord.fee` in `persistTrade`. */
   readonly feeRate?: number;
+  /** Raw interval string (e.g. from `KLINE_INTERVAL` / `--interval` / quantlab config). */
+  readonly defaultKlineInterval: string;
 }
 
 /**
@@ -48,6 +53,7 @@ export class Bot {
   private readonly marketRuntime: IMarketRuntime;
   private readonly registry: StrategyRegistry;
   private readonly feeRate: number;
+  private readonly defaultKlineInterval: string;
   /** In-memory routing: which strategy id applies to each deployed symbol (persisted deployments are source of truth). */
   private readonly activeDeployments = new Map<
     string,
@@ -61,18 +67,22 @@ export class Bot {
     this.marketRuntime = deps.marketRuntime;
     this.registry = deps.strategies;
     this.feeRate = deps.feeRate ?? 0;
+    this.defaultKlineInterval = deps.defaultKlineInterval;
   }
 
-  async deploy(req: DeployRequest): Promise<void> {
+  async deploy(req: DeployRequest): Promise<{ readonly klineInterval: string }> {
     const strategy = this.registry.resolve(req.strategyId);
     if (!strategy) {
       throw new Error(`Unknown strategyId: ${req.strategyId}`);
     }
 
+    const intervalRaw = (req.klineInterval ?? this.defaultKlineInterval).trim();
+    const klineInterval = parseKlineInterval(intervalRaw);
+
     const spec = await this.marketRuntime.fetchInstrumentStatic(req.symbol);
     const instrument = new Instrument(spec, strategy.getIndicators() ?? []);
     instrument.setCapitalAllocation(req.capital, req.capital);
-    await this.marketRuntime.registerInstrument(instrument);
+    await this.marketRuntime.registerInstrument(instrument, { klineInterval });
 
     this.activeDeployments.set(req.symbol, { strategyId: req.strategyId });
 
@@ -81,6 +91,7 @@ export class Bot {
       symbol: req.symbol,
       strategyId: req.strategyId,
       capital: req.capital,
+      klineInterval: intervalRaw,
       createdAt: Date.now(),
       status: "active",
     };
@@ -89,7 +100,25 @@ export class Bot {
       id: req.id,
       symbol: req.symbol,
       strategyId: req.strategyId,
+      klineInterval: intervalRaw,
     });
+    return { klineInterval: intervalRaw };
+  }
+
+  /**
+   * Unsubscribe WS feed, drop in-memory routing, remove deployment row from the store.
+   */
+  async removeDeployment(id: string): Promise<void> {
+    const rows = await this.store.loadDeployments();
+    const d = rows.find((r) => r.id === id);
+    if (!d) {
+      throw new Error(`Deployment not found: ${id}`);
+    }
+
+    await this.marketRuntime.unregisterInstrument(d.symbol);
+    this.activeDeployments.delete(d.symbol);
+    await this.store.deleteDeployment(id);
+    this.logger.info("Deployment removed", { id, symbol: d.symbol });
   }
 
   async restoreDeployments(): Promise<void> {
@@ -104,11 +133,14 @@ export class Bot {
         });
         continue;
       }
+      const intervalRaw = (d.klineInterval ?? this.defaultKlineInterval).trim();
+      const klineInterval = parseKlineInterval(intervalRaw);
+
       const spec = await this.marketRuntime.fetchInstrumentStatic(d.symbol);
       const instrument = new Instrument(spec, strategy.getIndicators());
       instrument.setCapitalAllocation(d.capital, d.capital);
       applyIndicatorRegistrations(instrument, strategy);
-      await this.marketRuntime.registerInstrument(instrument);
+      await this.marketRuntime.registerInstrument(instrument, { klineInterval });
 
       this.activeDeployments.set(d.symbol, { strategyId: d.strategyId });
       this.logger.info("Restored deployment", { id: d.id, symbol: d.symbol });

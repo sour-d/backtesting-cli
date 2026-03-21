@@ -2,7 +2,7 @@ import { mkdir, appendFile, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import type { Candle, LogRecord, OrderRecord, TradeRecord } from '../core/types.js';
 import type { DeploymentState } from '../deployment/types.js';
-import type { IStore } from './IStore.js';
+import type { IStore, WarmupBarRow } from './IStore.js';
 
 /**
  * File-backed persistence for backtest: per-symbol trades, deployments under `backtest/`.
@@ -20,11 +20,29 @@ export class BacktestStore implements IStore {
     await mkdir(dirname(file), { recursive: true });
   }
 
-  async saveCandle(_symbol: string, _candle: Candle, _indicators: Record<string, unknown>): Promise<void> {
+  async saveCandle(
+    _symbol: string,
+    _klineInterval: string,
+    _candle: Candle,
+    _indicators: Record<string, unknown>,
+  ): Promise<void> {
     /* no-op — avoid huge I/O during replay */
   }
 
-  async loadRecentCandles(_symbol: string, _limit: number): Promise<Candle[]> {
+  async truncateCandleTail(_symbol: string, _klineInterval: string, _lineCount: number): Promise<void> {
+    /* no-op — live only */
+  }
+
+  async storeWarmupData(
+    _symbol: string,
+    _klineInterval: string,
+    _tailLineCount: number,
+    _bars: readonly WarmupBarRow[],
+  ): Promise<void> {
+    /* no-op — backtest avoids candle I/O */
+  }
+
+  async loadRecentCandles(_symbol: string, _klineInterval: string, _limit: number): Promise<Candle[]> {
     return [];
   }
 
@@ -61,7 +79,7 @@ export class BacktestStore implements IStore {
 
   async deleteDeployment(id: string): Promise<void> {
     const all = await this.loadDeployments();
-    const next = all.map((d) => (d.id === id ? { ...d, status: 'stopped' as const } : d));
+    const next = all.filter((d) => d.id !== id);
     const file = join(this.root, 'deployments.json');
     await this.ensureDir(file);
     await writeFile(file, JSON.stringify(next, null, 2), 'utf8');

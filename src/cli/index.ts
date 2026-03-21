@@ -17,7 +17,7 @@ program
   .option('-p, --port <port>', 'HTTP port', process.env.PORT ?? '3000')
   .option('--data-dir <dir>', 'Data directory', '.data')
   .option('--interval <m>', 'Kline interval (e.g. 240)', process.env.KLINE_INTERVAL ?? '240')
-  .option('--warmup <n>', 'Warmup candle count', '200')
+  .option('--warmup <n>', 'Warmup candle count', '300')
   .option('--category <c>', 'linear | inverse | spot', process.env.BYBIT_CATEGORY ?? 'linear')
   .option('--log-level <level>', 'debug | info | warn | error', 'info')
   .option('--testnet', 'Use Bybit testnet', process.env.BYBIT_TESTNET === 'true')
@@ -30,6 +30,13 @@ program
       process.exit(1);
     }
 
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_KEY;
+    if (!supabaseUrl || !supabaseKey) {
+      console.error('SUPABASE_URL and SUPABASE_KEY are required for live mode (persistence is database-only)');
+      process.exit(1);
+    }
+
     const category = opts.category as 'linear' | 'inverse' | 'spot';
     if (category !== 'linear' && category !== 'inverse' && category !== 'spot') {
       console.error('Invalid --category');
@@ -37,7 +44,7 @@ program
     }
 
     const logLevel = String(opts.logLevel) as LogLevelName;
-    const logTargets: LogTarget[] = ['console', 'file'];
+    const logTargets: LogTarget[] = ['console', 'db'];
 
     const { shutdown } = await runLiveLoop({
       port: Number(opts.port),
@@ -49,6 +56,8 @@ program
       demoTrading: Boolean(opts.demoTrading),
       apiKey,
       apiSecret,
+      supabaseUrl,
+      supabaseKey,
       logLevel,
       logTargets,
     });

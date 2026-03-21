@@ -1,22 +1,28 @@
-import { mkdir, appendFile, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, appendFile, readFile, unlink, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import type { Candle, LogRecord, OrderRecord, TradeRecord } from '../core/types.js';
 import type { DeploymentState } from '../deployment/types.js';
-import type { IStore } from './IStore.js';
+import type { IStore, WarmupBarRow } from './IStore.js';
 
 export class FileStore implements IStore {
   private readonly root: string;
 
-  constructor(baseDir: string) {
-    this.root = join(baseDir, 'live');
+  /** `paper` → `.data/paper/…`; legacy `live` file layout under `.data/live/…` (not used when live uses Supabase). */
+  constructor(baseDir: string, subdir: 'live' | 'paper' = 'paper') {
+    this.root = join(baseDir, subdir);
   }
 
   private async ensureDir(file: string): Promise<void> {
     await mkdir(dirname(file), { recursive: true });
   }
 
-  async saveCandle(symbol: string, candle: Candle, indicators: Record<string, unknown>): Promise<void> {
-    const file = join(this.root, 'candles', `${symbol}.jsonl`);
+  async saveCandle(
+    symbol: string,
+    klineInterval: string,
+    candle: Candle,
+    indicators: Record<string, unknown>,
+  ): Promise<void> {
+    const file = join(this.root, 'candles', `${symbol}_${klineInterval}.jsonl`);
     await this.ensureDir(file);
     const line = JSON.stringify({
       ...candle,
@@ -26,8 +32,44 @@ export class FileStore implements IStore {
     await appendFile(file, `${line}\n`, 'utf8');
   }
 
-  async loadRecentCandles(symbol: string, limit: number): Promise<Candle[]> {
-    const file = join(this.root, 'candles', `${symbol}.jsonl`);
+  async truncateCandleTail(symbol: string, klineInterval: string, lineCount: number): Promise<void> {
+    if (lineCount <= 0) return;
+    const file = join(this.root, 'candles', `${symbol}_${klineInterval}.jsonl`);
+    let raw: string;
+    try {
+      raw = await readFile(file, 'utf8');
+    } catch {
+      return;
+    }
+    const lines = raw.trim().split('\n').filter(Boolean);
+    if (lines.length === 0) return;
+    const keep = Math.max(0, lines.length - lineCount);
+    const next = lines.slice(0, keep);
+    if (next.length === 0) {
+      try {
+        await unlink(file);
+      } catch {
+        /* ignore */
+      }
+      return;
+    }
+    await writeFile(file, `${next.join('\n')}\n`, 'utf8');
+  }
+
+  async storeWarmupData(
+    symbol: string,
+    klineInterval: string,
+    tailLineCount: number,
+    bars: readonly WarmupBarRow[],
+  ): Promise<void> {
+    await this.truncateCandleTail(symbol, klineInterval, tailLineCount);
+    for (const { candle, indicators } of bars) {
+      await this.saveCandle(symbol, klineInterval, candle, indicators);
+    }
+  }
+
+  async loadRecentCandles(symbol: string, klineInterval: string, limit: number): Promise<Candle[]> {
+    const file = join(this.root, 'candles', `${symbol}_${klineInterval}.jsonl`);
     try {
       const raw = await readFile(file, 'utf8');
       const lines = raw
@@ -78,7 +120,7 @@ export class FileStore implements IStore {
 
   async deleteDeployment(id: string): Promise<void> {
     const all = await this.loadDeployments();
-    const next = all.map((d) => (d.id === id ? { ...d, status: 'stopped' as const } : d));
+    const next = all.filter((d) => d.id !== id);
     const file = join(this.root, 'deployments.json');
     await this.ensureDir(file);
     await writeFile(file, JSON.stringify(next, null, 2), 'utf8');

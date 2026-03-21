@@ -8,16 +8,21 @@ import { linearInstrumentFromBybit } from '../exchange/bybit/mapInstrument.js';
 import type { Instrument } from '../instrument/Instrument.js';
 import type { InstrumentCategory, InstrumentStatic } from '../instrument/types.js';
 import type { ILogger } from '../logger/ILogger.js';
-import type { IStore } from '../store/IStore.js';
-import type { CandleHandler, IMarketRuntime } from './IMarketRuntime.js';
+import type { IStore, WarmupBarRow } from '../store/IStore.js';
+import type { CandleHandler, IMarketRuntime, RegisterInstrumentOptions } from './IMarketRuntime.js';
 
 interface LiveMarketRuntimeOptions {
   readonly logger: ILogger;
   readonly store: IStore;
   readonly category: InstrumentCategory;
-  readonly klineInterval: KlineIntervalV3;
+  /** Used when {@link registerInstrument} is called without an interval (CLI / env default). */
+  readonly defaultKlineInterval: KlineIntervalV3;
   readonly warmupCandles: number;
   readonly testnet: boolean;
+  readonly demoTrading: boolean;
+  /** Same as RestClientV5 — WebsocketClient expects `key` / `secret` for private WS auth (connectAll). */
+  readonly apiKey: string;
+  readonly apiSecret: string;
 }
 
 /**
@@ -28,8 +33,10 @@ export class LiveMarketRuntime implements IMarketRuntime {
   private readonly logger: ILogger;
   private readonly store: IStore;
   private readonly category: InstrumentCategory;
-  private readonly klineInterval: KlineIntervalV3;
+  private readonly defaultKlineInterval: KlineIntervalV3;
   private readonly warmupCandles: number;
+  /** Per-symbol feed interval (WS topic + REST warmup). */
+  private readonly instrumentIntervals = new Map<string, KlineIntervalV3>();
   private readonly rest: RestClientV5;
   private readonly ws: WebsocketClient;
 
@@ -42,13 +49,16 @@ export class LiveMarketRuntime implements IMarketRuntime {
     this.logger = opts.logger;
     this.store = opts.store;
     this.category = opts.category;
-    this.klineInterval = opts.klineInterval;
+    this.defaultKlineInterval = opts.defaultKlineInterval;
     this.warmupCandles = opts.warmupCandles;
     this.rest = new RestClientV5({
       testnet: opts.testnet,
     });
     this.ws = new WebsocketClient({
       testnet: opts.testnet,
+      demoTrading: opts.demoTrading,
+      key: opts.apiKey,
+      secret: opts.apiSecret,
     });
     this.ws.on('update', (msg: unknown) => {
       void this.onWsUpdate(msg);
@@ -93,40 +103,45 @@ export class LiveMarketRuntime implements IMarketRuntime {
     this.logger.info('LiveMarketRuntime stopped');
   }
 
-  async registerInstrument(instrument: Instrument): Promise<void> {
+  async registerInstrument(instrument: Instrument, opts?: RegisterInstrumentOptions): Promise<void> {
     const { symbol } = instrument;
     if (this.instruments.has(symbol)) {
       throw new Error(`Instrument already registered: ${symbol}`);
     }
 
-    await this.warmup(instrument);
+    const interval = opts?.klineInterval ?? this.defaultKlineInterval;
+    this.instrumentIntervals.set(symbol, interval);
+
+    await this.warmup(instrument, interval);
 
     instrument.setReady(true);
     this.instruments.set(symbol, instrument);
 
     const cat = this.category as CategoryV5;
-    const topic = `kline.${this.klineInterval}.${symbol}`;
+    const topic = `kline.${interval}.${symbol}`;
     await Promise.all(this.ws.subscribeV5(topic, cat));
 
-    this.logger.info('Instrument registered', { symbol, warmup: this.warmupCandles });
+    this.logger.info('Instrument registered', { symbol, interval, warmup: this.warmupCandles });
   }
 
   async unregisterInstrument(symbol: string): Promise<void> {
     const inst = this.instruments.get(symbol);
     if (!inst) return;
-    const topic = `kline.${this.klineInterval}.${symbol}`;
+    const interval = this.instrumentIntervals.get(symbol) ?? this.defaultKlineInterval;
+    const topic = `kline.${interval}.${symbol}`;
     await Promise.all(this.ws.unsubscribeV5(topic, this.category as CategoryV5));
+    this.instrumentIntervals.delete(symbol);
     this.instruments.delete(symbol);
     this.lastEmittedStart.delete(symbol);
     this.logger.info('Instrument unregistered', { symbol });
   }
 
-  private async warmup(instrument: Instrument): Promise<void> {
+  private async warmup(instrument: Instrument, interval: KlineIntervalV3): Promise<void> {
     const symbol = instrument.symbol;
     const res = await this.rest.getKline({
       category: this.category as 'linear' | 'spot' | 'inverse',
       symbol,
-      interval: this.klineInterval,
+      interval,
       limit: this.warmupCandles,
     });
     const rows = res.result?.list;
@@ -135,9 +150,14 @@ export class LiveMarketRuntime implements IMarketRuntime {
       return;
     }
     const candles = [...rows].map(candleFromKlineTuple).sort((a, b) => a.dateUnix - b.dateUnix);
+
+    const bars: WarmupBarRow[] = [];
     for (const c of candles) {
-      instrument.addCandle(c);
+      const enriched = instrument.addCandle(c);
+      bars.push({ candle: c, indicators: { ...enriched.indicators } });
     }
+    await this.store.storeWarmupData(symbol, String(interval), this.warmupCandles, bars);
+    this.logger.info('Warmup persisted to store', { symbol, bars: bars.length });
   }
 
   private async onWsUpdate(msg: unknown): Promise<void> {
@@ -177,8 +197,9 @@ export class LiveMarketRuntime implements IMarketRuntime {
    */
   private async runLivePipeline(instrument: Instrument, candle: Candle): Promise<void> {
     const enriched = instrument.addCandle(candle);
+    const interval = this.instrumentIntervals.get(instrument.symbol) ?? this.defaultKlineInterval;
 
-    await this.store.saveCandle(instrument.symbol, candle, { ...enriched.indicators });
+    await this.store.saveCandle(instrument.symbol, String(interval), candle, { ...enriched.indicators });
     this.logger.debug('Candle pipeline', {
       symbol: instrument.symbol,
       dateUnix: candle.dateUnix,

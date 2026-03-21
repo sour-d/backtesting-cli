@@ -11,9 +11,13 @@ export interface CreateMarketRuntimeConfig {
   readonly logger: ILogger;
   readonly store: IStore;
   readonly category: InstrumentCategory;
+  /** Engine default (CLI / env); per-deployment overrides via `Bot.deploy` / API `klineInterval`. */
   readonly klineInterval: KlineIntervalV3;
   readonly warmupCandles: number;
   readonly testnet: boolean;
+  readonly demoTrading: boolean;
+  readonly apiKey: string;
+  readonly apiSecret: string;
 }
 
 export function createMarketRuntime(config: CreateMarketRuntimeConfig): IMarketRuntime {
@@ -23,9 +27,12 @@ export function createMarketRuntime(config: CreateMarketRuntimeConfig): IMarketR
         logger: config.logger,
         store: config.store,
         category: config.category,
-        klineInterval: config.klineInterval,
+        defaultKlineInterval: config.klineInterval,
         warmupCandles: config.warmupCandles,
         testnet: config.testnet,
+        demoTrading: config.demoTrading,
+        apiKey: config.apiKey,
+        apiSecret: config.apiSecret,
       });
     case 'paper':
       throw new Error('createMarketRuntime: mode "paper" is not implemented yet');

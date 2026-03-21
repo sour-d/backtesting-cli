@@ -2,22 +2,30 @@ import type { RunMode } from '../core/mode.js';
 import { BacktestStore } from './BacktestStore.js';
 import { FileStore } from './FileStore.js';
 import type { IStore } from './IStore.js';
+import { SupabaseStore } from './SupabaseStore.js';
 
 export interface CreateStoreConfig {
   readonly mode: RunMode;
   readonly baseDir?: string;
+  readonly supabaseUrl?: string;
+  readonly supabaseKey?: string;
 }
 
 /**
- * Persistence factory — today only file-backed store for live mode.
- * Future: Supabase / in-memory for tests without changing call sites.
+ * Persistence factory: live → Supabase; paper → file under `.data/paper/`; backtest → file under `.data/…`.
  */
 export function createStore(config: CreateStoreConfig): IStore {
   switch (config.mode) {
-    case 'live':
-      return new FileStore(config.baseDir ?? '.data');
+    case 'live': {
+      const url = config.supabaseUrl;
+      const key = config.supabaseKey;
+      if (!url || !key) {
+        throw new Error('createStore(live): supabaseUrl and supabaseKey are required');
+      }
+      return new SupabaseStore(url, key);
+    }
     case 'paper':
-      throw new Error('createStore: mode "paper" is not implemented yet');
+      return new FileStore(config.baseDir ?? '.data', 'paper');
     case 'backtest':
       return new BacktestStore(config.baseDir ?? '.data');
     default: {

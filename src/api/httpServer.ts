@@ -42,17 +42,45 @@ export function createHttpApp(deps: HttpServerDeps): express.Express {
         symbol: string;
         strategyId: string;
         capital: number;
+        /** Bybit kline interval (e.g. "60", "240", "D"). Omit to use engine default (`--interval` / `KLINE_INTERVAL`). */
+        klineInterval?: string;
       };
       if (!body.symbol || !body.strategyId || typeof body.capital !== 'number') {
         res.status(400).json({ error: 'symbol, strategyId, capital required' });
         return;
       }
       const id = body.id ?? randomUUID();
-      await deps.bot.deploy({ id, symbol: body.symbol, strategyId: body.strategyId, capital: body.capital });
-      res.status(201).json({ id, symbol: body.symbol, strategyId: body.strategyId });
+      const { klineInterval } = await deps.bot.deploy({
+        id,
+        symbol: body.symbol,
+        strategyId: body.strategyId,
+        capital: body.capital,
+        klineInterval: body.klineInterval,
+      });
+      res.status(201).json({ id, symbol: body.symbol, strategyId: body.strategyId, klineInterval });
     } catch (e) {
       deps.logger.error('POST /api/deployments failed', { message: String(e) });
       res.status(400).json({ error: String(e) });
+    }
+  });
+
+  app.delete('/api/deployments/:id', async (req, res) => {
+    try {
+      const id = req.params.id;
+      if (!id) {
+        res.status(400).json({ error: 'id required' });
+        return;
+      }
+      await deps.bot.removeDeployment(id);
+      res.status(204).send();
+    } catch (e) {
+      deps.logger.error('DELETE /api/deployments/:id failed', { message: String(e) });
+      const msg = String(e);
+      if (msg.includes('not found')) {
+        res.status(404).json({ error: msg });
+        return;
+      }
+      res.status(400).json({ error: msg });
     }
   });
 

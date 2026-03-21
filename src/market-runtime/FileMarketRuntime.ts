@@ -10,7 +10,7 @@ import type {
 } from "../instrument/types.js";
 import type { ILogger } from "../logger/ILogger.js";
 import type { IStore } from "../store/IStore.js";
-import type { CandleHandler, IMarketRuntime } from "./IMarketRuntime.js";
+import type { CandleHandler, IMarketRuntime, RegisterInstrumentOptions } from "./IMarketRuntime.js";
 import { mergeReplayTimestamps } from "./mergeReplayTimestamps.js";
 
 function isCandleRow(o: unknown): o is Candle {
@@ -258,7 +258,7 @@ export class FileMarketRuntime implements IMarketRuntime {
     return instrument!;
   }
 
-  async registerInstrument(instrument: Instrument): Promise<void> {
+  async registerInstrument(instrument: Instrument, _opts?: RegisterInstrumentOptions): Promise<void> {
     const { symbol } = instrument;
     if (this.instruments.has(symbol)) {
       throw new Error(`Instrument already registered: ${symbol}`);
@@ -365,7 +365,7 @@ export class FileMarketRuntime implements IMarketRuntime {
   ): Promise<void> {
     instrument.addCandle(candle);
     const enriched = instrument.getCandles(1)[0]!;
-    await this.store.saveCandle(instrument.symbol, candle, {
+    await this.store.saveCandle(instrument.symbol, String(this.klineInterval), candle, {
       ...enriched.indicators,
     });
     this.logger.debug("Candle pipeline", {

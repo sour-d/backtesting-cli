@@ -38,6 +38,7 @@ export async function runBacktestLoop(opts: RunBacktestLoopOptions): Promise<voi
       symbol,
       strategyId: ql.strategy,
       capital: ql.capital,
+      klineInterval: ql.interval,
     });
   }
 

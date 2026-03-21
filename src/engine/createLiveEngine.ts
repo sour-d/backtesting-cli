@@ -1,16 +1,16 @@
-import type { CategoryV5 } from 'bybit-api';
-import { createBot } from '../bot/createBot.js';
-import { createBroker } from '../broker/createBroker.js';
-import { parseKlineInterval } from '../config/klineInterval.js';
-import { createLogger } from '../logger/createLogger.js';
-import { createMarketRuntime } from '../market-runtime/createMarketRuntime.js';
-import { createStore } from '../store/createStore.js';
-import { NoopStrategy } from '../strategy/builtin/NoopStrategy.js';
-import { MovingAverageV2Strategy } from '../strategy/mav2/MovingAverageV2Strategy.js';
-import { StrategyRegistry } from '../strategy/StrategyRegistry.js';
-import type { LiveEngineConfig } from './liveConfig.js';
+import type { CategoryV5 } from "bybit-api";
+import { createBot } from "../bot/createBot.js";
+import { createBroker } from "../broker/createBroker.js";
+import { parseKlineInterval } from "../config/klineInterval.js";
+import { createLogger } from "../logger/createLogger.js";
+import { createMarketRuntime } from "../market-runtime/createMarketRuntime.js";
+import { createStore } from "../store/createStore.js";
+import { NoopStrategy } from "../strategy/builtin/NoopStrategy.js";
+import { MovingAverageV2Strategy } from "../strategy/mav2/MovingAverageV2Strategy.js";
+import { StrategyRegistry } from "../strategy/StrategyRegistry.js";
+import type { LiveEngineConfig } from "./liveConfig.js";
 
-const MODE = 'live' as const;
+const MODE = "live" as const;
 
 export interface LiveEngineHandles {
   readonly store: ReturnType<typeof createStore>;
@@ -26,23 +26,29 @@ export interface LiveEngineHandles {
  * Does not start IO (feed, HTTP, broker timers); callers own lifecycle.
  */
 export function createLiveEngine(config: LiveEngineConfig): LiveEngineHandles {
-  const store = createStore({ mode: MODE, baseDir: config.dataDir });
+  const store = createStore({
+    mode: MODE,
+    baseDir: config.dataDir,
+    supabaseUrl: config.supabaseUrl,
+    supabaseKey: config.supabaseKey,
+  });
 
   const logTargets =
-    config.logTargets && config.logTargets.length > 0 ? config.logTargets : (['console', 'file'] as const);
+    config.logTargets && config.logTargets.length > 0
+      ? config.logTargets
+      : (["console", "db"] as const);
   const logger = createLogger({
     mode: MODE,
     logLevel: config.logLevel,
     targets: logTargets,
     baseDir: config.dataDir,
-    store: logTargets.includes('db') ? store : undefined,
+    store: logTargets.includes("db") ? store : undefined,
   });
 
   const strategies = new StrategyRegistry();
   const mav2 = new MovingAverageV2Strategy();
-  strategies.register('noop', new NoopStrategy(logger));
-  strategies.register('mav2', mav2);
-  strategies.register('MovingAverage_v2', mav2);
+  strategies.register("mav2", mav2);
+  strategies.register("MovingAverage_v2", mav2);
 
   const marketRuntime = createMarketRuntime({
     mode: MODE,
@@ -52,6 +58,9 @@ export function createLiveEngine(config: LiveEngineConfig): LiveEngineHandles {
     klineInterval: parseKlineInterval(config.klineInterval),
     warmupCandles: config.warmupCandles,
     testnet: config.testnet,
+    demoTrading: config.demoTrading,
+    apiKey: config.apiKey,
+    apiSecret: config.apiSecret,
   });
 
   const broker = createBroker({
@@ -72,6 +81,7 @@ export function createLiveEngine(config: LiveEngineConfig): LiveEngineHandles {
     broker,
     marketRuntime,
     strategies,
+    defaultKlineInterval: config.klineInterval,
   });
 
   return { store, logger, marketRuntime, broker, bot, strategies };

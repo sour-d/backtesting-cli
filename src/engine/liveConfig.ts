@@ -12,6 +12,10 @@ export interface LiveEngineConfig {
   readonly apiKey: string;
   readonly apiSecret: string;
   readonly logLevel: LogLevelName;
-  /** Defaults to console + file when omitted */
+  /** Supabase project URL (live persistence). */
+  readonly supabaseUrl: string;
+  /** Supabase anon or service key (live persistence). */
+  readonly supabaseKey: string;
+  /** Defaults to console + db when omitted */
   readonly logTargets?: readonly LogTarget[];
 }

@@ -31,17 +31,19 @@ export class Instrument {
    * Append a candle, recompute registered indicators, return the enriched bar.
    * Warmup and live ingress both use this — persistence is MarketRuntime's job for live bars only.
    */
-  addCandle(candle: Candle): void {
+  addCandle(candle: Candle): EnrichedCandle {
     const indicatorsValue: Record<string, unknown> = {};
     this._indicators.forEach(
       ({ compute, name }: { compute: IndicatorCompute; name: string }) => {
         indicatorsValue[name] = compute(this._candles, candle);
       },
     );
-    this._candles.push({
+    const enrichedCandle = {
       ...candle,
       indicators: indicatorsValue,
-    });
+    };
+    this._candles.push(enrichedCandle);
+    return enrichedCandle;
   }
 
   getCandles(limit?: number): readonly EnrichedCandle[] {
