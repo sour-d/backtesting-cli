@@ -65,7 +65,11 @@ program
   .description('Run backtest using quantlab.config.js and .data/market file candles')
   .option('-c, --config <path>', 'Path to quantlab.config.js', 'quantlab.config.js')
   .option('--data-dir <dir>', 'Data directory', '.data')
-  .option('--warmup <n>', 'Warmup candle count before range (default: 0)', '0')
+    .option(
+      '--warmup <n>',
+      'Warmup bars (indicator-only at start of range if file has no prior history; peeled from replay)',
+      '0',
+    )
   .option('--log-level <level>', 'debug | info | warn | error', 'info')
   .action(async (opts) => {
     const logLevel = String(opts.logLevel) as LogLevelName;

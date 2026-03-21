@@ -78,7 +78,7 @@ export class TestBroker implements IBroker {
     this.logger.info('TestBroker fill', { symbol: instrument.symbol, side, qty: q, refPrice, fee });
   }
 
-  async closePosition(symbol: string): Promise<void> {
+  async closePosition(symbol: string, qty?: number, price?: number): Promise<void> {
     const instrument = this.getInstrument(symbol);
     if (!instrument) {
       this.logger.warn('TestBroker.closePosition: unknown symbol', { symbol });
@@ -92,14 +92,20 @@ export class TestBroker implements IBroker {
       this.logger.warn('TestBroker: close rejected — no candles', { symbol });
       return;
     }
-    const refPrice = last[last.length - 1]?.close;
+    const lastClose = last[last.length - 1]?.close;
+    const refPrice = price ?? lastClose;
     if (refPrice === undefined || refPrice <= 0) {
       this.logger.warn('TestBroker: close rejected — no reference price', { symbol });
       return;
     }
 
-    const qty = Math.abs(instrument.currentPositionQty);
-    const rounded = instrument.roundQty(qty);
+    const posAbs = Math.abs(instrument.currentPositionQty);
+    const requested =
+      qty !== undefined && qty > 0
+        ? Math.min(instrument.roundQty(qty), posAbs)
+        : posAbs;
+    const rounded = instrument.roundQty(requested);
+    if (rounded <= 0 || rounded > posAbs + 1e-12) return;
     const fee = Math.abs(rounded * refPrice) * this.feeRate;
     instrument.applyEntry(closeSide, rounded, refPrice, fee);
 

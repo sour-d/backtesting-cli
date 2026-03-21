@@ -14,9 +14,7 @@ export interface RunLiveLoopResult {
 export async function runLiveLoop(config: LiveEngineConfig): Promise<RunLiveLoopResult> {
   const { bot, broker, marketRuntime, logger, store, strategies } = createLiveEngine(config);
 
-  marketRuntime.onCandle((instrument, candle) => {
-    void bot.onCandle(instrument, candle);
-  });
+  marketRuntime.onCandle((instrument, candle) => bot.onCandle(instrument, candle));
 
   await marketRuntime.start();
   await bot.restoreDeployments();

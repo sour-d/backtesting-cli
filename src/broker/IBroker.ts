@@ -10,7 +10,11 @@ export interface PlaceOrderInput {
 
 export interface IBroker {
   placeOrder(input: PlaceOrderInput): Promise<void>;
-  closePosition(symbol: string): Promise<void>;
+  /**
+   * Omit `qty` to close the full position; pass a size for partial reduce-only close.
+   * Optional `price` — backtest fill reference (e.g. strategy exit/stop); falls back to last bar close when omitted.
+   */
+  closePosition(symbol: string, qty?: number, price?: number): Promise<void>;
   start(): void;
   stop(): void;
 }

@@ -10,7 +10,7 @@ import type { IBroker } from "../broker/IBroker.js";
 import type { IStore } from "../store/IStore.js";
 import type { IStrategy } from "../strategy/IStrategy.js";
 import type { StrategyRegistry } from "../strategy/StrategyRegistry.js";
-import type { TradingSignal } from "../strategy/types.js";
+import type { StrategyEvaluateResult } from "../strategy/types.js";
 
 function applyIndicatorRegistrations(
   instrument: Instrument,
@@ -137,7 +137,7 @@ export class Bot {
   private async dispatch(
     instrument: Instrument,
     candle: EnrichedCandle,
-    signal: TradingSignal,
+    signal: StrategyEvaluateResult,
   ): Promise<void> {
     if (signal.action === "HOLD") {
       return;
@@ -151,17 +151,48 @@ export class Bot {
         });
         return;
       }
-      const exitQty = Math.abs(instrument.currentPositionQty);
-      await this.broker.closePosition(instrument.symbol);
+      const posAbs = Math.abs(instrument.currentPositionQty);
+      const closeAll = signal.qty === undefined;
+      const exitQty =
+        signal.qty === undefined
+          ? posAbs
+          : Math.min(
+              instrument.roundQty(Math.abs(signal.qty)),
+              posAbs,
+            );
+      if (exitQty <= 0) {
+        this.logger.debug("CLOSE ignored — zero qty", {
+          symbol: instrument.symbol,
+        });
+        return;
+      }
+      const strategyExitPrice =
+        signal.price !== undefined &&
+        Number.isFinite(signal.price) &&
+        signal.price > 0
+          ? signal.price
+          : undefined;
+      await this.broker.closePosition(
+        instrument.symbol,
+        closeAll ? undefined : exitQty,
+        strategyExitPrice,
+      );
+      const exitFillPrice = strategyExitPrice ?? candle.close;
       await this.persistTrade({
         instrument,
         candle,
         kind: "exit",
         qty: exitQty,
-        price: candle.close,
+        price: exitFillPrice,
         side: exitSide,
       });
-      this.logger.info("Signal CLOSE executed", { symbol: instrument.symbol });
+      this.logger.info("Signal CLOSE executed", {
+        symbol: instrument.symbol,
+        exitRefPrice: exitFillPrice,
+        strategyPrice: signal.price,
+        closeAll,
+        qty: exitQty,
+      });
       return;
     }
 
@@ -178,13 +209,15 @@ export class Bot {
       candle,
       kind: "entry",
       qty: signal.qty,
-      price: signal.price ?? candle.close,
+      price: signal.price,
       side,
     });
     this.logger.info("Signal executed", {
       symbol: instrument.symbol,
       action: signal.action,
       qty: signal.qty,
+      price: signal.price,
+      stopLoss: signal.stopLoss,
     });
   }
 

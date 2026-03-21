@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { KlineIntervalV3 } from "bybit-api";
 import type { Candle } from "../core/types.js";
@@ -266,19 +266,34 @@ export class FileMarketRuntime implements IMarketRuntime {
 
     const { candles } = await this.loadMarket(symbol);
 
-    const beforeRange = candles.filter((c) => c.dateUnix < this.rangeStartMs);
-    const warmupSlice =
-      this.warmupCandles > 0 ? beforeRange.slice(-this.warmupCandles) : [];
+    const sorted = [...candles].sort((a, b) => a.dateUnix - b.dateUnix);
+    const inRange = (c: Candle): boolean =>
+      c.dateUnix >= this.rangeStartMs && c.dateUnix <= this.rangeEndMs;
+    const firstInRangeIdx = sorted.findIndex(inRange);
+
+    let warmupSlice: Candle[] = [];
+    if (this.warmupCandles > 0) {
+      if (firstInRangeIdx > 0) {
+        const start = Math.max(0, firstInRangeIdx - this.warmupCandles);
+        warmupSlice = sorted.slice(start, firstInRangeIdx);
+      } else if (firstInRangeIdx === 0) {
+        /** File starts inside the backtest window — peel first N in-range bars for indicators only. */
+        const inRangeSorted = sorted.filter(inRange);
+        const n = Math.min(this.warmupCandles, inRangeSorted.length);
+        warmupSlice = inRangeSorted.slice(0, n);
+      }
+    }
 
     for (const c of warmupSlice) {
       instrument.addCandle(c);
     }
 
+    const warmupTs = new Set(warmupSlice.map((c) => c.dateUnix));
     const replay = new Map<number, Candle>();
     for (const c of candles) {
-      if (c.dateUnix >= this.rangeStartMs && c.dateUnix <= this.rangeEndMs) {
-        replay.set(c.dateUnix, c);
-      }
+      if (!inRange(c)) continue;
+      if (warmupTs.has(c.dateUnix)) continue;
+      replay.set(c.dateUnix, c);
     }
     this.replayBySymbol.set(symbol, replay);
 
@@ -318,6 +333,25 @@ export class FileMarketRuntime implements IMarketRuntime {
     }
 
     this.logger.info("FileMarketRuntime replay complete");
+  }
+
+  /**
+   * After replay, write full in-memory enriched series (warmup + replay bars) to
+   * `{dataDir}/technical/{SYMBOL}_{interval}.json` for inspection / parity with legacy technical dumps.
+   */
+  async writeEnrichedTechnicalDumps(): Promise<void> {
+    const technicalDir = join(this.dataDir, "technical");
+    await mkdir(technicalDir, { recursive: true });
+    const interval = this.klineInterval;
+    for (const [symbol, instrument] of this.instruments) {
+      const candles = instrument.getCandles();
+      const filePath = join(technicalDir, `${symbol}_${interval}.json`);
+      await writeFile(filePath, JSON.stringify(candles, null, 2), "utf8");
+      this.logger.info("Enriched technical dump written", {
+        path: filePath,
+        bars: candles.length,
+      });
+    }
   }
 
   async stop(): Promise<void> {

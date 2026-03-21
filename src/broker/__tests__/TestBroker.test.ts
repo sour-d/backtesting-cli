@@ -2,7 +2,6 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { IndicatorBook } from '../../indicator/IndicatorBook.js';
 import { Instrument } from '../../instrument/Instrument.js';
 import type { InstrumentStatic } from '../../instrument/types.js';
 import type { ILogger } from '../../logger/ILogger.js';
@@ -31,7 +30,7 @@ const spec: InstrumentStatic = {
 describe('TestBroker', () => {
   it('placeOrder applies entry and updates position', async () => {
     const store = new BacktestStore(mkdtempSync(join(tmpdir(), 'ql-bt-')));
-    const inst = new Instrument(spec, new IndicatorBook());
+    const inst = new Instrument(spec, []);
     inst.setCapitalAllocation(10_000, 10_000);
     inst.addCandle({
       dateUnix: 1,
@@ -63,7 +62,7 @@ describe('TestBroker', () => {
 
   it('closePosition flattens position', async () => {
     const store = new BacktestStore(mkdtempSync(join(tmpdir(), 'ql-bt-')));
-    const inst = new Instrument(spec, new IndicatorBook());
+    const inst = new Instrument(spec, []);
     inst.setCapitalAllocation(10_000, 10_000);
     inst.addCandle({
       dateUnix: 1,
@@ -87,5 +86,64 @@ describe('TestBroker', () => {
 
     await broker.closePosition('SOLUSDT');
     expect(Math.abs(inst.currentPositionQty)).toBeLessThan(1e-9);
+  });
+
+  it('closePosition uses strategy price when provided (not last bar close)', async () => {
+    const store = new BacktestStore(mkdtempSync(join(tmpdir(), 'ql-bt-')));
+    const mkInstrument = () => {
+      const i = new Instrument(spec, []);
+      i.setCapitalAllocation(10_000, 10_000);
+      i.addCandle({
+        dateUnix: 1,
+        open: 100,
+        high: 110,
+        low: 90,
+        close: 100,
+        volume: 1,
+      });
+      i.addCandle({
+        dateUnix: 2,
+        open: 100,
+        high: 200,
+        low: 95,
+        close: 180,
+        volume: 1,
+      });
+      return i;
+    };
+
+    const instExplicit = mkInstrument();
+    const brokerExplicit = new TestBroker({
+      logger: noopLogger,
+      store,
+      category: 'linear',
+      feeRate: 0.001,
+      getInstrument: () => instExplicit,
+    });
+    await brokerExplicit.placeOrder({
+      instrument: instExplicit,
+      side: 'Buy',
+      qty: 0.5,
+      price: undefined,
+    });
+    await brokerExplicit.closePosition('SOLUSDT', undefined, 96);
+
+    const instBarClose = mkInstrument();
+    const brokerBarClose = new TestBroker({
+      logger: noopLogger,
+      store,
+      category: 'linear',
+      feeRate: 0.001,
+      getInstrument: () => instBarClose,
+    });
+    await brokerBarClose.placeOrder({
+      instrument: instBarClose,
+      side: 'Buy',
+      qty: 0.5,
+      price: undefined,
+    });
+    await brokerBarClose.closePosition('SOLUSDT');
+
+    expect(instExplicit.availableCapital).not.toBe(instBarClose.availableCapital);
   });
 });

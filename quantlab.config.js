@@ -15,6 +15,6 @@ export default {
   end: '2025-12-31 23:59',
   category: 'linear',
   strategy: 'MovingAverage_v2',
-  capital: 50,
+  capital: 100000,
   feeRate: 0.001,
 };

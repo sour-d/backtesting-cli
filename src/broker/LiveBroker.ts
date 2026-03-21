@@ -106,7 +106,7 @@ export class LiveBroker implements IBroker {
     this.logger.info('Order submitted', { symbol: instrument.symbol, side, qty: q, orderType, orderId });
   }
 
-  async closePosition(symbol: string): Promise<void> {
+  async closePosition(symbol: string, qty?: number, price?: number): Promise<void> {
     const instrument = this.getInstrument(symbol);
     if (!instrument) {
       this.logger.warn('closePosition: unknown symbol', { symbol });
@@ -115,17 +115,30 @@ export class LiveBroker implements IBroker {
     const closeSide = instrument.getCloseOrderSide();
     if (!closeSide) return;
 
-    const qty = Math.abs(instrument.currentPositionQty);
+    const posAbs = Math.abs(instrument.currentPositionQty);
+    const requested =
+      qty !== undefined && qty > 0
+        ? Math.min(instrument.roundQty(qty), posAbs)
+        : posAbs;
+    const qClose = instrument.roundQty(requested);
+    if (qClose <= 0) return;
+
+    /** Live path: still market close; optional `price` is logged as strategy hint only. */
     await this.rest.submitOrder({
       category: this.category,
       symbol,
       side: closeSide,
       orderType: 'Market',
-      qty: String(instrument.roundQty(qty)),
+      qty: String(qClose),
       reduceOnly: true,
     });
     await this.syncPositionFromExchange(symbol);
-    this.logger.info('Position close requested', { symbol, side: closeSide, qty });
+    this.logger.info('Position close requested', {
+      symbol,
+      side: closeSide,
+      qty: qClose,
+      strategyPrice: price,
+    });
   }
 
   private async reconcileAll(): Promise<void> {
