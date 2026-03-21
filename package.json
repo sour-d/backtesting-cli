@@ -8,20 +8,19 @@
   },
   "scripts": {
     "dev:paper": "tsx src/cli/index.ts paper",
-    "dev:live": "tsx src/cli/index.ts live --auto-deploy",
-    "dev:backtest": "tsx src/cli/index.ts run",
+    "dev:live": "tsx src/cli/index.ts live",
+    "dev:backtest": "tsx src/cli/index.ts backtest",
     "download": "tsx src/cli/index.ts download",
     "prebuild": "rm -rf dist",
     "build": "tsc",
     "postbuild": "mkdir -p .data/market .data/technical .data/results .data/transformedResult .data/resultsStats",
     "start:paper": "node dist/cli/index.js paper",
-    "start:live": "node dist/cli/index.js live --auto-deploy",
+    "start:live": "node dist/cli/index.js live",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "clean": "rm -rf dist .data/*/*",
-    "typecheck": "tsc --noEmit",
-    "verify-bybit": "tsx scripts/verify-bybit-trading.ts"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.97.0",
