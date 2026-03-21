@@ -20,6 +20,7 @@
     "typecheck": "tsc --noEmit",
     "compare:trades": "tsx scripts/compareBacktestTradeResults.ts",
     "insights:trades": "tsx scripts/tradeInsights.ts",
+    "insights:live-api": "tsx scripts/liveApiInsights.ts",
     "insights:all": "tsx scripts/tradeInsights.ts --all-symbols",
     "list:trades": "tsx scripts/listCompletedTrades.ts"
   },

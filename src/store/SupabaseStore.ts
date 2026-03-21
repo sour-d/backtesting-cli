@@ -1,5 +1,12 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import type { Candle, LogRecord, OrderHistoryPatch, OrderHistoryRecord, TradeRecord } from '../core/types.js';
+import type {
+  Candle,
+  LogRecord,
+  OrderHistoryPatch,
+  OrderHistoryRecord,
+  OrderHistoryStatus,
+  TradeRecord,
+} from '../core/types.js';
 import type { DeploymentState } from '../deployment/types.js';
 import type { PositionRecord } from '../position/types.js';
 import type { IStore, WarmupBarRow } from './IStore.js';
@@ -180,6 +187,20 @@ export class SupabaseStore implements IStore {
       .from('order_history')
       .upsert(orderHistoryToRow(merged), { onConflict: 'id' });
     if (error) throw new Error(`upsertOrderHistory: ${error.message}`);
+  }
+
+  async listOrderHistory(filters?: {
+    symbol?: string;
+    status?: OrderHistoryStatus;
+  }): Promise<OrderHistoryRecord[]> {
+    let q = this.client.from('order_history').select('*');
+    if (filters?.symbol) q = q.eq('symbol', filters.symbol);
+    if (filters?.status) q = q.eq('status', filters.status);
+    const { data, error } = await q
+      .order('entry_timestamp_ms', { ascending: true, nullsFirst: false })
+      .order('id', { ascending: true });
+    if (error) throw new Error(`listOrderHistory: ${error.message}`);
+    return (data ?? []).map((row) => mapOrderHistoryRow(row as Record<string, unknown>));
   }
 
   async saveDeployment(state: DeploymentState): Promise<void> {
