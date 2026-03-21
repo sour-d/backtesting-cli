@@ -1,36 +1,48 @@
-import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
-import type { KlineIntervalV3 } from 'bybit-api';
-import type { Candle } from '../core/types.js';
-import type { Instrument } from '../instrument/Instrument.js';
-import { defaultInstrumentStaticForBacktest } from '../instrument/defaultInstrumentStatic.js';
-import type { InstrumentCategory, InstrumentStatic } from '../instrument/types.js';
-import type { ILogger } from '../logger/ILogger.js';
-import type { IStore } from '../store/IStore.js';
-import type { CandleHandler, IMarketRuntime } from './IMarketRuntime.js';
-import { mergeReplayTimestamps } from './mergeReplayTimestamps.js';
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
+import type { KlineIntervalV3 } from "bybit-api";
+import type { Candle } from "../core/types.js";
+import type { Instrument } from "../instrument/Instrument.js";
+import { defaultInstrumentStaticForBacktest } from "../instrument/defaultInstrumentStatic.js";
+import type {
+  InstrumentCategory,
+  InstrumentStatic,
+} from "../instrument/types.js";
+import type { ILogger } from "../logger/ILogger.js";
+import type { IStore } from "../store/IStore.js";
+import type { CandleHandler, IMarketRuntime } from "./IMarketRuntime.js";
+import { mergeReplayTimestamps } from "./mergeReplayTimestamps.js";
 
 function isCandleRow(o: unknown): o is Candle {
-  if (!o || typeof o !== 'object') return false;
+  if (!o || typeof o !== "object") return false;
   const r = o as Record<string, unknown>;
   return (
-    typeof r.dateUnix === 'number' &&
-    typeof r.open === 'number' &&
-    typeof r.high === 'number' &&
-    typeof r.low === 'number' &&
-    typeof r.close === 'number' &&
-    typeof r.volume === 'number'
+    typeof r.dateUnix === "number" &&
+    typeof r.open === "number" &&
+    typeof r.high === "number" &&
+    typeof r.low === "number" &&
+    typeof r.close === "number" &&
+    typeof r.volume === "number"
   );
 }
 
-function parseInstrumentJson(symbol: string, raw: unknown, category: InstrumentCategory): InstrumentStatic {
-  if (!raw || typeof raw !== 'object') {
+function parseInstrumentJson(
+  symbol: string,
+  raw: unknown,
+  category: InstrumentCategory,
+): InstrumentStatic {
+  if (!raw || typeof raw !== "object") {
     throw new Error(`Invalid instrument JSON for ${symbol}`);
   }
   const o = raw as Record<string, unknown>;
   return {
-    symbol: typeof o.symbol === 'string' ? o.symbol : symbol,
-    category: o.category === 'linear' || o.category === 'spot' || o.category === 'inverse' ? o.category : category,
+    symbol: typeof o.symbol === "string" ? o.symbol : symbol,
+    category:
+      o.category === "linear" ||
+      o.category === "spot" ||
+      o.category === "inverse"
+        ? o.category
+        : category,
     tickSize: Number(o.tickSize),
     stepSize: Number(o.stepSize),
     minQty: Number(o.minQty),
@@ -42,7 +54,7 @@ function parseInstrumentJson(symbol: string, raw: unknown, category: InstrumentC
 
 function parseJsonlCandles(raw: string, filePath: string): Candle[] {
   const out: Candle[] = [];
-  for (const line of raw.split('\n')) {
+  for (const line of raw.split("\n")) {
     const t = line.trim();
     if (!t) continue;
     const o = JSON.parse(t) as unknown;
@@ -73,7 +85,7 @@ export function parseMarketFileContent(
   filePath: string,
 ): ParsedMarketFile {
   const trimmed = raw.trim();
-  if (trimmed.startsWith('[')) {
+  if (trimmed.startsWith("[")) {
     const parsed = JSON.parse(trimmed) as unknown;
     if (!Array.isArray(parsed)) {
       throw new Error(`Expected JSON array in ${filePath}`);
@@ -88,10 +100,13 @@ export function parseMarketFileContent(
     candles.sort((a, b) => a.dateUnix - b.dateUnix);
     return { candles };
   }
-  if (trimmed.startsWith('{')) {
+  if (trimmed.startsWith("{")) {
     const parsed = JSON.parse(trimmed) as Record<string, unknown>;
     let instrument: InstrumentStatic | undefined;
-    if (parsed.instrument !== undefined && typeof parsed.instrument === 'object') {
+    if (
+      parsed.instrument !== undefined &&
+      typeof parsed.instrument === "object"
+    ) {
       instrument = parseInstrumentJson(symbol, parsed.instrument, category);
     }
     const rawCandles = parsed.candles;
@@ -158,7 +173,7 @@ export class FileMarketRuntime implements IMarketRuntime {
   }
 
   private marketPath(rel: string): string {
-    return join(this.dataDir, 'market', rel);
+    return join(this.dataDir, "market", rel);
   }
 
   /** Base name: `BTCUSDT_240` */
@@ -183,7 +198,7 @@ export class FileMarketRuntime implements IMarketRuntime {
     const primary = this.marketDataPath(symbol);
     let raw: string;
     try {
-      raw = await readFile(primary, 'utf8');
+      raw = await readFile(primary, "utf8");
     } catch {
       throw new Error(
         `Market file not found: ${primary} (expected {symbol}_{interval}.json under market/)`,
@@ -194,10 +209,17 @@ export class FileMarketRuntime implements IMarketRuntime {
 
     if (!parsed.instrument) {
       try {
-        const instRaw = await readFile(this.marketInstrumentSidecarPath(symbol), 'utf8');
+        const instRaw = await readFile(
+          this.marketInstrumentSidecarPath(symbol),
+          "utf8",
+        );
         parsed = {
           ...parsed,
-          instrument: parseInstrumentJson(symbol, JSON.parse(instRaw) as unknown, this.category),
+          instrument: parseInstrumentJson(
+            symbol,
+            JSON.parse(instRaw) as unknown,
+            this.category,
+          ),
         };
       } catch {
         /* optional sidecar */
@@ -263,7 +285,7 @@ export class FileMarketRuntime implements IMarketRuntime {
     instrument.setReady(true);
     this.instruments.set(symbol, instrument);
 
-    this.logger.info('FileMarketRuntime instrument registered', {
+    this.logger.info("FileMarketRuntime instrument registered", {
       symbol,
       warmup: warmupSlice.length,
       replayBars: replay.size,
@@ -281,7 +303,9 @@ export class FileMarketRuntime implements IMarketRuntime {
     this.started = true;
 
     const timeline = mergeReplayTimestamps(this.replayBySymbol);
-    this.logger.info('FileMarketRuntime replay start', { bars: timeline.length });
+    this.logger.info("FileMarketRuntime replay start", {
+      bars: timeline.length,
+    });
 
     for (const t of timeline) {
       for (const [symbol, replay] of this.replayBySymbol) {
@@ -293,18 +317,24 @@ export class FileMarketRuntime implements IMarketRuntime {
       }
     }
 
-    this.logger.info('FileMarketRuntime replay complete');
+    this.logger.info("FileMarketRuntime replay complete");
   }
 
   async stop(): Promise<void> {
     this.started = false;
-    this.logger.info('FileMarketRuntime stopped');
+    this.logger.info("FileMarketRuntime stopped");
   }
 
-  private async runPipeline(instrument: Instrument, candle: Candle): Promise<void> {
-    const enriched = instrument.addCandle(candle);
-    await this.store.saveCandle(instrument.symbol, candle, { ...enriched.indicators });
-    this.logger.debug('Candle pipeline', {
+  private async runPipeline(
+    instrument: Instrument,
+    candle: Candle,
+  ): Promise<void> {
+    instrument.addCandle(candle);
+    const enriched = instrument.getCandles(1)[0]!;
+    await this.store.saveCandle(instrument.symbol, candle, {
+      ...enriched.indicators,
+    });
+    this.logger.debug("Candle pipeline", {
       symbol: instrument.symbol,
       dateUnix: candle.dateUnix,
       indicatorKeys: Object.keys(enriched.indicators),

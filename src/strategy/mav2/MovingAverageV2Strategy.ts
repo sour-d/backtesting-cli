@@ -1,9 +1,12 @@
 import type { EnrichedCandle } from "../../core/types.js";
 import type { IndicatorCompute } from "../../indicator/types.js";
 import type { Instrument } from "../../instrument/Instrument.js";
-import { atrEmaSeries } from "../indicators/atrEma.js";
+import { atrEmaFromLast } from "../indicators/atrEma.js";
 import { smaAt } from "../indicators/rollingSma.js";
-import { superTrendDirections } from "../indicators/superTrendSeries.js";
+import {
+  superTrendFromPrev,
+  type SuperTrendState,
+} from "../indicators/superTrendSeries.js";
 import type { IStrategy } from "../IStrategy.js";
 import type { TradingSignal } from "../types.js";
 
@@ -37,19 +40,6 @@ function qtyFromRisk(
   if (qty < instrument.minQty) return 0;
   if (!instrument.canOpenPosition(qty, entry)) return 0;
   return qty;
-}
-
-function readNum(
-  ind: Readonly<Record<string, unknown>>,
-  key: string,
-): number | null {
-  const v = ind[key];
-  return typeof v === "number" && Number.isFinite(v) ? v : null;
-}
-
-function readSt(ind: Readonly<Record<string, unknown>>): St | null {
-  const v = ind.superTrendDirection;
-  return v === "Buy" || v === "Sell" ? v : null;
 }
 
 function checkLongEntry(
@@ -165,14 +155,16 @@ export class MovingAverageV2Strategy implements IStrategy {
       },
       {
         name: "atr",
-        compute: (candles, candle) => atrEmaSeries(candles, P.atrPeriod),
+        compute: (candles, candle) =>
+          atrEmaFromLast(candles, candle, P.atrPeriod),
       },
       {
-        name: "superTrendDirection",
+        name: "superTrend",
         compute: (candles, candle) =>
-          superTrendDirections(
+          superTrendFromPrev(
             candles,
-            atrEmaSeries(candles, P.atrPeriod),
+            candle,
+            P.atrPeriod,
             P.superTrendMultiplier,
           ),
       },
@@ -185,39 +177,18 @@ export class MovingAverageV2Strategy implements IStrategy {
 
   async evaluate(
     instrument: Instrument,
-    candle: EnrichedCandle,
   ): Promise<TradingSignal | TradingSignal[]> {
-    if (
-      candle.indicators.ma50high === null ||
-      candle.indicators.ma50low === null ||
-      candle.indicators.ma200close === null ||
-      candle.indicators.ma50highPrev === null ||
-      candle.indicators.ma50lowPrev === null ||
-      !candle.indicators.superTrendDirection
-    ) {
-      return { action: "HOLD" };
-    }
-
     const candles = instrument.getCandles(2);
     if (candles.length < 2) return { action: "HOLD" };
+
+    const now = candles[candles.length - 1]!;
     const prev = candles[candles.length - 2]!;
-    const yesterdayBody = readNum(prev.indicators, "body");
-    const ma50highPrev = readNum(prev.indicators, "ma50high");
-    const ma50lowPrev = readNum(prev.indicators, "ma50low");
-    if (
-      yesterdayBody === null ||
-      ma50highPrev === null ||
-      ma50lowPrev === null
-    ) {
-      return { action: "HOLD" };
-    }
+    console.log("now", now);
 
     const signals = this.evaluateRules({
       instrument,
-      now: candle,
-      yesterdayBody,
-      ma50highPrev,
-      ma50lowPrev,
+      now,
+      prev,
     });
     const flat = signals.filter((s) => s.action !== "HOLD");
     if (flat.length === 0) return { action: "HOLD" };
@@ -227,30 +198,21 @@ export class MovingAverageV2Strategy implements IStrategy {
   private evaluateRules(params: {
     readonly instrument: Instrument;
     readonly now: EnrichedCandle;
-    readonly yesterdayBody: number;
-    readonly ma50highPrev: number;
-    readonly ma50lowPrev: number;
+    readonly prev: EnrichedCandle;
   }): TradingSignal[] {
-    const { instrument, now, yesterdayBody, ma50highPrev, ma50lowPrev } =
-      params;
+    const { instrument, now, prev } = params;
     const pos = positionSideFromInstrument(instrument);
     const cap = instrument.allocatedCapital;
 
-    const i = now.indicators;
-    const body = readNum(i, "body");
-    const ma50high = readNum(i, "ma50high");
-    const ma50low = readNum(i, "ma50low");
-    const ma200close = readNum(i, "ma200close");
-    const st = readSt(i);
-    if (
-      body === null ||
-      ma50high === null ||
-      ma50low === null ||
-      ma200close === null ||
-      st === null
-    ) {
-      return [{ action: "HOLD" }];
-    }
+    const yesterdayBody = prev.indicators.body as number;
+    const ma50highPrev = prev.indicators.ma50high as number;
+    const ma50lowPrev = prev.indicators.ma50low as number;
+
+    const body = now.indicators.body as number;
+    const ma50high = now.indicators.ma50high as number;
+    const ma50low = now.indicators.ma50low as number;
+    const ma200close = now.indicators.ma200close as number;
+    const st = (now.indicators.superTrend as SuperTrendState).direction;
 
     const longEntry = {
       close: now.close,
