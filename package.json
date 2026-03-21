@@ -7,14 +7,10 @@
     "quantlab": "./dist/cli/index.js"
   },
   "scripts": {
-    "dev:paper": "tsx src/cli/index.ts paper",
     "dev:live": "tsx src/cli/index.ts live",
-    "dev:backtest": "tsx src/cli/index.ts backtest",
-    "download": "tsx src/cli/index.ts download",
     "prebuild": "rm -rf dist",
     "build": "tsc",
     "postbuild": "mkdir -p .data/market .data/technical .data/results .data/transformedResult .data/resultsStats",
-    "start:paper": "node dist/cli/index.js paper",
     "start:live": "node dist/cli/index.js live",
     "test": "vitest run",
     "test:watch": "vitest",

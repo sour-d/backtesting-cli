@@ -1,0 +1,67 @@
+import express from 'express';
+import type { Server } from 'node:http';
+import { randomUUID } from 'node:crypto';
+import type { Bot } from '../bot/Bot.js';
+import type { ILogger } from '../logger/ILogger.js';
+import type { IStore } from '../store/IStore.js';
+import type { StrategyRegistry } from '../strategy/StrategyRegistry.js';
+
+export interface HttpServerDeps {
+  readonly bot: Bot;
+  readonly store: IStore;
+  readonly strategies: StrategyRegistry;
+  readonly logger: ILogger;
+}
+
+export function createHttpApp(deps: HttpServerDeps): express.Express {
+  const app = express();
+  app.use(express.json());
+
+  app.get('/health', (_req, res) => {
+    res.json({ status: 'ok', mode: 'live' });
+  });
+
+  app.get('/api/strategies', (_req, res) => {
+    res.json({ strategies: deps.strategies.listIds() });
+  });
+
+  app.get('/api/deployments', async (_req, res) => {
+    try {
+      const list = await deps.store.loadDeployments();
+      res.json({ deployments: list });
+    } catch (e) {
+      deps.logger.error('GET /api/deployments failed', { message: String(e) });
+      res.status(500).json({ error: 'internal_error' });
+    }
+  });
+
+  app.post('/api/deployments', async (req, res) => {
+    try {
+      const body = req.body as {
+        id?: string;
+        symbol: string;
+        strategyId: string;
+        capital: number;
+      };
+      if (!body.symbol || !body.strategyId || typeof body.capital !== 'number') {
+        res.status(400).json({ error: 'symbol, strategyId, capital required' });
+        return;
+      }
+      const id = body.id ?? randomUUID();
+      await deps.bot.deploy({ id, symbol: body.symbol, strategyId: body.strategyId, capital: body.capital });
+      res.status(201).json({ id, symbol: body.symbol, strategyId: body.strategyId });
+    } catch (e) {
+      deps.logger.error('POST /api/deployments failed', { message: String(e) });
+      res.status(400).json({ error: String(e) });
+    }
+  });
+
+  return app;
+}
+
+export function listenHttp(app: express.Express, port: number, logger: ILogger): Server {
+  const server = app.listen(port, () => {
+    logger.info('HTTP server listening', { port });
+  });
+  return server;
+}
