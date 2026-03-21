@@ -15,8 +15,6 @@ export interface QuantlabConfig {
   readonly category: 'linear' | 'spot' | 'inverse';
   readonly strategy: string;
   readonly capital: number;
-  readonly riskPercentage: number;
-  readonly maxAllocation: number;
   readonly feeRate: number;
 }
 
@@ -55,12 +53,6 @@ function assertQuantlabConfig(raw: unknown): asserts raw is QuantlabConfig {
   }
   if (typeof o.capital !== 'number' || !Number.isFinite(o.capital)) {
     throw new Error('quantlab.config: capital must be a finite number');
-  }
-  if (typeof o.riskPercentage !== 'number' || !Number.isFinite(o.riskPercentage)) {
-    throw new Error('quantlab.config: riskPercentage must be a finite number');
-  }
-  if (typeof o.maxAllocation !== 'number' || !Number.isFinite(o.maxAllocation)) {
-    throw new Error('quantlab.config: maxAllocation must be a finite number');
   }
   if (typeof o.feeRate !== 'number' || !Number.isFinite(o.feeRate)) {
     throw new Error('quantlab.config: feeRate must be a finite number');

@@ -1,16 +1,26 @@
-import { randomUUID } from 'node:crypto';
-import type { EnrichedCandle } from '../core/types.js';
-import type { TradeRecord } from '../core/types.js';
-import type { DeploymentState } from '../deployment/types.js';
-import { Instrument } from '../instrument/Instrument.js';
-import { IndicatorBook } from '../indicator/IndicatorBook.js';
-import type { ILogger } from '../logger/ILogger.js';
-import type { IMarketRuntime } from '../market-runtime/IMarketRuntime.js';
-import type { IBroker } from '../broker/IBroker.js';
-import type { IStore } from '../store/IStore.js';
-import type { IStrategy } from '../strategy/IStrategy.js';
-import type { StrategyRegistry } from '../strategy/StrategyRegistry.js';
-import type { TradingSignal } from '../strategy/types.js';
+import { randomUUID } from "node:crypto";
+import type { EnrichedCandle } from "../core/types.js";
+import type { TradeRecord } from "../core/types.js";
+import type { DeploymentState } from "../deployment/types.js";
+import { Instrument } from "../instrument/Instrument.js";
+import { IndicatorBook } from "../indicator/IndicatorBook.js";
+import type { ILogger } from "../logger/ILogger.js";
+import type { IMarketRuntime } from "../market-runtime/IMarketRuntime.js";
+import type { IBroker } from "../broker/IBroker.js";
+import type { IStore } from "../store/IStore.js";
+import type { IStrategy } from "../strategy/IStrategy.js";
+import type { StrategyRegistry } from "../strategy/StrategyRegistry.js";
+import type { TradingSignal } from "../strategy/types.js";
+
+function applyIndicatorRegistrations(
+  instrument: Instrument,
+  strategy: IStrategy,
+): void {
+  const list = strategy.getIndicators?.() ?? [];
+  for (const { name, compute } of list) {
+    instrument.registerIndicator(name, { name, compute });
+  }
+}
 
 export interface DeployRequest {
   readonly id: string;
@@ -39,7 +49,11 @@ export class Bot {
   private readonly marketRuntime: IMarketRuntime;
   private readonly registry: StrategyRegistry;
   private readonly feeRate: number;
-  private readonly active = new Map<string, IStrategy>();
+  /** In-memory routing: which strategy id applies to each deployed symbol (persisted deployments are source of truth). */
+  private readonly activeDeployments = new Map<
+    string,
+    { readonly strategyId: string }
+  >();
 
   constructor(deps: BotDeps) {
     this.logger = deps.logger;
@@ -51,18 +65,18 @@ export class Bot {
   }
 
   async deploy(req: DeployRequest): Promise<void> {
-    const strategyClass = this.registry.resolve(req.strategyId);
-    if (!strategyClass) {
+    const strategy = this.registry.resolve(req.strategyId);
+    if (!strategy) {
       throw new Error(`Unknown strategyId: ${req.strategyId}`);
     }
 
     const spec = await this.marketRuntime.fetchInstrumentStatic(req.symbol);
-    const instrument = new Instrument(spec, new IndicatorBook());
+    const instrument = new Instrument(spec, strategy.getIndicators() ?? []);
     instrument.setCapitalAllocation(req.capital, req.capital);
+    applyIndicatorRegistrations(instrument, strategy);
     await this.marketRuntime.registerInstrument(instrument);
 
-    const strategy = strategyClass({ logger: this.logger, symbol: req.symbol });
-    this.active.set(req.symbol, strategy);
+    this.activeDeployments.set(req.symbol, { strategyId: req.strategyId });
 
     const state: DeploymentState = {
       id: req.id,
@@ -70,36 +84,47 @@ export class Bot {
       strategyId: req.strategyId,
       capital: req.capital,
       createdAt: Date.now(),
-      status: 'active',
+      status: "active",
     };
     await this.store.saveDeployment(state);
-    this.logger.info('Deployed', { id: req.id, symbol: req.symbol, strategyId: req.strategyId });
+    this.logger.info("Deployed", {
+      id: req.id,
+      symbol: req.symbol,
+      strategyId: req.strategyId,
+    });
   }
 
   async restoreDeployments(): Promise<void> {
     const rows = await this.store.loadDeployments();
-    const live = rows.filter((r) => r.status === 'active');
+    const live = rows.filter((r) => r.status === "active");
     for (const d of live) {
-      const strategyClass = this.registry.resolve(d.strategyId);
-      if (!strategyClass) {
-        this.logger.error('Skipping deployment — unknown strategy', {
+      const strategy = this.registry.resolve(d.strategyId);
+      if (!strategy) {
+        this.logger.error("Skipping deployment — unknown strategy", {
           id: d.id,
           strategyId: d.strategyId,
         });
         continue;
       }
       const spec = await this.marketRuntime.fetchInstrumentStatic(d.symbol);
-      const instrument = new Instrument(spec, new IndicatorBook());
+      const instrument = new Instrument(spec, strategy.getIndicators());
       instrument.setCapitalAllocation(d.capital, d.capital);
+      applyIndicatorRegistrations(instrument, strategy);
       await this.marketRuntime.registerInstrument(instrument);
 
-      this.active.set(d.symbol, strategyClass({ logger: this.logger, symbol: d.symbol }));
-      this.logger.info('Restored deployment', { id: d.id, symbol: d.symbol });
+      this.activeDeployments.set(d.symbol, { strategyId: d.strategyId });
+      this.logger.info("Restored deployment", { id: d.id, symbol: d.symbol });
     }
   }
 
-  async onCandle(instrument: Instrument, candle: EnrichedCandle): Promise<void> {
-    const strategy = this.active.get(instrument.symbol);
+  async onCandle(
+    instrument: Instrument,
+    candle: EnrichedCandle,
+  ): Promise<void> {
+    const dep = this.activeDeployments.get(instrument.symbol);
+    if (!dep) return;
+
+    const strategy = this.registry.resolve(dep.strategyId);
     if (!strategy) return;
 
     const raw = await strategy.evaluate(instrument, candle);
@@ -114,14 +139,16 @@ export class Bot {
     candle: EnrichedCandle,
     signal: TradingSignal,
   ): Promise<void> {
-    if (signal.action === 'HOLD') {
+    if (signal.action === "HOLD") {
       return;
     }
 
-    if (signal.action === 'CLOSE') {
+    if (signal.action === "CLOSE") {
       const exitSide = instrument.getCloseOrderSide();
       if (!exitSide) {
-        this.logger.debug('CLOSE ignored — flat position', { symbol: instrument.symbol });
+        this.logger.debug("CLOSE ignored — flat position", {
+          symbol: instrument.symbol,
+        });
         return;
       }
       const exitQty = Math.abs(instrument.currentPositionQty);
@@ -129,16 +156,16 @@ export class Bot {
       await this.persistTrade({
         instrument,
         candle,
-        kind: 'exit',
+        kind: "exit",
         qty: exitQty,
         price: candle.close,
         side: exitSide,
       });
-      this.logger.info('Signal CLOSE executed', { symbol: instrument.symbol });
+      this.logger.info("Signal CLOSE executed", { symbol: instrument.symbol });
       return;
     }
 
-    const side = signal.action === 'BUY' ? 'Buy' : 'Sell';
+    const side = signal.action === "BUY" ? "Buy" : "Sell";
     await this.broker.placeOrder({
       instrument,
       side,
@@ -149,12 +176,12 @@ export class Bot {
     await this.persistTrade({
       instrument,
       candle,
-      kind: 'entry',
+      kind: "entry",
       qty: signal.qty,
       price: signal.price ?? candle.close,
       side,
     });
-    this.logger.info('Signal executed', {
+    this.logger.info("Signal executed", {
       symbol: instrument.symbol,
       action: signal.action,
       qty: signal.qty,
@@ -164,10 +191,10 @@ export class Bot {
   private async persistTrade(params: {
     instrument: Instrument;
     candle: EnrichedCandle;
-    kind: TradeRecord['kind'];
+    kind: TradeRecord["kind"];
     qty: number;
     price: number;
-    side: 'Buy' | 'Sell';
+    side: "Buy" | "Sell";
   }): Promise<void> {
     const notional = params.qty * params.price;
     const rec: TradeRecord = {

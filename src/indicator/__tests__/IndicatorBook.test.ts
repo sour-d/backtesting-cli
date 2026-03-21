@@ -1,10 +1,10 @@
-import { describe, expect, it } from 'vitest';
-import { IndicatorBook } from '../IndicatorBook.js';
+import { describe, expect, it } from "vitest";
+import { IndicatorBook } from "../IndicatorBook.js";
 
-describe('IndicatorBook', () => {
-  it('adds candles and computes registered indicators', () => {
+describe("IndicatorBook", () => {
+  it("adds candles and computes registered indicators", () => {
     const book = new IndicatorBook();
-    book.registerIndicator('lastClose', {
+    book.registerIndicator("lastClose", {
       compute: (candles) => candles[candles.length - 1]?.close ?? null,
     });
     book.addCandle({
@@ -15,7 +15,7 @@ describe('IndicatorBook', () => {
       close: 1.5,
       volume: 10,
     });
-    expect(book.getIndicatorValue('lastClose')).toBe(1.5);
+    expect(book.getIndicatorValue("lastClose")).toBe(1.5);
     expect(book.getCandles(10)).toHaveLength(1);
   });
 });

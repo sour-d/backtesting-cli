@@ -16,7 +16,5 @@ export default {
   category: 'linear',
   strategy: 'MovingAverage_v2',
   capital: 50,
-  riskPercentage: 5,
-  maxAllocation: 0.8,
   feeRate: 0.001,
 };

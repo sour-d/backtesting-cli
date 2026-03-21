@@ -5,8 +5,8 @@ import { parseKlineInterval } from '../config/klineInterval.js';
 import { createLogger } from '../logger/createLogger.js';
 import { createMarketRuntime } from '../market-runtime/createMarketRuntime.js';
 import { createStore } from '../store/createStore.js';
-import { createNoopStrategy } from '../strategy/builtin/noopStrategy.js';
-import { createMovingAverageV2Strategy } from '../strategy/mav2/createMovingAverageV2Strategy.js';
+import { NoopStrategy } from '../strategy/builtin/NoopStrategy.js';
+import { MovingAverageV2Strategy } from '../strategy/mav2/MovingAverageV2Strategy.js';
 import { StrategyRegistry } from '../strategy/StrategyRegistry.js';
 import type { LiveEngineConfig } from './liveConfig.js';
 
@@ -22,7 +22,7 @@ export interface LiveEngineHandles {
 }
 
 /**
- * Composition root for live mode — wires factories and shared registries.
+ * Composition root for live mode — wires shared strategy instances and registries.
  * Does not start IO (feed, HTTP, broker timers); callers own lifecycle.
  */
 export function createLiveEngine(config: LiveEngineConfig): LiveEngineHandles {
@@ -39,9 +39,10 @@ export function createLiveEngine(config: LiveEngineConfig): LiveEngineHandles {
   });
 
   const strategies = new StrategyRegistry();
-  strategies.register('noop', createNoopStrategy);
-  strategies.register('mav2', createMovingAverageV2Strategy);
-  strategies.register('MovingAverage_v2', createMovingAverageV2Strategy);
+  const mav2 = new MovingAverageV2Strategy();
+  strategies.register('noop', new NoopStrategy(logger));
+  strategies.register('mav2', mav2);
+  strategies.register('MovingAverage_v2', mav2);
 
   const marketRuntime = createMarketRuntime({
     mode: MODE,

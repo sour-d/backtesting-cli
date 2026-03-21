@@ -1,16 +1,16 @@
-import type { Candle, EnrichedCandle, FillRecord } from '../core/types.js';
-import type { IndicatorDefinition } from '../indicator/types.js';
-import { IndicatorBook } from '../indicator/IndicatorBook.js';
-import { roundToPrecision } from '../utils/decimal.js';
-import type { InstrumentCategory, InstrumentStatic } from './types.js';
+import type { Candle, EnrichedCandle, FillRecord } from "../core/types.js";
+import type {
+  IndicatorCompute,
+  IndicatorConfigType,
+} from "../indicator/types.js";
+import { roundToPrecision } from "../utils/decimal.js";
+import type { InstrumentCategory, InstrumentStatic } from "./types.js";
 
 /**
  * Per-symbol trading context: exchange constraints + runtime position/capital.
  * All market series and indicators are updated through {@link addCandle} — callers do not touch the book directly.
  */
 export class Instrument {
-  private readonly book: IndicatorBook;
-
   private readonly staticFields: InstrumentStatic;
 
   private _allocatedCapital = 0;
@@ -19,35 +19,40 @@ export class Instrument {
   private _avgEntryPrice = 0;
   private _unrealizedPnl = 0;
   private _ready = false;
+  private _indicators: IndicatorConfigType[] = [];
+  private _candles: EnrichedCandle[] = [];
 
-  constructor(spec: InstrumentStatic, indicatorBook: IndicatorBook) {
+  constructor(spec: InstrumentStatic, indicators: IndicatorConfigType[]) {
     this.staticFields = spec;
-    this.book = indicatorBook;
+    this._indicators = indicators;
   }
 
   /**
    * Append a candle, recompute registered indicators, return the enriched bar.
    * Warmup and live ingress both use this — persistence is MarketRuntime's job for live bars only.
    */
-  addCandle(candle: Candle): EnrichedCandle {
-    this.book.addCandle(candle);
-    const indicators = this.book.snapshotIndicators();
-    return {
+  addCandle(candle: Candle): void {
+    const indicatorsValue: Record<string, unknown> = {};
+    this._indicators.forEach(
+      ({ compute, name }: { compute: IndicatorCompute; name: string }) => {
+        indicatorsValue[name] = compute(this._candles, candle);
+      },
+    );
+    this._candles.push({
       ...candle,
-      indicators: { ...indicators },
-    };
+      indicators: indicatorsValue,
+    });
   }
 
-  registerIndicator(name: string, config: IndicatorDefinition): void {
-    this.book.registerIndicator(name, config);
+  getCandles(limit?: number): readonly EnrichedCandle[] {
+    if (limit === undefined || limit >= this._candles.length) {
+      return [...this._candles];
+    }
+    return this._candles.slice(-limit);
   }
 
-  getIndicatorValue(name: string): unknown {
-    return this.book.getIndicatorValue(name);
-  }
-
-  getCandles(limit?: number): readonly Candle[] {
-    return this.book.getCandles(limit);
+  registerIndicator(name: string, config: IndicatorConfigType): void {
+    this._indicators.push({ compute: config.compute, name });
   }
 
   get spec(): InstrumentStatic {
@@ -104,10 +109,10 @@ export class Instrument {
   /**
    * Order side that closes the current position (Sell closes long, Buy closes short), or null if flat.
    */
-  getCloseOrderSide(): 'Buy' | 'Sell' | null {
+  getCloseOrderSide(): "Buy" | "Sell" | null {
     const q = this._currentPositionQty;
     if (Math.abs(q) < 1e-12) return null;
-    return q > 0 ? 'Sell' : 'Buy';
+    return q > 0 ? "Sell" : "Buy";
   }
 
   get avgEntryPrice(): number {
@@ -142,9 +147,9 @@ export class Instrument {
     unrealized: number,
   ): void {
     const mag = Math.abs(sizeAbs);
-    if (side === 'Buy') {
+    if (side === "Buy") {
       this._currentPositionQty = mag;
-    } else if (side === 'Sell') {
+    } else if (side === "Sell") {
       this._currentPositionQty = -mag;
     } else {
       this._currentPositionQty = 0;
@@ -172,12 +177,17 @@ export class Instrument {
   updateCapitalFromFill(fill: FillRecord): void {
     const notional = fill.qty * fill.price;
     const signed =
-      fill.side === 'Buy' ? -notional - fill.fee : notional - fill.fee;
+      fill.side === "Buy" ? -notional - fill.fee : notional - fill.fee;
     this._availableCapital += signed;
   }
 
-  applyEntry(side: 'Buy' | 'Sell', qty: number, price: number, fee: number): void {
-    const signedQty = side === 'Buy' ? qty : -qty;
+  applyEntry(
+    side: "Buy" | "Sell",
+    qty: number,
+    price: number,
+    fee: number,
+  ): void {
+    const signedQty = side === "Buy" ? qty : -qty;
     const nextQty = this._currentPositionQty + signedQty;
     if (Math.abs(nextQty) < 1e-12) {
       this._currentPositionQty = 0;
@@ -192,7 +202,8 @@ export class Instrument {
       if (sameSign) {
         const absOld = Math.abs(this._currentPositionQty);
         const absNew = Math.abs(signedQty);
-        this._avgEntryPrice = (this._avgEntryPrice * absOld + price * absNew) / (absOld + absNew);
+        this._avgEntryPrice =
+          (this._avgEntryPrice * absOld + price * absNew) / (absOld + absNew);
         this._currentPositionQty = nextQty;
       } else {
         this._currentPositionQty = nextQty;
@@ -202,7 +213,7 @@ export class Instrument {
       }
     }
     this._availableCapital -= fee;
-    if (side === 'Buy') {
+    if (side === "Buy") {
       this._availableCapital -= qty * price;
     } else {
       this._availableCapital += qty * price;

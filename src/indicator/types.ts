@@ -1,7 +1,11 @@
-import type { Candle } from '../core/types.js';
+import type { Candle, EnrichedCandle } from "../core/types.js";
 
-export type IndicatorCompute = (candles: readonly Candle[]) => unknown;
+export type IndicatorCompute = (
+  candles: readonly EnrichedCandle[],
+  candle: Candle,
+) => unknown;
 
-export interface IndicatorDefinition {
-  readonly compute: IndicatorCompute;
-}
+export type IndicatorConfigType = {
+  compute: IndicatorCompute;
+  name: string;
+};

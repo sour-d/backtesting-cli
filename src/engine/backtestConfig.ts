@@ -9,6 +9,4 @@ export interface BacktestEngineConfig {
   readonly rangeEndMs: number;
   readonly feeRate: number;
   readonly logLevel: LogLevelName;
-  readonly mav2RiskPercentage: number;
-  readonly mav2MaxAllocation: number;
 }

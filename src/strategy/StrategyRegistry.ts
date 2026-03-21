@@ -1,17 +1,18 @@
-import type { StrategyFactory } from './types.js';
+import type { IStrategy } from './IStrategy.js';
 
+/** Shared strategy instances keyed by id — Bot resolves by deployment’s `strategyId` on each candle. */
 export class StrategyRegistry {
-  private readonly factories = new Map<string, StrategyFactory>();
+  private readonly strategies = new Map<string, IStrategy>();
 
-  register(strategyId: string, factory: StrategyFactory): void {
-    this.factories.set(strategyId, factory);
+  register(strategyId: string, strategy: IStrategy): void {
+    this.strategies.set(strategyId, strategy);
   }
 
-  resolve(strategyId: string): StrategyFactory | undefined {
-    return this.factories.get(strategyId);
+  resolve(strategyId: string): IStrategy | undefined {
+    return this.strategies.get(strategyId);
   }
 
   listIds(): string[] {
-    return [...this.factories.keys()];
+    return [...this.strategies.keys()];
   }
 }

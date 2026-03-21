@@ -28,8 +28,6 @@ export async function runBacktestLoop(opts: RunBacktestLoopOptions): Promise<voi
     rangeEndMs: bounds.rangeEndMs,
     feeRate: ql.feeRate,
     logLevel: opts.logLevel,
-    mav2RiskPercentage: ql.riskPercentage,
-    mav2MaxAllocation: ql.maxAllocation,
   });
 
   marketRuntime.onCandle((instrument, candle) => {

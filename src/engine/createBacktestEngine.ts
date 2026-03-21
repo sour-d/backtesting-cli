@@ -5,10 +5,9 @@ import { parseKlineInterval } from '../config/klineInterval.js';
 import { createLogger } from '../logger/createLogger.js';
 import { FileMarketRuntime } from '../market-runtime/FileMarketRuntime.js';
 import { createStore } from '../store/createStore.js';
-import { createNoopStrategy } from '../strategy/builtin/noopStrategy.js';
-import { createMovingAverageV2Strategy } from '../strategy/mav2/createMovingAverageV2Strategy.js';
+import { NoopStrategy } from '../strategy/builtin/NoopStrategy.js';
+import { MovingAverageV2Strategy } from '../strategy/mav2/MovingAverageV2Strategy.js';
 import { StrategyRegistry } from '../strategy/StrategyRegistry.js';
-import type { StrategyContext } from '../strategy/types.js';
 import type { BacktestEngineConfig } from './backtestConfig.js';
 
 const MODE = 'backtest' as const;
@@ -33,17 +32,10 @@ export function createBacktestEngine(config: BacktestEngineConfig): BacktestEngi
   });
 
   const strategies = new StrategyRegistry();
-  const mav2Factory = (ctx: StrategyContext) =>
-    createMovingAverageV2Strategy({
-      ...ctx,
-      strategyParams: {
-        riskPercentage: config.mav2RiskPercentage,
-        maxAllocation: config.mav2MaxAllocation,
-      },
-    });
-  strategies.register('noop', createNoopStrategy);
-  strategies.register('mav2', mav2Factory);
-  strategies.register('MovingAverage_v2', mav2Factory);
+  const mav2 = new MovingAverageV2Strategy();
+  strategies.register('noop', new NoopStrategy(logger));
+  strategies.register('mav2', mav2);
+  strategies.register('MovingAverage_v2', mav2);
 
   const marketRuntime = new FileMarketRuntime({
     logger,

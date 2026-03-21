@@ -1,5 +1,5 @@
-import type { Candle } from '../core/types.js';
-import type { IndicatorDefinition } from './types.js';
+import type { Candle } from "../core/types.js";
+import type { IndicatorConfigType } from "./types.js";
 
 /**
  * Pure in-memory analytics: OHLCV series + registered indicators.
@@ -7,7 +7,7 @@ import type { IndicatorDefinition } from './types.js';
  */
 export class IndicatorBook {
   private readonly candles: Candle[] = [];
-  private readonly indicators = new Map<string, IndicatorDefinition>();
+  private readonly indicators = new Map<string, IndicatorConfigType>();
   private readonly values = new Map<string, unknown>();
 
   addCandle(candle: Candle): void {
@@ -17,7 +17,7 @@ export class IndicatorBook {
     }
   }
 
-  registerIndicator(name: string, config: IndicatorDefinition): void {
+  registerIndicator(name: string, config: IndicatorConfigType): void {
     this.indicators.set(name, config);
     this.values.set(name, config.compute(this.candles));
   }
