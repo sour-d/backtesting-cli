@@ -1,6 +1,6 @@
 # QuantLab
 
-Modular **live** algorithmic trading engine in TypeScript. Backtest and paper modes are reserved in factory APIs but not implemented yet.
+Modular algorithmic trading engine in TypeScript: **live** (Bybit) and **backtest** (file market data + `TestBroker`). Paper mode is not implemented yet.
 
 ## Architecture
 
@@ -11,11 +11,27 @@ Modular **live** algorithmic trading engine in TypeScript. Backtest and paper mo
 | **Instrument** (`instrument/`) | Built in **Bot** (`fetchInstrumentStatic` from runtime + `new IndicatorBook()`). Encapsulates the book; `addCandle` updates series + indicators. |
 | **IndicatorBook** (`indicator/`) | In-memory OHLCV + registered indicators (pure, no I/O). |
 | **Bot** (`bot/`) | Deployments + strategy runtime; reacts to `(Instrument, EnrichedCandle)` only. |
-| **Broker** (`broker/`) | Live Bybit execution + reconciliation loop. |
-| **Store** (`store/`) | `IStore` — file-backed JSON/JSONL under `.data/live/` (swap implementation without changing callers). |
+| **Broker** (`broker/`) | Live Bybit execution + reconciliation; backtest uses `TestBroker` (instant fills + `Instrument.applyEntry`). |
+| **Store** (`store/`) | `IStore` — live under `.data/live/`; backtest trades per symbol under `.data/trades/{SYMBOL}.jsonl`, metadata under `.data/backtest/`. |
 | **Logger** (`logger/`) | Multi-sink: console, file, optional DB via `IStore.saveLog`. |
 
-Factories use `switch (mode)` with only `live` implemented; other modes throw `"not implemented"`.
+Factories use `switch (mode)`; `paper` still throws `"not implemented"`.
+
+## Run (backtest)
+
+Requires `quantlab.config.js` (see `src/config/loadConfig.ts`) and per-symbol files under `.data/market/`:
+
+- `{SYMBOL}_{INTERVAL}.json` — interval matches `quantlab.config.js` `interval` (e.g. `SOLUSDT_240.json`). Either a JSON array of candles, JSONL (one candle per line), or `{ "instrument": { ... }, "candles": [ ... ] }` with `InstrumentStatic` fields under `instrument`.
+- If the market file has no `instrument` key and no `{SYMBOL}_{INTERVAL}.instrument.json` sidecar, a **generic** `InstrumentStatic` is used for backtest (see `defaultInstrumentStaticForBacktest`) — add real metadata for accurate lot/min-notional behavior.
+
+```bash
+npm run dev:backtest
+# or
+npx tsx src/cli/index.ts backtest -c quantlab.config.js --data-dir .data
+# optional: --warmup 200 to seed indicators with bars before `start`
+
+**No trades in the log?** The engine only prints `Signal executed` / `Signal CLOSE` when the strategy returns a non-`HOLD` signal and the broker accepts the order. `MovingAverage_v2` needs enough bars for its MA(200)-style stack (`computeMav2Series` needs ~202+ candles) and strict price/SuperTrend conditions — many windows produce zero entries. Small `capital` can also make `qtyFromRisk` round to zero against `minQty` / `minNotional`. After each run, check the `Backtest run complete` line for `tradeRecords` and `.data/trades/{SYMBOL}.jsonl`.
+```
 
 ## Run (live)
 

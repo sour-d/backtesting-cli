@@ -3,6 +3,7 @@ import { Command } from 'commander';
 import dotenv from 'dotenv';
 import type { LogLevelName } from '../logger/ILogger.js';
 import type { LogTarget } from '../logger/createLogger.js';
+import { runBacktestLoop } from '../engine/runBacktestLoop.js';
 import { runLiveLoop } from '../engine/runLiveLoop.js';
 
 dotenv.config();
@@ -57,6 +58,29 @@ program
     };
     process.on('SIGINT', stop);
     process.on('SIGTERM', stop);
+  });
+
+program
+  .command('backtest')
+  .description('Run backtest using quantlab.config.js and .data/market file candles')
+  .option('-c, --config <path>', 'Path to quantlab.config.js', 'quantlab.config.js')
+  .option('--data-dir <dir>', 'Data directory', '.data')
+  .option('--warmup <n>', 'Warmup candle count before range (default: 0)', '0')
+  .option('--log-level <level>', 'debug | info | warn | error', 'info')
+  .action(async (opts) => {
+    const logLevel = String(opts.logLevel) as LogLevelName;
+    try {
+      await runBacktestLoop({
+        configPath: String(opts.config),
+        dataDir: String(opts.dataDir),
+        warmupCandles: Number(opts.warmup),
+        logLevel,
+      });
+      process.exit(0);
+    } catch (e) {
+      console.error(e);
+      process.exit(1);
+    }
   });
 
 program.parse();

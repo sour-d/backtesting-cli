@@ -29,11 +29,10 @@ export function createLogger(config: CreateLoggerConfig): ILogger {
 
   switch (config.mode) {
     case 'live':
+    case 'backtest':
       break;
     case 'paper':
       throw new Error('createLogger: mode "paper" is not implemented yet');
-    case 'backtest':
-      throw new Error('createLogger: mode "backtest" is not implemented yet');
     default: {
       const _e: never = config.mode;
       return _e;
@@ -44,7 +43,11 @@ export function createLogger(config: CreateLoggerConfig): ILogger {
     if (t === 'console') {
       sinks.push(new ConsoleSink(level));
     } else if (t === 'file') {
-      sinks.push(new FileSink(join(baseDir, 'logs', 'engine.jsonl'), level));
+      const logFile =
+        config.mode === 'backtest'
+          ? join(baseDir, 'backtest', 'logs', 'engine.jsonl')
+          : join(baseDir, 'logs', 'engine.jsonl');
+      sinks.push(new FileSink(logFile, level));
     } else if (t === 'db') {
       if (!config.store) {
         throw new Error('createLogger: "db" target requires store in config');

@@ -1,8 +1,8 @@
-import type { Candle } from '../../core/types.js';
-import type { Instrument } from '../../instrument/Instrument.js';
-import type { TradingSignal } from '../types.js';
-import type { Mav2BarComputed, Mav2SeriesParams } from './mav2math.js';
-import { computeMav2Series } from './mav2math.js';
+import type { Candle } from "../../core/types.js";
+import type { Instrument } from "../../instrument/Instrument.js";
+import type { TradingSignal } from "../types.js";
+import type { Mav2BarComputed, Mav2SeriesParams } from "./mav2math.js";
+import { computeMav2Series } from "./mav2math.js";
 
 export interface Mav2Params extends Partial<Mav2SeriesParams> {
   readonly riskPercentage: number;
@@ -20,7 +20,7 @@ const defaultEval: Mav2Params = {
   superTrendMultiplier: 2,
 };
 
-type PositionSide = 'Buy' | 'Sell';
+type PositionSide = "Buy" | "Sell";
 
 function qtyFromRisk(
   capital: number,
@@ -51,7 +51,7 @@ function checkLongEntry(
     now.close > now.maHigh &&
     now.body > 0 &&
     yesterday.body > 0 &&
-    now.superTrendDirection === 'Buy'
+    now.superTrendDirection === "Buy"
   ) {
     const price = now.close;
     const stopLoss = price * (1 - stopLossPct);
@@ -72,7 +72,7 @@ function checkShortEntry(
     now.close < now.maLow &&
     now.body < 0 &&
     yesterday.body < 0 &&
-    now.superTrendDirection === 'Sell'
+    now.superTrendDirection === "Sell"
   ) {
     const price = now.close;
     const stopLoss = price * (1 + stopLossPct);
@@ -83,18 +83,26 @@ function checkShortEntry(
   return null;
 }
 
-function checkLongExit(now: Mav2BarComputed, yesterday: Mav2BarComputed): boolean {
+function checkLongExit(
+  now: Mav2BarComputed,
+  yesterday: Mav2BarComputed,
+): boolean {
   return yesterday.maHigh > now.low && now.body < 0;
 }
 
-function checkShortExit(now: Mav2BarComputed, yesterday: Mav2BarComputed): boolean {
+function checkShortExit(
+  now: Mav2BarComputed,
+  yesterday: Mav2BarComputed,
+): boolean {
   return now.high > yesterday.maLow && now.body > 0;
 }
 
-function positionSideFromInstrument(instrument: Instrument): PositionSide | null {
+function positionSideFromInstrument(
+  instrument: Instrument,
+): PositionSide | null {
   const q = instrument.currentPositionQty;
   if (Math.abs(q) < 1e-12) return null;
-  return q > 0 ? 'Buy' : 'Sell';
+  return q > 0 ? "Buy" : "Sell";
 }
 
 /**
@@ -107,48 +115,77 @@ export function evaluateMav2(params: {
 }): TradingSignal[] {
   const cfg = { ...defaultEval, ...params.config };
   const ctx = computeMav2Series(params.candles, cfg);
-  if (!ctx) return [{ action: 'HOLD' }];
+  if (!ctx) return [{ action: "HOLD" }];
 
   const { today, yesterday } = ctx;
+  console.log('today', today);
   const pos = positionSideFromInstrument(params.instrument);
   const cap = params.instrument.allocatedCapital;
 
-  if (pos === 'Buy') {
+  if (pos === "Buy") {
     if (checkLongExit(today, yesterday)) {
-      const out: TradingSignal[] = [{ action: 'CLOSE' }];
+      const out: TradingSignal[] = [{ action: "CLOSE" }];
       const short = checkShortEntry(today, yesterday, cfg.stopLossPct);
       if (short) {
-        const q = qtyFromRisk(cap, cfg.riskPercentage, cfg.maxAllocation, short.price, short.riskPerUnit, params.instrument);
-        if (q > 0) out.push({ action: 'SELL', qty: q, price: undefined });
+        const q = qtyFromRisk(
+          cap,
+          cfg.riskPercentage,
+          cfg.maxAllocation,
+          short.price,
+          short.riskPerUnit,
+          params.instrument,
+        );
+        if (q > 0) out.push({ action: "SELL", qty: q, price: undefined });
       }
       return out;
     }
-    return [{ action: 'HOLD' }];
+    return [{ action: "HOLD" }];
   }
 
-  if (pos === 'Sell') {
+  if (pos === "Sell") {
     if (checkShortExit(today, yesterday)) {
-      const out: TradingSignal[] = [{ action: 'CLOSE' }];
+      const out: TradingSignal[] = [{ action: "CLOSE" }];
       const lng = checkLongEntry(today, yesterday, cfg.stopLossPct);
       if (lng) {
-        const q = qtyFromRisk(cap, cfg.riskPercentage, cfg.maxAllocation, lng.price, lng.riskPerUnit, params.instrument);
-        if (q > 0) out.push({ action: 'BUY', qty: q, price: undefined });
+        const q = qtyFromRisk(
+          cap,
+          cfg.riskPercentage,
+          cfg.maxAllocation,
+          lng.price,
+          lng.riskPerUnit,
+          params.instrument,
+        );
+        if (q > 0) out.push({ action: "BUY", qty: q, price: undefined });
       }
       return out;
     }
-    return [{ action: 'HOLD' }];
+    return [{ action: "HOLD" }];
   }
 
   const longFirst = checkLongEntry(today, yesterday, cfg.stopLossPct);
   if (longFirst) {
-    const q = qtyFromRisk(cap, cfg.riskPercentage, cfg.maxAllocation, longFirst.price, longFirst.riskPerUnit, params.instrument);
-    if (q > 0) return [{ action: 'BUY', qty: q, price: undefined }];
+    const q = qtyFromRisk(
+      cap,
+      cfg.riskPercentage,
+      cfg.maxAllocation,
+      longFirst.price,
+      longFirst.riskPerUnit,
+      params.instrument,
+    );
+    if (q > 0) return [{ action: "BUY", qty: q, price: undefined }];
   }
   const short = checkShortEntry(today, yesterday, cfg.stopLossPct);
   if (short) {
-    const q = qtyFromRisk(cap, cfg.riskPercentage, cfg.maxAllocation, short.price, short.riskPerUnit, params.instrument);
-    if (q > 0) return [{ action: 'SELL', qty: q, price: undefined }];
+    const q = qtyFromRisk(
+      cap,
+      cfg.riskPercentage,
+      cfg.maxAllocation,
+      short.price,
+      short.riskPerUnit,
+      params.instrument,
+    );
+    if (q > 0) return [{ action: "SELL", qty: q, price: undefined }];
   }
 
-  return [{ action: 'HOLD' }];
+  return [{ action: "HOLD" }];
 }

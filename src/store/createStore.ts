@@ -1,4 +1,5 @@
 import type { RunMode } from '../core/mode.js';
+import { BacktestStore } from './BacktestStore.js';
 import { FileStore } from './FileStore.js';
 import type { IStore } from './IStore.js';
 
@@ -18,7 +19,7 @@ export function createStore(config: CreateStoreConfig): IStore {
     case 'paper':
       throw new Error('createStore: mode "paper" is not implemented yet');
     case 'backtest':
-      throw new Error('createStore: mode "backtest" is not implemented yet');
+      return new BacktestStore(config.baseDir ?? '.data');
     default: {
       const _exhaustive: never = config.mode;
       return _exhaustive;

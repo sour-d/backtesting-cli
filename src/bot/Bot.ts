@@ -25,6 +25,8 @@ export interface BotDeps {
   readonly broker: IBroker;
   readonly marketRuntime: IMarketRuntime;
   readonly strategies: StrategyRegistry;
+  /** When set (e.g. backtest), used for `TradeRecord.fee` in `persistTrade`. */
+  readonly feeRate?: number;
 }
 
 /**
@@ -36,6 +38,7 @@ export class Bot {
   private readonly broker: IBroker;
   private readonly marketRuntime: IMarketRuntime;
   private readonly registry: StrategyRegistry;
+  private readonly feeRate: number;
   private readonly active = new Map<string, IStrategy>();
 
   constructor(deps: BotDeps) {
@@ -44,6 +47,7 @@ export class Bot {
     this.broker = deps.broker;
     this.marketRuntime = deps.marketRuntime;
     this.registry = deps.strategies;
+    this.feeRate = deps.feeRate ?? 0;
   }
 
   async deploy(req: DeployRequest): Promise<void> {
@@ -165,13 +169,14 @@ export class Bot {
     price: number;
     side: 'Buy' | 'Sell';
   }): Promise<void> {
+    const notional = params.qty * params.price;
     const rec: TradeRecord = {
       id: randomUUID(),
       symbol: params.instrument.symbol,
       side: params.side,
       qty: params.qty,
       price: params.price,
-      fee: 0,
+      fee: this.feeRate > 0 ? notional * this.feeRate : 0,
       timestamp: params.candle.dateUnix,
       kind: params.kind,
     };

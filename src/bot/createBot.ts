@@ -8,7 +8,7 @@ export function createBot(mode: RunMode, deps: BotDeps): Bot {
     case 'paper':
       throw new Error('createBot: mode "paper" is not implemented yet');
     case 'backtest':
-      throw new Error('createBot: mode "backtest" is not implemented yet');
+      return new Bot(deps);
     default: {
       const _e: never = mode;
       return _e;

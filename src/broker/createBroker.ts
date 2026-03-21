@@ -5,6 +5,7 @@ import type { ILogger } from '../logger/ILogger.js';
 import type { IStore } from '../store/IStore.js';
 import type { IBroker } from './IBroker.js';
 import { LiveBroker, type LiveBrokerOptions } from './LiveBroker.js';
+import { TestBroker, type TestBrokerOptions } from './TestBroker.js';
 
 export interface CreateBrokerConfig {
   readonly mode: RunMode;
@@ -15,6 +16,7 @@ export interface CreateBrokerConfig {
   readonly apiSecret?: string;
   readonly testnet?: boolean;
   readonly demoTrading?: boolean;
+  /** Live: `LiveBroker` reconcile fee estimate; backtest: `TestBroker` fill fee. */
   readonly feeRate?: number;
   readonly reconcileIntervalMs?: number;
   readonly getInstrument: (symbol: string) => Instrument | undefined;
@@ -42,8 +44,16 @@ export function createBroker(config: CreateBrokerConfig): IBroker {
     }
     case 'paper':
       throw new Error('createBroker: mode "paper" is not implemented yet');
-    case 'backtest':
-      throw new Error('createBroker: mode "backtest" is not implemented yet');
+    case 'backtest': {
+      const opts: TestBrokerOptions = {
+        logger: config.logger,
+        store: config.store,
+        category: config.category,
+        feeRate: config.feeRate ?? 0.001,
+        getInstrument: config.getInstrument,
+      };
+      return new TestBroker(opts);
+    }
     default: {
       const _e: never = config.mode;
       return _e;
