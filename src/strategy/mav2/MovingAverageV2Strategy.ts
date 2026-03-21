@@ -123,7 +123,6 @@ export class MovingAverageV2Strategy implements IStrategy {
    */
   async evaluate(
     instrument: Instrument,
-    candle: EnrichedCandle,
   ): Promise<StrategyEvaluateResult | StrategyEvaluateResult[]> {
     const candles = instrument.getCandles(2);
     if (candles.length < 2) {
@@ -134,7 +133,7 @@ export class MovingAverageV2Strategy implements IStrategy {
       return { action: "HOLD" };
     }
 
-    const now = candle;
+    const now = candles[candles.length - 1]!;
     const prev = candles[candles.length - 2]!;
     const pos = positionSideFromInstrument(instrument);
 

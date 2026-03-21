@@ -3,7 +3,6 @@ import type { EnrichedCandle } from "../core/types.js";
 import type { TradeRecord } from "../core/types.js";
 import type { DeploymentState } from "../deployment/types.js";
 import { Instrument } from "../instrument/Instrument.js";
-import { IndicatorBook } from "../indicator/IndicatorBook.js";
 import type { ILogger } from "../logger/ILogger.js";
 import type { IMarketRuntime } from "../market-runtime/IMarketRuntime.js";
 import type { IBroker } from "../broker/IBroker.js";
@@ -73,7 +72,6 @@ export class Bot {
     const spec = await this.marketRuntime.fetchInstrumentStatic(req.symbol);
     const instrument = new Instrument(spec, strategy.getIndicators() ?? []);
     instrument.setCapitalAllocation(req.capital, req.capital);
-    applyIndicatorRegistrations(instrument, strategy);
     await this.marketRuntime.registerInstrument(instrument);
 
     this.activeDeployments.set(req.symbol, { strategyId: req.strategyId });
@@ -117,19 +115,17 @@ export class Bot {
     }
   }
 
-  async onCandle(
-    instrument: Instrument,
-    candle: EnrichedCandle,
-  ): Promise<void> {
+  async onCandle(instrument: Instrument): Promise<void> {
     const dep = this.activeDeployments.get(instrument.symbol);
     if (!dep) return;
 
     const strategy = this.registry.resolve(dep.strategyId);
     if (!strategy) return;
 
-    const raw = await strategy.evaluate(instrument, candle);
+    const raw = await strategy.evaluate(instrument);
     const signals = Array.isArray(raw) ? raw : [raw];
     for (const signal of signals) {
+      const candle = instrument.getCandles(1)[0]!;
       await this.dispatch(instrument, candle, signal);
     }
   }
@@ -153,13 +149,9 @@ export class Bot {
       }
       const posAbs = Math.abs(instrument.currentPositionQty);
       const closeAll = signal.qty === undefined;
-      const exitQty =
-        signal.qty === undefined
-          ? posAbs
-          : Math.min(
-              instrument.roundQty(Math.abs(signal.qty)),
-              posAbs,
-            );
+      const exitQty = closeAll
+        ? posAbs
+        : Math.min(instrument.roundQty(Math.abs(signal.qty!)), posAbs);
       if (exitQty <= 0) {
         this.logger.debug("CLOSE ignored — zero qty", {
           symbol: instrument.symbol,

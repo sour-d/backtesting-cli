@@ -13,6 +13,5 @@ export interface IStrategy {
   /** Single result, or multiple (e.g. CLOSE then reversal entry on the same bar). */
   evaluate(
     instrument: Instrument,
-    candle: EnrichedCandle,
   ): Promise<StrategyEvaluateResult | StrategyEvaluateResult[]>;
 }
