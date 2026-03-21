@@ -8,7 +8,7 @@ import type { TradingSignal } from '../types.js';
 export function createNoopStrategy(ctx: StrategyContext): IStrategy {
   return {
     strategyId: 'noop',
-    async evaluate(_instrument: Instrument, _candle: EnrichedCandle): Promise<TradingSignal> {
+    async evaluate(_instrument: Instrument, _candle: EnrichedCandle): Promise<TradingSignal | TradingSignal[]> {
       ctx.logger.debug('noop evaluate');
       return { action: 'HOLD' };
     },

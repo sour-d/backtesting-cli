@@ -6,6 +6,7 @@ import { createLogger } from '../logger/createLogger.js';
 import { createMarketRuntime } from '../market-runtime/createMarketRuntime.js';
 import { createStore } from '../store/createStore.js';
 import { createNoopStrategy } from '../strategy/builtin/noopStrategy.js';
+import { createMovingAverageV2Strategy } from '../strategy/mav2/createMovingAverageV2Strategy.js';
 import { StrategyRegistry } from '../strategy/StrategyRegistry.js';
 import type { LiveEngineConfig } from './liveConfig.js';
 
@@ -39,13 +40,15 @@ export function createLiveEngine(config: LiveEngineConfig): LiveEngineHandles {
 
   const strategies = new StrategyRegistry();
   strategies.register('noop', createNoopStrategy);
+  strategies.register('mav2', createMovingAverageV2Strategy);
+  strategies.register('MovingAverage_v2', createMovingAverageV2Strategy);
 
   const marketRuntime = createMarketRuntime({
     mode: MODE,
     logger,
     store,
     category: config.category,
-    klineInterval: parseKlineInterval(config.klineInterval), // why need this? can we pass the candle details from quant lab directly?
+    klineInterval: parseKlineInterval(config.klineInterval),
     warmupCandles: config.warmupCandles,
     testnet: config.testnet,
   });

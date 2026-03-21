@@ -28,7 +28,7 @@ npx tsx src/cli/index.ts live --port 3000 --interval 240
 ## HTTP API
 
 - `GET /health`
-- `GET /api/strategies` — registered strategy ids (default: `noop`)
+- `GET /api/strategies` — registered strategy ids (`noop`, `mav2` / `MovingAverage_v2`)
 - `GET /api/deployments`
 - `POST /api/deployments` — `{ "symbol": "BTCUSDT", "strategyId": "noop", "capital": 1000 }`
 

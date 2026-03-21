@@ -98,8 +98,11 @@ export class Bot {
     const strategy = this.active.get(instrument.symbol);
     if (!strategy) return;
 
-    const signal = await strategy.evaluate(instrument, candle);
-    await this.dispatch(instrument, candle, signal);
+    const raw = await strategy.evaluate(instrument, candle);
+    const signals = Array.isArray(raw) ? raw : [raw];
+    for (const signal of signals) {
+      await this.dispatch(instrument, candle, signal);
+    }
   }
 
   private async dispatch(
@@ -107,7 +110,9 @@ export class Bot {
     candle: EnrichedCandle,
     signal: TradingSignal,
   ): Promise<void> {
-    if (signal.action === 'HOLD') return;
+    if (signal.action === 'HOLD') {
+      return;
+    }
 
     if (signal.action === 'CLOSE') {
       const exitSide = instrument.getCloseOrderSide();
