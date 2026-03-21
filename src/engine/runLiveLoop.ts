@@ -1,5 +1,5 @@
 import type { Server } from 'node:http';
-import { createHttpApp, listenHttp } from '../api/httpServer.js';
+import { createHttpApp, listenHttp, stopLiveUrlPing } from '../api/httpServer.js';
 import { PositionManager } from '../position/PositionManager.js';
 import type { LiveEngineConfig } from './liveConfig.js';
 import { createLiveEngine } from './createLiveEngine.js';
@@ -25,6 +25,7 @@ export async function runLiveLoop(config: LiveEngineConfig): Promise<RunLiveLoop
   const server = listenHttp(app, config.port, logger);
 
   const shutdown = async (): Promise<void> => {
+    stopLiveUrlPing();
     await new Promise<void>((resolve, reject) => {
       server.close((err) => (err ? reject(err) : resolve()));
     });

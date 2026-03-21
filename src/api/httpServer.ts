@@ -21,6 +21,10 @@ export function createHttpApp(deps: HttpServerDeps): express.Express {
     res.json({ status: 'ok', mode: 'live' });
   });
 
+  app.get('/ping', (_req, res) => {
+    res.type('text/plain').send('pong');
+  });
+
   app.get('/api/strategies', (_req, res) => {
     res.json({ strategies: deps.strategies.listIds() });
   });
@@ -87,9 +91,30 @@ export function createHttpApp(deps: HttpServerDeps): express.Express {
   return app;
 }
 
+const LIVE_URL_PING_MS = 60_000;
+let liveUrlPingTimer: ReturnType<typeof setInterval> | undefined;
+
+/** When `LIVE_URL` is set, GET it every minute (no logging). */
+function startLiveUrlPingIfConfigured(): void {
+  const url = process.env.LIVE_URL?.trim();
+  if (!url) return;
+  const ping = (): void => {
+    void fetch(url, { method: 'GET', signal: AbortSignal.timeout(15_000) }).catch(() => {});
+  };
+  liveUrlPingTimer = setInterval(ping, LIVE_URL_PING_MS);
+}
+
+export function stopLiveUrlPing(): void {
+  if (liveUrlPingTimer !== undefined) {
+    clearInterval(liveUrlPingTimer);
+    liveUrlPingTimer = undefined;
+  }
+}
+
 export function listenHttp(app: express.Express, port: number, logger: ILogger): Server {
   const server = app.listen(port, () => {
     logger.info('HTTP server listening', { port });
+    startLiveUrlPingIfConfigured();
   });
   return server;
 }
