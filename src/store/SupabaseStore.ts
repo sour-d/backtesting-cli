@@ -147,8 +147,31 @@ export class SupabaseStore implements IStore {
     bars: readonly WarmupBarRow[],
   ): Promise<void> {
     await this.truncateCandleTail(symbol, klineInterval, tailLineCount);
-    for (const { candle, indicators } of bars) {
-      await this.saveCandle(symbol, klineInterval, candle, indicators);
+    if (bars.length === 0) return;
+    /** Batched upserts — one row per candle was N sequential HTTP calls and dominated warmup time. */
+    const BATCH = 150;
+    for (let i = 0; i < bars.length; i += BATCH) {
+      const slice = bars.slice(i, i + BATCH);
+      const rows = slice.map(({ candle, indicators }) => {
+        const { date, time } = candleDatePartsIST(candle.dateUnix);
+        return {
+          symbol,
+          interval: klineInterval,
+          date_unix: candle.dateUnix,
+          date,
+          time,
+          open: candle.open,
+          high: candle.high,
+          low: candle.low,
+          close: candle.close,
+          volume: candle.volume,
+          technicals: indicators,
+        };
+      });
+      const { error } = await this.client.from('candles').upsert(rows, {
+        onConflict: 'symbol,interval,date_unix',
+      });
+      if (error) throw new Error(`storeWarmupData: ${error.message}`);
     }
   }
 

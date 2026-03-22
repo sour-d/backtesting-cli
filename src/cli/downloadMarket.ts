@@ -33,6 +33,20 @@ export async function runDownloadMarket(opts: DownloadMarketOptions): Promise<vo
       interval,
       rangeStartMs,
       rangeEndMs,
+      onChunk: (chunk) => {
+        console.info(
+          '[download-market] kline window',
+          JSON.stringify({
+            symbol: chunk.symbol,
+            interval: chunk.interval,
+            window: `${chunk.windowIndex}/${chunk.windowsTotal}`,
+            pageInWindow: chunk.pageInWindow,
+            startMs: chunk.startMs,
+            endMs: chunk.endMs,
+            rows: chunk.rowsReturned,
+          }),
+        );
+      },
     });
     const fileName = `${symbol}_${interval}.json`;
     const filePath = join(outDir, fileName);

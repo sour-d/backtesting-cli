@@ -1,13 +1,12 @@
 #!/usr/bin/env node
+/** Load `.env` before any app modules — they read `process.env` at import time. */
+import 'dotenv/config';
 import { Command } from 'commander';
-import dotenv from 'dotenv';
 import type { LogLevelName } from '../logger/ILogger.js';
 import type { LogTarget } from '../logger/createLogger.js';
 import { runBacktestLoop } from '../engine/runBacktestLoop.js';
 import { runLiveLoop } from '../engine/runLiveLoop.js';
 import { runDownloadMarket } from './downloadMarket.js';
-
-dotenv.config();
 
 const program = new Command();
 program.name('quantlab').description('Modular trading engine').version('0.3.0');

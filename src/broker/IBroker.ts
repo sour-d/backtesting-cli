@@ -18,8 +18,16 @@ export interface IBroker {
    * Optional `price` — backtest fill reference (e.g. strategy exit/stop); falls back to last bar close when omitted.
    */
   closePosition(symbol: string, roundTripId: string, qty?: number, price?: number): Promise<void>;
-  /** Set position stop-loss on the venue (live: Bybit trading-stop; backtest: no-op log). */
-  updateStopLoss(symbol: string, stopLoss: number, roundTripId: string): Promise<void>;
+  /**
+   * Set position stop-loss on the venue (live: Bybit trading-stop; backtest: file store).
+   * Pass `deploymentId` when the round-trip id may not exist yet in `order_history` (e.g. reconciled position row).
+   */
+  updateStopLoss(
+    symbol: string,
+    stopLoss: number,
+    roundTripId: string,
+    deploymentId?: string,
+  ): Promise<void>;
   /**
    * Live: pull the latest position for `symbol` from the venue into {@link Instrument}.
    * Omitted in backtest — {@link PositionManager} skips periodic venue reconciliation.

@@ -145,60 +145,73 @@ export class Bot {
     const live = rows.filter((r) => r.status === "active");
     this.logger.info("Restoring deployments", { count: live.length });
     const pm = PositionManager.getInstance();
-    for (const d of live) {
-      const strategy = this.registry.resolve(d.strategyId);
-      if (!strategy) {
-        this.logger.error("Skipping deployment — unknown strategy", {
-          id: d.id,
+    await Promise.all(
+      live.map(async (d) => {
+        const strategy = this.registry.resolve(d.strategyId);
+        if (!strategy) {
+          this.logger.error("Skipping deployment — unknown strategy", {
+            id: d.id,
+            strategyId: d.strategyId,
+          });
+          return;
+        }
+        const intervalRaw = (d.klineInterval ?? this.defaultKlineInterval).trim();
+        const klineInterval = parseKlineInterval(intervalRaw);
+
+        const spec = await this.marketRuntime.fetchInstrumentStatic(d.symbol);
+        const instrument = new Instrument(spec, strategy.getIndicators());
+        pm.setCapitalAllocation(d.symbol, d.capital, d.capital);
+        applyIndicatorRegistrations(instrument, strategy);
+        await this.marketRuntime.registerInstrument(instrument, { klineInterval });
+
+        this.activeDeployments.set(d.symbol, {
           strategyId: d.strategyId,
+          deploymentId: d.id,
         });
-        continue;
-      }
-      const intervalRaw = (d.klineInterval ?? this.defaultKlineInterval).trim();
-      const klineInterval = parseKlineInterval(intervalRaw);
 
-      const spec = await this.marketRuntime.fetchInstrumentStatic(d.symbol);
-      const instrument = new Instrument(spec, strategy.getIndicators());
-      pm.setCapitalAllocation(d.symbol, d.capital, d.capital);
-      applyIndicatorRegistrations(instrument, strategy);
-      await this.marketRuntime.registerInstrument(instrument, { klineInterval });
+        const row = await this.store.loadPositionByDeploymentId(d.id);
+        const openPosition = row
+          ? {
+              positionId: row.id,
+              side: row.side,
+              qty: row.qty,
+              avgEntryPrice: row.avgEntryPrice ?? null,
+            }
+          : null;
+        if (row) {
+          pm.registerOpenPosition(d.symbol, row.id, d.id);
+          pm.hydrateFromStoredRow(d.symbol, row);
+        }
 
-      this.activeDeployments.set(d.symbol, {
-        strategyId: d.strategyId,
-        deploymentId: d.id,
-      });
-
-      const row = await this.store.loadPositionByDeploymentId(d.id);
-      const openPosition = row
-        ? {
-            positionId: row.id,
-            side: row.side,
-            qty: row.qty,
-            avgEntryPrice: row.avgEntryPrice ?? null,
-          }
-        : null;
-      if (row) {
-        pm.registerOpenPosition(d.symbol, row.id, d.id);
-        pm.hydrateFromStoredRow(d.symbol, row);
-      }
-
-      this.logger.info("Restored deployment", {
-        deploymentId: d.id,
-        symbol: d.symbol,
-        strategyId: d.strategyId,
-        klineInterval: intervalRaw,
-        capital: d.capital,
-        openPosition,
-      });
-    }
+        this.logger.info("Restored deployment", {
+          deploymentId: d.id,
+          symbol: d.symbol,
+          strategyId: d.strategyId,
+          klineInterval: intervalRaw,
+          capital: d.capital,
+          openPosition,
+        });
+      }),
+    );
   }
 
   async onCandle(instrument: Instrument): Promise<void> {
     const dep = this.activeDeployments.get(instrument.symbol);
-    if (!dep) return;
+    if (!dep) {
+      this.logger.debug("onCandle: skip — no active deployment", {
+        symbol: instrument.symbol,
+      });
+      return;
+    }
 
     const strategy = this.registry.resolve(dep.strategyId);
-    if (!strategy) return;
+    if (!strategy) {
+      this.logger.warn("onCandle: skip — unknown strategy", {
+        symbol: instrument.symbol,
+        strategyId: dep.strategyId,
+      });
+      return;
+    }
 
     const pm = PositionManager.getInstance();
     const sync = this.broker.syncPositionFromVenue;

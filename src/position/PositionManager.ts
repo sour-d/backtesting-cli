@@ -463,7 +463,13 @@ export class PositionManager implements IPositionBook {
       });
       return;
     }
-    await this.broker.updateStopLoss(instrument.symbol, signal.stopLoss, uid);
+    const deploymentId = this.bySymbol.get(instrument.symbol)?.deploymentId;
+    await this.broker.updateStopLoss(
+      instrument.symbol,
+      signal.stopLoss,
+      uid,
+      deploymentId,
+    );
     await this.store.updatePositionStopLoss(uid, signal.stopLoss, Date.now());
     this.logger.info('Signal UPDATE_SL executed', {
       symbol: instrument.symbol,

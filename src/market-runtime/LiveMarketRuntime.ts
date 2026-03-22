@@ -144,6 +144,18 @@ export class LiveMarketRuntime implements IMarketRuntime {
       symbol,
       interval,
       total: this.warmupCandles,
+      onChunk: (chunk) => {
+        this.logger.info('Warmup kline chunk', {
+          symbol: chunk.symbol,
+          interval: chunk.interval,
+          requestIndex: chunk.requestIndex,
+          limit: chunk.limit,
+          endMs: chunk.endMs,
+          rows: chunk.rowsReturned,
+          uniqueBars: chunk.uniqueBarsTotal,
+          nextEndMs: chunk.nextEndMs,
+        });
+      },
     });
     if (candles.length === 0) {
       this.logger.warn('Warmup returned no candles', { symbol });
@@ -196,7 +208,7 @@ export class LiveMarketRuntime implements IMarketRuntime {
   }
 
   /**
-   * Strict order: addCandle (book + indicators) → persist → log → bot
+   * Strict order: addCandle (book + indicators) → persist → handlers (bot)
    */
   private async runLivePipeline(instrument: Instrument, candle: Candle): Promise<void> {
     const enriched = instrument.addCandle(candle);

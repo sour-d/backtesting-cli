@@ -17,12 +17,18 @@ const P = {
   atrPeriod: 10,
   superTrendMultiplier: 2,
   riskPercentage: 4,
-  maxAllocation: 0.8,
+  maxAllocation: 1,
   stopLossPct: 0.04,
 } as const;
 
-/** Set `QUANTLAB_DEBUG_MAV2=1` when running backtest/live to trace why entries/exits fire or not. */
+/** Set `QUANTLAB_DEBUG_MAV2=1` for verbose trace (all branches). */
 const MAV2_DEBUG = process.env.QUANTLAB_DEBUG_MAV2 === "1";
+/**
+ * Set `QUANTLAB_MAV2_LOG=1` for buy/sell gate + sizing logs (why entries did not fire).
+ * Full debug implies entry logs as well.
+ */
+const MAV2_ENTRY_LOG =
+  process.env.QUANTLAB_MAV2_LOG === "1" || MAV2_DEBUG;
 
 function mav2Log(msg: string, data?: Record<string, unknown>): void {
   if (!MAV2_DEBUG) return;
@@ -30,6 +36,16 @@ function mav2Log(msg: string, data?: Record<string, unknown>): void {
     console.log(`[mav2] ${msg}`, data);
   } else {
     console.log(`[mav2] ${msg}`);
+  }
+}
+
+/** Buy/sell condition and qty diagnostics (console.info). */
+function mav2EntryLog(msg: string, data?: Record<string, unknown>): void {
+  if (!MAV2_ENTRY_LOG) return;
+  if (data !== undefined) {
+    console.info(`[mav2] ${msg}`, data);
+  } else {
+    console.info(`[mav2] ${msg}`);
   }
 }
 
@@ -43,16 +59,34 @@ function qtyFromRisk(
   entry: number,
   riskPerUnit: number,
   instrument: Instrument,
-): number {
-  if (riskPerUnit <= 0) return 0;
+): { readonly qty: number; readonly reject?: string } {
+  if (riskPerUnit <= 0) {
+    return { qty: 0, reject: "riskPerUnit<=0" };
+  }
   const riskDollars = capital * (riskPct / 100);
   let qty = riskDollars / riskPerUnit;
   const maxQty = (capital * maxAlloc) / entry;
   qty = Math.min(qty, maxQty);
+  const beforeRound = qty;
   qty = instrument.roundQty(qty);
-  if (qty < instrument.minQty) return 0;
-  if (!instrument.canOpenPosition(qty, entry)) return 0;
-  return qty;
+  if (qty < instrument.minQty) {
+    return {
+      qty: 0,
+      reject: `roundedQty ${qty} < minQty ${instrument.minQty} (beforeRound ${beforeRound})`,
+    };
+  }
+  if (!instrument.canOpenPosition(qty, entry)) {
+    const notional = qty * entry;
+    const maxNotionalFromCap = capital * maxAlloc;
+    return {
+      qty: 0,
+      reject:
+        notional + 1e-9 < instrument.minNotional
+          ? `notional ${notional.toFixed(4)} < minNotional ${instrument.minNotional} (qty=${qty}, entry=${entry}); max position ~${maxNotionalFromCap.toFixed(2)} from capital×maxAlloc — need capital ≥ ${(instrument.minNotional / maxAlloc).toFixed(2)} for this venue floor`
+          : `canOpenPosition false (qty=${qty}, entry=${entry}, minNotional=${instrument.minNotional})`,
+    };
+  }
+  return { qty };
 }
 
 function positionSideFromSnapshot(
@@ -63,8 +97,12 @@ function positionSideFromSnapshot(
   return q > 0 ? "Buy" : "Sell";
 }
 
-function stDirection(now: EnrichedCandle): St {
-  return (now.indicators.superTrend as SuperTrendState).direction;
+function readSuperTrendDirection(now: EnrichedCandle): St | undefined {
+  const raw = now.indicators.superTrend;
+  if (raw === undefined || raw === null) return undefined;
+  const st = raw as SuperTrendState;
+  if (st.direction !== "Buy" && st.direction !== "Sell") return undefined;
+  return st.direction;
 }
 
 /**
@@ -183,14 +221,24 @@ export class MovingAverageV2Strategy implements IStrategy {
   ): StrategyEvaluateResult[] {
     const ma50high = today.indicators.ma50high as number | undefined;
     const ma200close = today.indicators.ma200close as number | undefined;
-    const st = stDirection(today);
+    const st = readSuperTrendDirection(today);
+    if (st === undefined) {
+      mav2EntryLog("buy: superTrend missing or invalid", {
+        symbol: instrument.symbol,
+        dateUnix: today.dateUnix,
+        close: today.close,
+      });
+      return [];
+    }
 
     if (
       ma200close !== undefined &&
       ma200close > 0 &&
       today.close <= ma200close
     ) {
-      mav2Log("buy: skip — close <= SMA200", {
+      mav2EntryLog("buy: skip — close <= SMA200", {
+        symbol: instrument.symbol,
+        dateUnix: today.dateUnix,
         close: today.close,
         ma200close,
       });
@@ -208,7 +256,9 @@ export class MovingAverageV2Strategy implements IStrategy {
     const stBuy = st === "Buy";
 
     if (!(aboveMa50High && bodiesOk && stBuy)) {
-      mav2Log("buy: gates not met", {
+      mav2EntryLog("buy: gates not met", {
+        symbol: instrument.symbol,
+        dateUnix: today.dateUnix,
         close: today.close,
         ma50high,
         ma200close,
@@ -226,11 +276,15 @@ export class MovingAverageV2Strategy implements IStrategy {
     const initialStopLoss = buyingPrice * (1 - P.stopLossPct);
     const riskPerUnit = buyingPrice - initialStopLoss;
     if (riskPerUnit <= 0) {
-      mav2Log("buy: skip — riskPerUnit <= 0", { buyingPrice, initialStopLoss });
+      mav2EntryLog("buy: skip — riskPerUnit <= 0", {
+        symbol: instrument.symbol,
+        buyingPrice,
+        initialStopLoss,
+      });
       return [];
     }
 
-    const q = qtyFromRisk(
+    const { qty: q, reject: qtyReject } = qtyFromRisk(
       position.allocatedCapital,
       P.riskPercentage,
       P.maxAllocation,
@@ -239,8 +293,11 @@ export class MovingAverageV2Strategy implements IStrategy {
       instrument,
     );
     if (q <= 0) {
-      mav2Log("buy: qtyFromRisk returned 0", {
-        capital: position.allocatedCapital,
+      mav2EntryLog("buy: qtyFromRisk returned 0", {
+        symbol: instrument.symbol,
+        reject: qtyReject,
+        allocatedCapital: position.allocatedCapital,
+        availableCapital: position.availableCapital,
         riskPct: P.riskPercentage,
         buyingPrice,
         riskPerUnit,
@@ -249,6 +306,14 @@ export class MovingAverageV2Strategy implements IStrategy {
       });
       return [];
     }
+
+    mav2EntryLog("buy: signal", {
+      symbol: instrument.symbol,
+      dateUnix: today.dateUnix,
+      qty: q,
+      price: buyingPrice,
+      stopLoss: initialStopLoss,
+    });
 
     return [
       {
@@ -269,14 +334,24 @@ export class MovingAverageV2Strategy implements IStrategy {
   ): StrategyEvaluateResult[] {
     const ma50low = today.indicators.ma50low as number | undefined;
     const ma200close = today.indicators.ma200close as number | undefined;
-    const st = stDirection(today);
+    const st = readSuperTrendDirection(today);
+    if (st === undefined) {
+      mav2EntryLog("sell: superTrend missing or invalid", {
+        symbol: instrument.symbol,
+        dateUnix: today.dateUnix,
+        close: today.close,
+      });
+      return [];
+    }
 
     if (
       ma200close !== undefined &&
       ma200close > 0 &&
       today.close >= ma200close
     ) {
-      mav2Log("sell: skip — close >= SMA200", {
+      mav2EntryLog("sell: skip — close >= SMA200", {
+        symbol: instrument.symbol,
+        dateUnix: today.dateUnix,
         close: today.close,
         ma200close,
       });
@@ -294,7 +369,9 @@ export class MovingAverageV2Strategy implements IStrategy {
     const stSell = st === "Sell";
 
     if (!(belowMa50Low && bodiesOk && stSell)) {
-      mav2Log("sell: gates not met", {
+      mav2EntryLog("sell: gates not met", {
+        symbol: instrument.symbol,
+        dateUnix: today.dateUnix,
         close: today.close,
         ma50low,
         ma200close,
@@ -312,14 +389,15 @@ export class MovingAverageV2Strategy implements IStrategy {
     const initialStopLoss = sellingPrice * (1 + P.stopLossPct);
     const riskPerUnit = initialStopLoss - sellingPrice;
     if (riskPerUnit <= 0) {
-      mav2Log("sell: skip — riskPerUnit <= 0", {
+      mav2EntryLog("sell: skip — riskPerUnit <= 0", {
+        symbol: instrument.symbol,
         sellingPrice,
         initialStopLoss,
       });
       return [];
     }
 
-    const q = qtyFromRisk(
+    const { qty: q, reject: qtyReject } = qtyFromRisk(
       position.allocatedCapital,
       P.riskPercentage,
       P.maxAllocation,
@@ -328,8 +406,11 @@ export class MovingAverageV2Strategy implements IStrategy {
       instrument,
     );
     if (q <= 0) {
-      mav2Log("sell: qtyFromRisk returned 0", {
-        capital: position.allocatedCapital,
+      mav2EntryLog("sell: qtyFromRisk returned 0", {
+        symbol: instrument.symbol,
+        reject: qtyReject,
+        allocatedCapital: position.allocatedCapital,
+        availableCapital: position.availableCapital,
         sellingPrice,
         riskPerUnit,
         minQty: instrument.minQty,
@@ -337,6 +418,14 @@ export class MovingAverageV2Strategy implements IStrategy {
       });
       return [];
     }
+
+    mav2EntryLog("sell: signal", {
+      symbol: instrument.symbol,
+      dateUnix: today.dateUnix,
+      qty: q,
+      price: sellingPrice,
+      stopLoss: initialStopLoss,
+    });
 
     return [
       {

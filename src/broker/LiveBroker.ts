@@ -170,7 +170,12 @@ export class LiveBroker implements IBroker {
     });
   }
 
-  async updateStopLoss(symbol: string, stopLoss: number, roundTripId: string): Promise<void> {
+  async updateStopLoss(
+    symbol: string,
+    stopLoss: number,
+    roundTripId: string,
+    deploymentId?: string,
+  ): Promise<void> {
     if (this.category === 'spot' || this.category === 'option') {
       this.logger.warn('updateStopLoss: not supported for category', { category: this.category, symbol });
       return;
@@ -201,6 +206,10 @@ export class LiveBroker implements IBroker {
       id: roundTripId,
       updatedAtMs: now,
       stopLoss: sl,
+      /** First upsert for this id (e.g. position id from reconcile) requires these — see mergeOrderHistory. */
+      ...(deploymentId !== undefined
+        ? { deploymentId, symbol, status: 'open' as const }
+        : {}),
     });
     this.logger.info('Trading stop updated', { symbol, stopLoss: sl });
   }

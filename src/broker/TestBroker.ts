@@ -137,7 +137,12 @@ export class TestBroker implements IBroker {
     this.logger.info('TestBroker position closed', { symbol, side: closeSide, qty: rounded, refPrice, fee });
   }
 
-  async updateStopLoss(symbol: string, stopLoss: number, roundTripId: string): Promise<void> {
+  async updateStopLoss(
+    symbol: string,
+    stopLoss: number,
+    roundTripId: string,
+    deploymentId?: string,
+  ): Promise<void> {
     const instrument = this.getInstrument(symbol);
     if (!instrument) {
       this.logger.warn('TestBroker.updateStopLoss: unknown symbol', { symbol });
@@ -152,6 +157,9 @@ export class TestBroker implements IBroker {
       id: roundTripId,
       updatedAtMs: Date.now(),
       stopLoss: sl,
+      ...(deploymentId !== undefined
+        ? { deploymentId, symbol, status: 'open' as const }
+        : {}),
     });
     this.logger.info('TestBroker updateStopLoss (no venue API)', { symbol, stopLoss: sl });
   }
