@@ -143,6 +143,7 @@ export class Bot {
   async restoreDeployments(): Promise<void> {
     const rows = await this.store.loadDeployments();
     const live = rows.filter((r) => r.status === "active");
+    this.logger.info("Restoring deployments", { count: live.length });
     const pm = PositionManager.getInstance();
     for (const d of live) {
       const strategy = this.registry.resolve(d.strategyId);
@@ -168,12 +169,27 @@ export class Bot {
       });
 
       const row = await this.store.loadPositionByDeploymentId(d.id);
+      const openPosition = row
+        ? {
+            positionId: row.id,
+            side: row.side,
+            qty: row.qty,
+            avgEntryPrice: row.avgEntryPrice ?? null,
+          }
+        : null;
       if (row) {
         pm.registerOpenPosition(d.symbol, row.id, d.id);
         pm.hydrateFromStoredRow(d.symbol, row);
       }
 
-      this.logger.info("Restored deployment", { id: d.id, symbol: d.symbol });
+      this.logger.info("Restored deployment", {
+        deploymentId: d.id,
+        symbol: d.symbol,
+        strategyId: d.strategyId,
+        klineInterval: intervalRaw,
+        capital: d.capital,
+        openPosition,
+      });
     }
   }
 

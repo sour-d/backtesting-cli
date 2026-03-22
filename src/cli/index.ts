@@ -5,6 +5,7 @@ import type { LogLevelName } from '../logger/ILogger.js';
 import type { LogTarget } from '../logger/createLogger.js';
 import { runBacktestLoop } from '../engine/runBacktestLoop.js';
 import { runLiveLoop } from '../engine/runLiveLoop.js';
+import { runDownloadMarket } from './downloadMarket.js';
 
 dotenv.config();
 
@@ -67,6 +68,26 @@ program
     };
     process.on('SIGINT', stop);
     process.on('SIGTERM', stop);
+  });
+
+program
+  .command('download-market')
+  .description('Download OHLCV from Bybit into .data/market/{symbol}_{interval}.json (quantlab.config.js)')
+  .option('-c, --config <path>', 'Path to quantlab.config.js', 'quantlab.config.js')
+  .option('--data-dir <dir>', 'Data directory', '.data')
+  .option('--testnet', 'Use Bybit testnet REST', false)
+  .action(async (opts) => {
+    try {
+      await runDownloadMarket({
+        configPath: String(opts.config),
+        dataDir: String(opts.dataDir),
+        testnet: Boolean(opts.testnet),
+      });
+      process.exit(0);
+    } catch (e) {
+      console.error(e);
+      process.exit(1);
+    }
   });
 
 program

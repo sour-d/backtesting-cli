@@ -139,6 +139,32 @@ export class PositionManager implements IPositionBook {
     unrealized: number,
   ): void {
     this.runtimeFor(symbol).setPositionSnapshot(side, sizeAbs, avgEntry, unrealized);
+    this.recomputeAvailableFromAllocatedAndSnapshot(symbol);
+  }
+
+  /**
+   * Live path: venue sync only updates qty/avg via {@link PositionRuntime.setPositionSnapshot} — unlike
+   * backtest {@link PositionRuntime.applyEntry}. Recompute `availableCapital` from deployment allocation
+   * and open notional so it matches `applyEntry` economics (long: −notional − fee; short: +notional − fee).
+   */
+  private recomputeAvailableFromAllocatedAndSnapshot(symbol: string): void {
+    const r = this.runtimes.get(symbol);
+    if (!r) return;
+    const allocated = r.allocatedCapital;
+    const q = r.currentPositionQty;
+    const avg = r.avgEntryPrice;
+    const eps = 1e-12;
+    if (Math.abs(q) < eps) {
+      r.setCapitalAllocation(allocated, allocated);
+      return;
+    }
+    const qtyAbs = Math.abs(q);
+    const notional = qtyAbs * avg;
+    const fee = this.feeRate > 0 ? notional * this.feeRate : 0;
+    const available =
+      q > 0 ? allocated - notional - fee : allocated + notional - fee;
+    const clamped = Number.isFinite(available) ? Math.max(0, available) : allocated;
+    r.setCapitalAllocation(allocated, clamped);
   }
 
   setCapitalAllocation(symbol: string, total: number, available: number): void {
@@ -163,7 +189,8 @@ export class PositionManager implements IPositionBook {
 
   /** After restore — seed runtime from persisted open row before venue sync. */
   hydrateFromStoredRow(symbol: string, row: PositionRecord): void {
-    this.runtimeFor(symbol).setPositionSnapshot(
+    this.setPositionSnapshot(
+      symbol,
       row.side,
       row.qty,
       row.avgEntryPrice ?? 0,

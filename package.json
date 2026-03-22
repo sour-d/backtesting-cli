@@ -9,6 +9,8 @@
   "scripts": {
     "dev:live": "tsx src/cli/index.ts live",
     "dev:backtest": "tsx src/cli/index.ts backtest",
+    "download:market": "node dist/cli/index.js download-market",
+    "dev:download:market": "tsx src/cli/index.ts download-market",
     "prebuild": "rm -rf dist",
     "build": "tsc",
     "postbuild": "mkdir -p .data/market .data/trades .data/backtest/logs .data/technical .data/results .data/transformedResult .data/resultsStats",

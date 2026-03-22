@@ -3,7 +3,8 @@ import type { CategoryV5 } from 'bybit-api';
 import type { KlineIntervalV3 } from 'bybit-api';
 import type { LinearInverseInstrumentInfoV5 } from 'bybit-api';
 import type { Candle } from '../core/types.js';
-import { candleFromKlineTuple, candleFromWsKlineItem } from '../exchange/bybit/kline.js';
+import { fetchRecentKlinesChunked } from '../exchange/bybit/fetchKlinesChunked.js';
+import { candleFromWsKlineItem } from '../exchange/bybit/kline.js';
 import { linearInstrumentFromBybit } from '../exchange/bybit/mapInstrument.js';
 import type { Instrument } from '../instrument/Instrument.js';
 import type { InstrumentCategory, InstrumentStatic } from '../instrument/types.js';
@@ -138,18 +139,16 @@ export class LiveMarketRuntime implements IMarketRuntime {
 
   private async warmup(instrument: Instrument, interval: KlineIntervalV3): Promise<void> {
     const symbol = instrument.symbol;
-    const res = await this.rest.getKline({
+    const { candles, requestCount } = await fetchRecentKlinesChunked(this.rest, {
       category: this.category as 'linear' | 'spot' | 'inverse',
       symbol,
       interval,
-      limit: this.warmupCandles,
+      total: this.warmupCandles,
     });
-    const rows = res.result?.list;
-    if (!rows?.length) {
+    if (candles.length === 0) {
       this.logger.warn('Warmup returned no candles', { symbol });
       return;
     }
-    const candles = [...rows].map(candleFromKlineTuple).sort((a, b) => a.dateUnix - b.dateUnix);
 
     const bars: WarmupBarRow[] = [];
     for (const c of candles) {
@@ -157,7 +156,11 @@ export class LiveMarketRuntime implements IMarketRuntime {
       bars.push({ candle: c, indicators: { ...enriched.indicators } });
     }
     await this.store.storeWarmupData(symbol, String(interval), this.warmupCandles, bars);
-    this.logger.info('Warmup persisted to store', { symbol, bars: bars.length });
+    this.logger.info('Warmup persisted to store', {
+      symbol,
+      bars: bars.length,
+      chunkRequests: requestCount,
+    });
   }
 
   private async onWsUpdate(msg: unknown): Promise<void> {
