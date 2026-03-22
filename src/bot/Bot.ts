@@ -56,10 +56,15 @@ export class Bot {
   private readonly registry: StrategyRegistry;
   private readonly feeRate: number;
   private readonly defaultKlineInterval: string;
-  /** In-memory routing: strategy + deployment id per symbol (persisted deployments are source of truth). */
+  /** In-memory routing: strategy + deployment + kline interval per symbol (persisted deployments are source of truth). */
   private readonly activeDeployments = new Map<
     string,
-    { readonly strategyId: string; readonly deploymentId: string }
+    {
+      readonly strategyId: string;
+      readonly deploymentId: string;
+      /** Raw Bybit-style interval (e.g. `"5"`, `"60"`) for trade JSONL + {@link PositionManager}. */
+      readonly klineInterval: string;
+    }
   >();
 
   constructor(deps: BotDeps) {
@@ -102,6 +107,7 @@ export class Bot {
     this.activeDeployments.set(req.symbol, {
       strategyId: req.strategyId,
       deploymentId: req.id,
+      klineInterval: intervalRaw,
     });
 
     const state: DeploymentState = {
@@ -167,6 +173,7 @@ export class Bot {
         this.activeDeployments.set(d.symbol, {
           strategyId: d.strategyId,
           deploymentId: d.id,
+          klineInterval: intervalRaw,
         });
 
         const row = await this.store.loadPositionByDeploymentId(d.id);
@@ -179,7 +186,7 @@ export class Bot {
             }
           : null;
         if (row) {
-          pm.registerOpenPosition(d.symbol, row.id, d.id);
+          pm.registerOpenPosition(d.symbol, row.id, d.id, intervalRaw);
           pm.hydrateFromStoredRow(d.symbol, row);
         }
 
@@ -219,14 +226,24 @@ export class Bot {
       await sync.call(this.broker, instrument.symbol);
     }
 
-    await pm.reconcileMissingRowIfNeeded(instrument, dep.deploymentId);
+    await pm.reconcileMissingRowIfNeeded(
+      instrument,
+      dep.deploymentId,
+      dep.klineInterval,
+    );
 
     const position = pm.getSnapshot(instrument.symbol);
     const raw = await strategy.evaluate(instrument, position);
     const signals = Array.isArray(raw) ? raw : [raw];
     for (const signal of signals) {
       const candle = instrument.getCandles(1)[0]!;
-      await pm.processSignal(instrument, candle, signal, dep.deploymentId);
+      await pm.processSignal(
+        instrument,
+        candle,
+        signal,
+        dep.deploymentId,
+        dep.klineInterval,
+      );
     }
   }
 }

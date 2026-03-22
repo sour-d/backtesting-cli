@@ -5,6 +5,7 @@ import { CompositeLogger } from './CompositeLogger.js';
 import { ConsoleSink } from './ConsoleSink.js';
 import { DbSink } from './DbSink.js';
 import { FileSink } from './FileSink.js';
+import { NullLogger } from './NullLogger.js';
 import type { ILogger, LogLevelName } from './ILogger.js';
 
 export type LogTarget = 'console' | 'file' | 'db';
@@ -57,7 +58,7 @@ export function createLogger(config: CreateLoggerConfig): ILogger {
   }
 
   if (sinks.length === 0) {
-    return new ConsoleSink(level);
+    return new NullLogger();
   }
   if (sinks.length === 1) {
     return sinks[0]!;

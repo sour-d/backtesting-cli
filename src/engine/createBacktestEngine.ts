@@ -28,7 +28,8 @@ export function createBacktestEngine(config: BacktestEngineConfig): BacktestEngi
   const logger = createLogger({
     mode: MODE,
     logLevel: config.logLevel,
-    targets: ['console', 'file'],
+    /** No file sink — backtest replay can emit hundreds of thousands of lines. */
+    targets: config.quiet ? [] : ['console'],
     baseDir: config.dataDir,
   });
 

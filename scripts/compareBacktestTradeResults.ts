@@ -3,11 +3,16 @@
  *
  * Usage (from backtesting-cli root):
  *   npx tsx scripts/compareBacktestTradeResults.ts
- *   npx tsx scripts/compareBacktestTradeResults.ts --new .data/trades/SOLUSDT.jsonl --old ../backtesting-cli-old/.data/results/result.json
+ *   npx tsx scripts/compareBacktestTradeResults.ts --new .data/backtest/trades/SOLUSDT_5.jsonl --old ../backtesting-cli-old/.data/results/result.json
  */
 
 import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
+import { loadQuantlabConfig } from "../src/config/loadConfig.js";
+import {
+  backtestTradesDir,
+  backtestTradeFileName,
+} from "../src/engine/backtestSummary.js";
 
 type Side = "Buy" | "Sell";
 type Kind = "entry" | "exit";
@@ -41,7 +46,7 @@ interface OldTradeRow {
 }
 
 function parseArgs(argv: string[]): {
-  newPath: string;
+  newPathExplicit: string | undefined;
   oldPath: string;
   symbol: string;
   priceEps: number;
@@ -49,7 +54,7 @@ function parseArgs(argv: string[]): {
   maxReport: number;
   dedupeNew: boolean;
 } {
-  let newPath = ".data/trades/SOLUSDT.jsonl";
+  let newPathExplicit: string | undefined;
   let oldPath = "../backtesting-cli-old/.data/results/result.json";
   let symbol = "SOLUSDT";
   let priceEps = 1e-6;
@@ -60,7 +65,7 @@ function parseArgs(argv: string[]): {
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--new" && argv[i + 1]) {
-      newPath = argv[++i];
+      newPathExplicit = argv[++i];
     } else if (a === "--old" && argv[i + 1]) {
       oldPath = argv[++i];
     } else if (a === "--symbol" && argv[i + 1]) {
@@ -77,7 +82,7 @@ function parseArgs(argv: string[]): {
       console.log(`Usage: compareBacktestTradeResults [options]
 
 Options:
-  --new <path>        New repo JSONL (default: .data/trades/SOLUSDT.jsonl)
+  --new <path>        New repo JSONL (default: quantlab.config.js → backtest/trades/{SYM}_{INTERVAL}.jsonl)
   --old <path>        Old repo result.json (default: ../backtesting-cli-old/.data/results/result.json)
   --symbol <sym>      Filter old tradeResults by symbol (default: SOLUSDT)
   --price-eps <n>     Absolute tolerance for price (default: 1e-6)
@@ -90,7 +95,7 @@ Options:
   }
 
   return {
-    newPath: resolve(newPath),
+    newPathExplicit,
     oldPath: resolve(oldPath),
     symbol,
     priceEps,
@@ -253,17 +258,27 @@ function compareEvents(
 }
 
 async function main(): Promise<void> {
-  const opts = parseArgs(process.argv.slice(2));
+  const parsed = parseArgs(process.argv.slice(2));
+  const ql = await loadQuantlabConfig(
+    resolve(process.cwd(), "quantlab.config.js"),
+  );
+  const newPath = resolve(
+    parsed.newPathExplicit ??
+      join(
+        backtestTradesDir(".data"),
+        backtestTradeFileName(ql.symbols[0]!, ql.interval),
+      ),
+  );
   const [newEvents, oldEvents] = await Promise.all([
-    loadNewJsonl(opts.newPath, opts.dedupeNew),
-    loadOldResult(opts.oldPath, opts.symbol),
+    loadNewJsonl(newPath, parsed.dedupeNew),
+    loadOldResult(parsed.oldPath, parsed.symbol),
   ]);
 
   console.log("Paths:");
   console.log(
-    `  new: ${opts.newPath} (${newEvents.length} events${opts.dedupeNew ? ", deduped" : ""})`,
+    `  new: ${newPath} (${newEvents.length} events${parsed.dedupeNew ? ", deduped" : ""})`,
   );
-  console.log(`  old: ${opts.oldPath} (${oldEvents.length} events)`);
+  console.log(`  old: ${parsed.oldPath} (${oldEvents.length} events)`);
   console.log("");
 
   const n = Math.min(newEvents.length, oldEvents.length);
@@ -271,11 +286,16 @@ async function main(): Promise<void> {
   let firstMismatchIndex: number | null = null;
 
   for (let i = 0; i < n; i++) {
-    const c = compareEvents(newEvents[i], oldEvents[i], opts.priceEps, opts.qtyEps);
+    const c = compareEvents(
+      newEvents[i],
+      oldEvents[i],
+      parsed.priceEps,
+      parsed.qtyEps,
+    );
     if (!c.ok) {
       pairMismatches++;
       if (firstMismatchIndex === null) firstMismatchIndex = i;
-      if (pairMismatches <= opts.maxReport) {
+      if (pairMismatches <= parsed.maxReport) {
         console.log(`[${i}] MISMATCH: ${c.detail}`);
         console.log(`    new: ${eventKey(newEvents[i])}`);
         console.log(`    old: ${eventKey(oldEvents[i])}`);
@@ -299,9 +319,9 @@ async function main(): Promise<void> {
   if (firstMismatchIndex !== null) {
     console.log(`First mismatch at index ${firstMismatchIndex}`);
   }
-  const reported = Math.min(pairMismatches, opts.maxReport);
-  if (pairMismatches > opts.maxReport) {
-    console.log(`(${pairMismatches - opts.maxReport} more pairwise mismatches not shown.)`);
+  const reported = Math.min(pairMismatches, parsed.maxReport);
+  if (pairMismatches > parsed.maxReport) {
+    console.log(`(${pairMismatches - parsed.maxReport} more pairwise mismatches not shown.)`);
   }
   console.log(
     `Summary: ${pairMismatches} pairwise mismatch(es); length delta ${lenDelta}; showed ${reported} detail line(s).`,

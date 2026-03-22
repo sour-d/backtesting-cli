@@ -100,6 +100,10 @@ program
       '0',
     )
   .option('--log-level <level>', 'debug | info | warn | error', 'info')
+  .option(
+    '-q, --quiet',
+    'no console logging during run; prints a one-line summary at the end (backtest does not write engine logs to disk)',
+  )
   .action(async (opts) => {
     const logLevel = String(opts.logLevel) as LogLevelName;
     try {
@@ -108,6 +112,7 @@ program
         dataDir: String(opts.dataDir),
         warmupCandles: Number(opts.warmup),
         logLevel,
+        quiet: Boolean(opts.quiet),
       });
       process.exit(0);
     } catch (e) {

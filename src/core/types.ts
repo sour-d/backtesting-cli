@@ -60,6 +60,8 @@ export interface FillRecord {
 export interface TradeRecord {
   readonly id: string;
   readonly symbol: string;
+  /** Bybit-style interval code (e.g. `1`, `240`, `D`) — used for backtest trade filenames. */
+  readonly klineInterval?: string;
   readonly side: OrderSide;
   readonly qty: number;
   readonly price: number;

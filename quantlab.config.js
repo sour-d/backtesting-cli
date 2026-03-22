@@ -10,7 +10,7 @@ export default {
     // 'DOTUSDT',
     // 'AVAXUSDT',
   ],
-  interval: '240',
+  interval: '5',
   start: '2025-01-01 00:00',
   end: '2025-12-31 23:59',
   category: 'linear',

@@ -6,6 +6,11 @@ export interface PlaceOrderInput {
   readonly side: OrderSide;
   readonly qty: number;
   readonly price?: number;
+  /**
+   * Initial stop-loss for this entry. Live: sent on `submitOrder` (linear/inverse) or stored only (spot/option).
+   * Should match strategy signal `stopLoss` when opening.
+   */
+  readonly stopLoss?: number;
   /** Same id as `positions.id` / registry for this round-trip. */
   readonly roundTripId: string;
   readonly deploymentId: string;

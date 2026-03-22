@@ -43,7 +43,7 @@ export class TestBroker implements IBroker {
   }
 
   async placeOrder(input: PlaceOrderInput): Promise<void> {
-    const { instrument, side, qty, price, roundTripId, deploymentId } = input;
+    const { instrument, side, qty, price, stopLoss, roundTripId, deploymentId } = input;
     const q = instrument.roundQty(qty);
     const last = instrument.getCandles(1);
     if (last.length === 0) {
@@ -65,6 +65,10 @@ export class TestBroker implements IBroker {
     this.getPositionBook().applyEntry(instrument.symbol, side, q, refPrice, fee);
 
     const orderType = price !== undefined ? 'Limit' : 'Market';
+    const slRounded =
+      stopLoss !== undefined && Number.isFinite(stopLoss) && stopLoss > 0
+        ? instrument.roundPrice(stopLoss)
+        : undefined;
     const barUnix = last[last.length - 1]!.dateUnix;
     const tsMs = barUnix < 1e12 ? barUnix * 1000 : barUnix;
     const now = Date.now();
@@ -82,6 +86,7 @@ export class TestBroker implements IBroker {
       entryAtMs: tsMs,
       entryFee: fee,
       entryTimestampMs: tsMs,
+      ...(slRounded !== undefined ? { stopLoss: slRounded } : {}),
       raw: { mode: 'backtest', category: this.category },
     });
     this.logger.info('TestBroker fill', { symbol: instrument.symbol, side, qty: q, refPrice, fee });

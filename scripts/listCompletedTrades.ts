@@ -6,8 +6,13 @@
  */
 
 import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
 import chalk from "chalk";
+import { loadQuantlabConfig } from "../src/config/loadConfig.js";
+import {
+  backtestTradesDir,
+  backtestTradeFileName,
+} from "../src/engine/backtestSummary.js";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc.js";
 import timezone from "dayjs/plugin/timezone.js";
@@ -54,19 +59,19 @@ function trim2(n: number): number {
 }
 
 function parseArgs(argv: string[]): {
-  path: string;
+  explicitPath: string | undefined;
   dedupe: boolean;
   json: boolean;
   csv: boolean;
 } {
-  let path = ".data/trades/SOLUSDT.jsonl";
+  let explicitPath: string | undefined;
   let dedupe = true;
   let json = false;
   let csv = false;
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (a === "--path" && argv[i + 1]) path = argv[++i];
-    else if (a === "--file" && argv[i + 1]) path = argv[++i];
+    if (a === "--path" && argv[i + 1]) explicitPath = resolve(argv[++i]);
+    else if (a === "--file" && argv[i + 1]) explicitPath = resolve(argv[++i]);
     else if (a === "--no-dedupe") dedupe = false;
     else if (a === "--json") json = true;
     else if (a === "--csv") csv = true;
@@ -74,7 +79,7 @@ function parseArgs(argv: string[]): {
       console.log(`listCompletedTrades — closed trades from JSONL (IST)
 
 Options:
-  --path, --file <file>   Trade JSONL (default: .data/trades/SOLUSDT.jsonl)
+  --path, --file <file>   Trade JSONL (default: quantlab.config.js → backtest/trades/{SYM}_{INTERVAL}.jsonl)
   --no-dedupe             Keep duplicate identical rows
   --csv                   CSV (machine-readable)
   --json                  JSON array
@@ -82,7 +87,7 @@ Options:
       process.exit(0);
     }
   }
-  return { path: resolve(path), dedupe, json, csv };
+  return { explicitPath, dedupe, json, csv };
 }
 
 function rowKey(r: JsonlRow): string {
@@ -199,15 +204,26 @@ function fmtQty(q: number): string {
 }
 
 async function main(): Promise<void> {
-  const opts = parseArgs(process.argv.slice(2));
+  const parsed = parseArgs(process.argv.slice(2));
+  const ql = await loadQuantlabConfig(
+    resolve(process.cwd(), "quantlab.config.js"),
+  );
+  const path =
+    parsed.explicitPath ??
+    resolve(
+      join(
+        backtestTradesDir(".data"),
+        backtestTradeFileName(ql.symbols[0]!, ql.interval),
+      ),
+    );
   let rows: JsonlRow[];
   try {
-    rows = await loadRows(opts.path, opts.dedupe);
+    rows = await loadRows(path, parsed.dedupe);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error(
       chalk.red(
-        `Failed to read ${opts.path}: ${msg}\nPass --path <file> to your trade JSONL.`,
+        `Failed to read ${path}: ${msg}\nPass --path <file> to your trade JSONL.`,
       ),
     );
     process.exitCode = 1;
@@ -216,7 +232,7 @@ async function main(): Promise<void> {
 
   const trades = aggregateCompleted(rows);
 
-  if (opts.json) {
+  if (parsed.json) {
     const payload = trades.map((t, i) => ({
       id: i + 1,
       symbol: t.symbol,
@@ -254,7 +270,7 @@ async function main(): Promise<void> {
     };
   });
 
-  if (opts.csv) {
+  if (parsed.csv) {
     const header =
       "id,entry_datetime_ist,exit_datetime_ist,qty,pnl_gross,pnl_after_fee,symbol,type";
     const lines = rowsOut.map(

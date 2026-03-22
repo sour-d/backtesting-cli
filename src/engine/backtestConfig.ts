@@ -9,4 +9,6 @@ export interface BacktestEngineConfig {
   readonly rangeEndMs: number;
   readonly feeRate: number;
   readonly logLevel: LogLevelName;
+  /** When true, no console logging — full log still at `{dataDir}/backtest/logs/engine.jsonl`. */
+  readonly quiet?: boolean;
 }

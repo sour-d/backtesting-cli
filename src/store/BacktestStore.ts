@@ -1,20 +1,20 @@
 import { mkdir, appendFile, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import type { Candle, LogRecord, OrderHistoryPatch, TradeRecord } from '../core/types.js';
+import { backtestTradeFileName } from '../engine/backtestSummary.js';
 import type { DeploymentState } from '../deployment/types.js';
 import type { PositionRecord } from '../position/types.js';
 import type { IStore, WarmupBarRow } from './IStore.js';
 
 /**
- * File-backed persistence for backtest: per-symbol trades, deployments under `backtest/`.
+ * File-backed persistence for backtest: `deployments.json`, `positions.json`, and
+ * per-symbol `{SYMBOL}_{INTERVAL}.jsonl` trade lines under `backtest/trades/` (reset at each run — see prepareBacktestRun).
  */
 export class BacktestStore implements IStore {
   private readonly root: string;
-  private readonly tradesRoot: string;
 
   constructor(baseDir: string) {
     this.root = join(baseDir, 'backtest');
-    this.tradesRoot = join(baseDir, 'trades');
   }
 
   private async ensureDir(file: string): Promise<void> {
@@ -69,7 +69,7 @@ export class BacktestStore implements IStore {
   }
 
   async saveTrade(record: TradeRecord): Promise<void> {
-    const file = join(this.tradesRoot, `${record.symbol}.jsonl`);
+    const file = join(this.root, 'trades', backtestTradeFileName(record.symbol, record.klineInterval));
     await this.ensureDir(file);
     await appendFile(file, `${JSON.stringify(record)}\n`, 'utf8');
   }
@@ -156,9 +156,7 @@ export class BacktestStore implements IStore {
     return rows.find((p) => p.deploymentId === deploymentId) ?? null;
   }
 
-  async saveLog(record: LogRecord): Promise<void> {
-    const file = join(this.root, 'logs', 'app.jsonl');
-    await this.ensureDir(file);
-    await appendFile(file, `${JSON.stringify(record)}\n`, 'utf8');
+  async saveLog(_record: LogRecord): Promise<void> {
+    /* no-op — backtest does not persist logger rows to disk (avoids huge JSONL). */
   }
 }

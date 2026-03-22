@@ -67,7 +67,7 @@ export class LiveBroker implements IBroker {
   }
 
   async placeOrder(input: PlaceOrderInput): Promise<void> {
-    const { instrument, side, qty, price, roundTripId, deploymentId } = input;
+    const { instrument, side, qty, price, stopLoss, roundTripId, deploymentId } = input;
     const q = instrument.roundQty(qty);
     const last = instrument.getCandles(1);
     const lastClose = last[last.length - 1]?.close;
@@ -82,6 +82,12 @@ export class LiveBroker implements IBroker {
     }
 
     const orderType = price !== undefined ? 'Limit' : 'Market';
+    const venueSlSupported = this.category !== 'spot' && this.category !== 'option';
+    const slRounded =
+      stopLoss !== undefined && Number.isFinite(stopLoss) && stopLoss > 0
+        ? instrument.roundPrice(stopLoss)
+        : undefined;
+
     const res = await this.rest.submitOrder({
       category: this.category,
       symbol: instrument.symbol,
@@ -89,6 +95,9 @@ export class LiveBroker implements IBroker {
       orderType,
       qty: String(q),
       price: price !== undefined ? String(instrument.roundPrice(price)) : undefined,
+      ...(venueSlSupported && slRounded !== undefined
+        ? { stopLoss: String(slRounded), slTriggerBy: 'LastPrice' as const }
+        : {}),
     });
 
     const orderId = res.result?.orderId ?? 'unknown';
@@ -109,11 +118,20 @@ export class LiveBroker implements IBroker {
       entryAtMs: now,
       entryFee,
       entryTimestampMs: now,
+      ...(slRounded !== undefined ? { stopLoss: slRounded } : {}),
       raw: res as unknown as Record<string, unknown>,
     });
 
     await this.syncPositionFromExchange(instrument.symbol);
-    this.logger.info('Order submitted', { symbol: instrument.symbol, side, qty: q, orderType, orderId });
+    this.logger.info('Order submitted', {
+      symbol: instrument.symbol,
+      side,
+      qty: q,
+      orderType,
+      orderId,
+      stopLoss: slRounded,
+      stopLossOnOrder: venueSlSupported && slRounded !== undefined,
+    });
   }
 
   async closePosition(symbol: string, roundTripId: string, qty?: number, price?: number): Promise<void> {

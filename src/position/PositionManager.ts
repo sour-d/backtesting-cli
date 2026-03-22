@@ -27,6 +27,8 @@ export interface PositionManagerDeps {
 interface RegistryEntry {
   readonly positionRowId: string;
   readonly deploymentId: string;
+  /** Raw kline interval from deployment (e.g. `1`, `240`, `D`) — trade file naming. */
+  readonly klineInterval: string;
 }
 
 let singleton: PositionManager | undefined;
@@ -93,8 +95,13 @@ export class PositionManager implements IPositionBook {
     singleton = undefined;
   }
 
-  registerOpenPosition(symbol: string, positionRowId: string, deploymentId: string): void {
-    this.bySymbol.set(symbol, { positionRowId, deploymentId });
+  registerOpenPosition(
+    symbol: string,
+    positionRowId: string,
+    deploymentId: string,
+    klineInterval: string,
+  ): void {
+    this.bySymbol.set(symbol, { positionRowId, deploymentId, klineInterval });
   }
 
   /**
@@ -212,6 +219,7 @@ export class PositionManager implements IPositionBook {
   async reconcileMissingRowIfNeeded(
     instrument: Instrument,
     deploymentId: string,
+    klineInterval: string,
   ): Promise<void> {
     const { symbol } = instrument;
     if (this.getOpenPositionId(symbol)) return;
@@ -234,7 +242,7 @@ export class PositionManager implements IPositionBook {
       updatedAtMs: now,
     };
     await this.store.createPosition(rec);
-    this.registerOpenPosition(symbol, id, deploymentId);
+    this.registerOpenPosition(symbol, id, deploymentId, klineInterval);
     this.logger.info('Position row reconciled from runtime', { symbol, id, deploymentId });
   }
 
@@ -301,6 +309,7 @@ export class PositionManager implements IPositionBook {
           price,
           exitSide,
           timestamp,
+          klineInterval: entry.klineInterval,
         });
         const tsMs = timestamp < 1e12 ? timestamp * 1000 : timestamp;
         const exitFee = this.feeRate > 0 ? exitQty * price * this.feeRate : 0;
@@ -339,13 +348,14 @@ export class PositionManager implements IPositionBook {
     candle: EnrichedCandle,
     signal: StrategyEvaluateResult,
     deploymentId: string,
+    klineInterval: string,
   ): Promise<void> {
     if (signal.action === 'HOLD') {
       return;
     }
 
     if (signal.action === 'CLOSE') {
-      await this.handleClose(instrument, candle, signal);
+      await this.handleClose(instrument, candle, signal, klineInterval);
       return;
     }
 
@@ -355,7 +365,7 @@ export class PositionManager implements IPositionBook {
     }
 
     if (signal.action === 'BUY' || signal.action === 'SELL') {
-      await this.handleBuySell(instrument, candle, signal, deploymentId);
+      await this.handleBuySell(instrument, candle, signal, deploymentId, klineInterval);
       return;
     }
 
@@ -367,6 +377,7 @@ export class PositionManager implements IPositionBook {
     instrument: Instrument,
     candle: EnrichedCandle,
     signal: Extract<StrategyEvaluateResult, { action: 'CLOSE' }>,
+    klineInterval: string,
   ): Promise<void> {
     const symbol = instrument.symbol;
     const exitSide = this.getCloseOrderSide(symbol);
@@ -412,6 +423,7 @@ export class PositionManager implements IPositionBook {
       qty: exitQty,
       price: exitFillPrice,
       side: exitSide,
+      klineInterval,
     });
 
     const uid = this.getOpenPositionId(symbol);
@@ -485,6 +497,7 @@ export class PositionManager implements IPositionBook {
       { action: 'BUY' } | { action: 'SELL' }
     >,
     deploymentId: string,
+    klineInterval: string,
   ): Promise<void> {
     const side = signal.action === 'BUY' ? 'Buy' : 'Sell';
     const symbol = instrument.symbol;
@@ -495,6 +508,12 @@ export class PositionManager implements IPositionBook {
       side,
       qty: signal.qty,
       price: signal.price,
+      stopLoss:
+        signal.stopLoss !== undefined &&
+        Number.isFinite(signal.stopLoss) &&
+        signal.stopLoss > 0
+          ? signal.stopLoss
+          : undefined,
       roundTripId,
       deploymentId,
     });
@@ -506,6 +525,7 @@ export class PositionManager implements IPositionBook {
       qty: signal.qty,
       price: signal.price,
       side,
+      klineInterval,
     });
 
     const uid = this.getOpenPositionId(symbol);
@@ -542,7 +562,7 @@ export class PositionManager implements IPositionBook {
         updatedAtMs: now,
       };
       await this.store.createPosition(rec);
-      this.registerOpenPosition(symbol, roundTripId, deploymentId);
+      this.registerOpenPosition(symbol, roundTripId, deploymentId, klineInterval);
     }
 
     this.logger.info('Signal executed', {
@@ -561,6 +581,7 @@ export class PositionManager implements IPositionBook {
     qty: number;
     price: number;
     side: 'Buy' | 'Sell';
+    klineInterval: string;
   }): Promise<void> {
     await this.saveTradeRecord({
       symbol: params.instrument.symbol,
@@ -569,6 +590,7 @@ export class PositionManager implements IPositionBook {
       price: params.price,
       timestamp: params.candle.dateUnix,
       kind: params.kind,
+      klineInterval: params.klineInterval,
     });
   }
 
@@ -578,6 +600,7 @@ export class PositionManager implements IPositionBook {
     price: number;
     exitSide: 'Buy' | 'Sell';
     timestamp: number;
+    klineInterval: string;
   }): Promise<void> {
     await this.saveTradeRecord({
       symbol: params.symbol,
@@ -586,6 +609,7 @@ export class PositionManager implements IPositionBook {
       price: params.price,
       timestamp: params.timestamp,
       kind: 'exit',
+      klineInterval: params.klineInterval,
     });
   }
 
@@ -596,11 +620,13 @@ export class PositionManager implements IPositionBook {
     price: number;
     timestamp: number;
     kind: TradeRecord['kind'];
+    klineInterval: string;
   }): Promise<void> {
     const notional = params.qty * params.price;
     const rec: TradeRecord = {
       id: randomUUID(),
       symbol: params.symbol,
+      klineInterval: params.klineInterval,
       side: params.side,
       qty: params.qty,
       price: params.price,

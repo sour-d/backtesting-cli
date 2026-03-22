@@ -6,9 +6,14 @@
  */
 
 import { readFile } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { basename, join, resolve } from 'node:path';
 import chalk from 'chalk';
 import { loadQuantlabConfig } from '../src/config/loadConfig.js';
+import {
+  backtestTradesDir,
+  backtestTradeFileName,
+  listBacktestTradeJsonlFiles,
+} from '../src/engine/backtestSummary.js';
 import {
   aggregateRoundTrips,
   buildStats,
@@ -19,6 +24,17 @@ import {
   type JsonlRow,
   type RoundTrip,
 } from './lib/tradeInsightCore.js';
+
+interface ParsedTradeInsightsCli {
+  readonly explicitPath: string | undefined;
+  readonly intervalMinutes: number;
+  readonly dedupe: boolean;
+  readonly json: boolean;
+  readonly riskPerTrade: number | null;
+  readonly capital: number | null;
+  readonly allSymbols: boolean;
+  readonly configPath: string;
+}
 
 interface ParsedTradeInsightsOpts {
   readonly path: string;
@@ -31,8 +47,8 @@ interface ParsedTradeInsightsOpts {
   readonly configPath: string;
 }
 
-function parseArgs(argv: string[]): ParsedTradeInsightsOpts {
-  let path = '.data/trades/SOLUSDT.jsonl';
+function parseArgs(argv: string[]): ParsedTradeInsightsCli {
+  let explicitPath: string | undefined;
   let intervalMinutes = 240;
   let dedupe = true;
   let json = false;
@@ -43,7 +59,7 @@ function parseArgs(argv: string[]): ParsedTradeInsightsOpts {
 
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (a === '--path' && argv[i + 1]) path = argv[++i];
+    if (a === '--path' && argv[i + 1]) explicitPath = resolve(argv[++i]);
     else if (a === '--interval' && argv[i + 1])
       intervalMinutes = Number(argv[++i]);
     else if (a === '--no-dedupe') dedupe = false;
@@ -56,16 +72,16 @@ function parseArgs(argv: string[]): ParsedTradeInsightsOpts {
     else if (a === '--help' || a === '-h') {
       console.log(`tradeInsights — summarize backtest JSONL trades
 
-Defaults align with quantlab.config.js-style 4h bars (interval 240).
+Default: every *.jsonl under .data/backtest/trades/ (same folder the backtest engine writes).
 
 Options:
-  --path <file>          Trade JSONL (default: .data/trades/SOLUSDT.jsonl)
-  --interval <minutes>   Bar length in minutes for avg trade length (default: 240)
+  --path <file>          Single trade JSONL (skip folder scan)
+  --interval <minutes>   Bar length in minutes for avg trade length (default: from config when omitted)
   --no-dedupe            Do not drop duplicate identical rows
   --risk-per-trade <n>   Fixed $ risk for PnL / risk (like old engine)
   --capital <n>          With no --risk-per-trade, risk = capital * 5%
-  --all-symbols          Run once per symbol in quantlab.config.js (.data/trades/<SYM>.jsonl)
-  --config <file>        Quantlab config for --all-symbols (default: quantlab.config.js)
+  --all-symbols          Only files for symbols in quantlab.config.js ({SYM}_{INTERVAL}.jsonl under trades/)
+  --config <file>        Quantlab config (default: quantlab.config.js)
   --json                 Print JSON only (no chalk)
 `);
       process.exit(0);
@@ -73,7 +89,7 @@ Options:
   }
 
   return {
-    path: resolve(path),
+    explicitPath,
     intervalMinutes,
     dedupe,
     json,
@@ -121,111 +137,143 @@ async function analyze(opts: ParsedTradeInsightsOpts): Promise<{
   };
 }
 
+async function runInsightsBatch(
+  items: ReadonlyArray<{ readonly label: string; readonly path: string }>,
+  base: Omit<ParsedTradeInsightsOpts, 'path'>,
+  argv: string[],
+  ql: Awaited<ReturnType<typeof loadQuantlabConfig>>,
+): Promise<void> {
+  const useInterval = argv.includes('--interval')
+    ? base.intervalMinutes
+    : intervalStringToMinutes(ql.interval);
+  const useCapital =
+    base.riskPerTrade != null
+      ? null
+      : argv.includes('--capital')
+        ? base.capital
+        : ql.capital;
+
+  const batch: Array<{
+    symbol: string;
+    path: string;
+    intervalMinutes: number;
+    rewardNote: string;
+    trade: ReturnType<typeof buildStats>['tradeStats'];
+    performance: ReturnType<typeof buildStats>['performance'];
+    roundTrips: RoundTrip[];
+  }> = [];
+
+  for (const { label, path } of items) {
+    const opts: ParsedTradeInsightsOpts = {
+      ...base,
+      path,
+      intervalMinutes: useInterval,
+      capital: useCapital,
+    };
+
+    let result: Awaited<ReturnType<typeof analyze>>;
+    try {
+      result = await analyze(opts);
+    } catch {
+      console.warn(chalk.yellow(`Skip ${label}: could not read ${path}`));
+      continue;
+    }
+
+    const { trades, stats, rewardLabel } = result;
+
+    if (base.json) {
+      batch.push({
+        symbol: label,
+        path: opts.path,
+        intervalMinutes: useInterval,
+        rewardNote: rewardLabel,
+        trade: stats.tradeStats,
+        performance: stats.performance,
+        roundTrips: trades,
+      });
+      continue;
+    }
+
+    if (trades.length === 0) {
+      console.log(
+        chalk.dim(`No completed round-trips for ${label} (need entry + exit pairs).`),
+      );
+      continue;
+    }
+
+    console.log(chalk.magenta(`\n── ${label} ──`));
+    printHuman(stats.tradeStats, stats.performance, rewardLabel);
+  }
+
+  if (base.json) {
+    console.log(JSON.stringify({ symbols: batch }, null, 2));
+  }
+}
+
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
-  const base = parseArgs(argv);
+  const cli = parseArgs(argv);
+  const ql = await loadQuantlabConfig(cli.configPath);
+  const { explicitPath, ...cliRest } = cli;
+  const baseRest = { ...cliRest } as Omit<ParsedTradeInsightsOpts, 'path'>;
 
-  if (base.allSymbols) {
-    const ql = await loadQuantlabConfig(base.configPath);
-    const useInterval = argv.includes('--interval')
-      ? base.intervalMinutes
-      : intervalStringToMinutes(ql.interval);
-    const useCapital =
-      base.riskPerTrade != null
-        ? null
-        : argv.includes('--capital')
-          ? base.capital
-          : ql.capital;
+  if (cli.allSymbols) {
+    const items = ql.symbols.map((symbol) => ({
+      label: symbol,
+      path: resolve(
+        join(backtestTradesDir('.data'), backtestTradeFileName(symbol, ql.interval)),
+      ),
+    }));
+    await runInsightsBatch(items, baseRest, argv, ql);
+    return;
+  }
 
-    const batch: Array<{
-      symbol: string;
-      path: string;
-      intervalMinutes: number;
-      rewardNote: string;
-      trade: ReturnType<typeof buildStats>['tradeStats'];
-      performance: ReturnType<typeof buildStats>['performance'];
-      roundTrips: RoundTrip[];
-    }> = [];
-
-    for (const symbol of ql.symbols) {
-      const path = resolve(join('.data', 'trades', `${symbol}.jsonl`));
-      const opts: ParsedTradeInsightsOpts = {
-        ...base,
-        path,
-        intervalMinutes: useInterval,
-        capital: useCapital,
-      };
-
-      let result: Awaited<ReturnType<typeof analyze>>;
-      try {
-        result = await analyze(opts);
-      } catch {
-        console.warn(chalk.yellow(`Skip ${symbol}: could not read ${path}`));
-        continue;
-      }
-
-      const { trades, stats, rewardLabel } = result;
-
+  if (explicitPath) {
+    const base: ParsedTradeInsightsOpts = { ...cliRest, path: explicitPath, allSymbols: false };
+    try {
+      const { trades, stats, rewardLabel } = await analyze(base);
       if (base.json) {
-        batch.push({
-          symbol,
-          path: opts.path,
-          intervalMinutes: useInterval,
-          rewardNote: rewardLabel,
-          trade: stats.tradeStats,
-          performance: stats.performance,
-          roundTrips: trades,
-        });
-        continue;
+        console.log(
+          JSON.stringify(
+            {
+              path: base.path,
+              intervalMinutes: base.intervalMinutes,
+              rewardNote: rewardLabel,
+              trade: stats.tradeStats,
+              performance: stats.performance,
+              roundTrips: trades,
+            },
+            null,
+            2,
+          ),
+        );
+        return;
       }
 
       if (trades.length === 0) {
-        console.log(
-          chalk.dim(`No completed round-trips for ${symbol} (need entry + exit pairs).`),
-        );
-        continue;
+        console.log(chalk.dim('No completed round-trips (need entry + exit pairs).'));
+        process.exit(0);
       }
 
-      console.log(chalk.magenta(`\n── ${symbol} ──`));
       printHuman(stats.tradeStats, stats.performance, rewardLabel);
-    }
-
-    if (base.json) {
-      console.log(JSON.stringify({ symbols: batch }, null, 2));
+    } catch {
+      console.error(chalk.red(`Failed to read ${base.path}`));
+      process.exitCode = 1;
     }
     return;
   }
 
-  try {
-    const { trades, stats, rewardLabel } = await analyze(base);
-    if (base.json) {
-      console.log(
-        JSON.stringify(
-          {
-            path: base.path,
-            intervalMinutes: base.intervalMinutes,
-            rewardNote: rewardLabel,
-            trade: stats.tradeStats,
-            performance: stats.performance,
-            roundTrips: trades,
-          },
-          null,
-          2,
-        ),
-      );
-      return;
-    }
-
-    if (trades.length === 0) {
-      console.log(chalk.dim('No completed round-trips (need entry + exit pairs).'));
-      process.exit(0);
-    }
-
-    printHuman(stats.tradeStats, stats.performance, rewardLabel);
-  } catch {
-    console.error(chalk.red(`Failed to read ${base.path}`));
-    process.exitCode = 1;
+  const discovered = await listBacktestTradeJsonlFiles('.data');
+  if (discovered.length === 0) {
+    console.log(chalk.dim('No .jsonl files in .data/backtest/trades'));
+    return;
   }
+
+  const items = discovered.map((p) => ({
+    label: basename(p, '.jsonl'),
+    path: resolve(p),
+  }));
+  await runInsightsBatch(items, baseRest, argv, ql);
 }
 
 main().catch((e) => {

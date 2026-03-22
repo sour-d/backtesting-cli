@@ -2,6 +2,7 @@
  * Result of `IStrategy.evaluate` — mirrors legacy `MovingAverageV2Strategy.js` intent:
  * - Long: `price` = entry (e.g. close), `stopLoss` = `price * (1 - stopPct)`, `qty` from risk vs `price - stopLoss`
  * - Short: `stopLoss` = `price * (1 + stopPct)`, `qty` from `stopLoss - price`
+ * - BUY/SELL: `stopLoss` is passed into `placeOrder` (live: Bybit `submitOrder` `stopLoss` / `slTriggerBy` on linear & inverse; stored on order history in backtest).
  * - `CLOSE`: optional `price` overrides fill (omit to use current bar close in backtest); optional `qty` — omit = close entire position
  * - `UPDATE_SL`: new absolute stop-loss price (live: Bybit `setTradingStop`; backtest: log only).
  */
