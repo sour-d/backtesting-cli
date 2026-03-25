@@ -11,6 +11,12 @@ import { PositionRuntime } from './PositionRuntime.js';
 import type { PositionBookSnapshot, PositionRecord } from './types.js';
 import { emptyPositionBookSnapshot } from './types.js';
 
+export interface ActiveDeploymentContext {
+  readonly symbol: string;
+  readonly deploymentId: string;
+  readonly klineInterval: string;
+}
+
 export interface PositionManagerDeps {
   readonly broker: IBroker;
   readonly store: IStore;
@@ -22,6 +28,11 @@ export interface PositionManagerDeps {
    * Set `0` to disable (backtest). Live typically `30_000`.
    */
   readonly reconcileIntervalMs: number;
+  /**
+   * Live: current deployments (symbol → deployment id + kline interval).
+   * Used on the timer to run `reconcileMissingRowIfNeeded` for symbols not yet in `bySymbol` (e.g. limit filled but entry path never registered).
+   */
+  readonly getActiveDeploymentContexts?: () => ReadonlyArray<ActiveDeploymentContext>;
 }
 
 interface RegistryEntry {
@@ -43,6 +54,7 @@ export class PositionManager implements IPositionBook {
   private readonly feeRate: number;
   private readonly logger: ILogger;
   private readonly getInstrument: (symbol: string) => Instrument | undefined;
+  private readonly getActiveDeploymentContexts?: () => ReadonlyArray<ActiveDeploymentContext>;
   private readonly bySymbol = new Map<string, RegistryEntry>();
   private readonly runtimes = new Map<string, PositionRuntime>();
   private reconcileTimer: ReturnType<typeof setInterval> | undefined;
@@ -53,6 +65,7 @@ export class PositionManager implements IPositionBook {
     this.feeRate = deps.feeRate;
     this.logger = deps.logger;
     this.getInstrument = deps.getInstrument;
+    this.getActiveDeploymentContexts = deps.getActiveDeploymentContexts;
 
     const sync = this.broker.syncPositionFromVenue;
     if (
@@ -247,17 +260,49 @@ export class PositionManager implements IPositionBook {
   }
 
   /**
-   * Sync each registry symbol from the venue, then update `positions` or persist exit trade + clear when flat (e.g. SL hit).
+   * Sync each open-registry symbol from the venue, then update `positions` or persist exit trade + clear when flat.
+   * Also syncs every **active deployment** symbol so `reconcileMissingRowIfNeeded` can attach a DB row when the venue
+   * shows a position without a prior `registerOpenPosition` (e.g. resting limit filled after entry).
    */
   async reconcileTrackedSymbolsFromVenue(): Promise<void> {
     const sync = this.broker.syncPositionFromVenue;
     if (typeof sync !== 'function') return;
 
-    const symbols = [...this.bySymbol.keys()];
-    for (const symbol of symbols) {
+    const deploymentBySymbol = new Map<
+      string,
+      { readonly deploymentId: string; readonly klineInterval: string }
+    >();
+    const getCtx = this.getActiveDeploymentContexts;
+    if (typeof getCtx === 'function') {
+      for (const c of getCtx()) {
+        deploymentBySymbol.set(c.symbol, {
+          deploymentId: c.deploymentId,
+          klineInterval: c.klineInterval,
+        });
+      }
+    }
+
+    const union = new Set<string>([
+      ...this.bySymbol.keys(),
+      ...deploymentBySymbol.keys(),
+    ]);
+
+    for (const symbol of union) {
       try {
         await sync.call(this.broker, symbol);
-        await this.applyRegistryAfterVenueSync(symbol);
+        if (this.bySymbol.has(symbol)) {
+          await this.applyRegistryAfterVenueSync(symbol);
+        } else {
+          const inst = this.getInstrument(symbol);
+          const ctx = deploymentBySymbol.get(symbol);
+          if (inst && ctx) {
+            await this.reconcileMissingRowIfNeeded(
+              inst,
+              ctx.deploymentId,
+              ctx.klineInterval,
+            );
+          }
+        }
       } catch (e) {
         this.logger.error('PositionManager venue reconcile failed', {
           symbol,
@@ -535,9 +580,15 @@ export class PositionManager implements IPositionBook {
     const qtyAbs = Math.abs(q);
 
     if (Math.abs(q) < 1e-12) {
-      this.logger.info('Signal executed (flat after fill)', {
+      this.logger.info('Signal executed', {
         symbol,
         action: signal.action,
+        qty: signal.qty,
+        price: signal.price,
+        stopLoss: signal.stopLoss,
+        outcome: 'flat_after_sync',
+        note:
+          'Venue position size is still zero after sync — e.g. limit order not filled yet, or order did not open size.',
       });
       return;
     }
@@ -571,6 +622,7 @@ export class PositionManager implements IPositionBook {
       qty: signal.qty,
       price: signal.price,
       stopLoss: signal.stopLoss,
+      outcome: 'opened',
     });
   }
 

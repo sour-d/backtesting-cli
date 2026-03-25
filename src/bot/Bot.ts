@@ -83,6 +83,12 @@ export class Bot {
       logger: deps.logger,
       getInstrument: (symbol) => deps.marketRuntime.getInstrument(symbol),
       reconcileIntervalMs: deps.positionReconcileIntervalMs ?? 0,
+      getActiveDeploymentContexts: () =>
+        Array.from(this.activeDeployments.entries()).map(([symbol, v]) => ({
+          symbol,
+          deploymentId: v.deploymentId,
+          klineInterval: v.klineInterval,
+        })),
     });
   }
 

@@ -1,6 +1,6 @@
-const symbols = ["DOGEUSDT", "GALAUSDT", "DOTUSDT"];
-const interval = "1";
-const capital = 5;
+const symbols = ["SOLUSDT", "AVAXUSDT", "XRPUSDT"];
+const interval = "240";
+const capital = 10;
 
 
 symbols.forEach(symbol => {
