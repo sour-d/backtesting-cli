@@ -196,6 +196,12 @@ export class Bot {
           pm.hydrateFromStoredRow(d.symbol, row);
         }
 
+        await pm.syncOpenPositionFromVenueAfterRestore(
+          instrument,
+          d.id,
+          intervalRaw,
+        );
+
         this.logger.info("Restored deployment", {
           deploymentId: d.id,
           symbol: d.symbol,

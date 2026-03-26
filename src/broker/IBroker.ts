@@ -38,6 +38,21 @@ export interface IBroker {
    * Omitted in backtest — {@link PositionManager} skips periodic venue reconciliation.
    */
   syncPositionFromVenue?(symbol: string): Promise<void>;
+  /**
+   * Live (linear/inverse): after the venue shows a full close, resolve exit order id, fee, and avg exit from Bybit closed PnL.
+   * `positionSide` is the **position** side that was open (same as `positions.side`).
+   */
+  fetchVenueClosedFillMeta?(
+    symbol: string,
+    positionSide: OrderSide,
+    closedQty: number,
+    instrument: Instrument,
+  ): Promise<{
+    readonly venueExitOrderId: string;
+    readonly exitFee: number;
+    readonly exitPrice: number;
+    readonly exitTimestampMs: number;
+  } | null>;
   start(): void;
   stop(): void;
 }

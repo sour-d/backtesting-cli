@@ -227,6 +227,27 @@ export class PositionManager implements IPositionBook {
   }
 
   /**
+   * Live restore: after {@link hydrateFromStoredRow} / {@link registerOpenPosition}, pull venue size,
+   * create a `positions` row if the exchange shows size but we had none, then run {@link applyRegistryAfterVenueSync}
+   * so the DB matches the venue (or persist exit + delete if already flat).
+   * Ensures the next {@link processSignal} / strategy `evaluate` sees the same position the exchange has.
+   */
+  async syncOpenPositionFromVenueAfterRestore(
+    instrument: Instrument,
+    deploymentId: string,
+    klineInterval: string,
+  ): Promise<void> {
+    const sync = this.broker.syncPositionFromVenue;
+    if (typeof sync !== 'function') return;
+    const symbol = instrument.symbol;
+    await sync.call(this.broker, symbol);
+    await this.reconcileMissingRowIfNeeded(instrument, deploymentId, klineInterval);
+    if (this.getOpenPositionId(symbol)) {
+      await this.applyRegistryAfterVenueSync(symbol);
+    }
+  }
+
+  /**
    * Exchange/reconcile shows an open position but registry + DB row were missing — create row and register.
    */
   async reconcileMissingRowIfNeeded(
@@ -240,7 +261,17 @@ export class PositionManager implements IPositionBook {
     const q = snap.currentPositionQty;
     if (Math.abs(q) < 1e-12) return;
 
-    const id = randomUUID();
+    const linked =
+      (await this.store.loadOpenOrderHistoryIdForDeployment(deploymentId, symbol)) ??
+      null;
+    const id = linked ?? randomUUID();
+    if (linked) {
+      this.logger.debug('Reconcile position id linked to open order_history', {
+        symbol,
+        deploymentId,
+        id: linked,
+      });
+    }
     const now = Date.now();
     const side: 'Buy' | 'Sell' = q > 0 ? 'Buy' : 'Sell';
     const rec: PositionRecord = {
@@ -348,16 +379,48 @@ export class PositionManager implements IPositionBook {
         });
       } else {
         const timestamp = last?.dateUnix ?? Date.now();
+        let exitPrice = price;
+        let tsMs = timestamp < 1e12 ? timestamp * 1000 : timestamp;
+        let exitFee =
+          this.feeRate > 0 ? exitQty * exitPrice * this.feeRate : 0;
+        let venueExitOrderId = 'venue';
+        let tradeBarUnix = timestamp;
+
+        const fetchMeta = this.broker.fetchVenueClosedFillMeta;
+        if (typeof fetchMeta === 'function') {
+          const m = await fetchMeta.call(
+            this.broker,
+            symbol,
+            row.side,
+            exitQty,
+            inst,
+          );
+          if (m) {
+            venueExitOrderId = m.venueExitOrderId;
+            exitFee = m.exitFee;
+            exitPrice = inst.roundPrice(m.exitPrice);
+            tsMs = m.exitTimestampMs;
+            tradeBarUnix =
+              m.exitTimestampMs >= 1e12
+                ? Math.floor(m.exitTimestampMs / 1000)
+                : Math.floor(m.exitTimestampMs);
+            this.logger.info('Venue exit enriched from Bybit closed PnL', {
+              symbol,
+              venueExitOrderId,
+              exitFee,
+              exitPrice,
+            });
+          }
+        }
+
         await this.persistExitTradeFromVenue({
           symbol,
           qty: exitQty,
-          price,
+          price: exitPrice,
           exitSide,
-          timestamp,
+          timestamp: tradeBarUnix,
           klineInterval: entry.klineInterval,
         });
-        const tsMs = timestamp < 1e12 ? timestamp * 1000 : timestamp;
-        const exitFee = this.feeRate > 0 ? exitQty * price * this.feeRate : 0;
         await this.store.upsertOrderHistory({
           id: row.id,
           deploymentId: row.deploymentId,
@@ -365,10 +428,10 @@ export class PositionManager implements IPositionBook {
           status: 'closed',
           updatedAtMs: Date.now(),
           exitQty,
-          exitPrice: price,
+          exitPrice,
           exitFee,
           exitTimestampMs: tsMs,
-          venueExitOrderId: 'venue',
+          venueExitOrderId,
         });
       }
       await this.store.deletePosition(row.id);

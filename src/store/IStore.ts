@@ -35,6 +35,14 @@ export interface IStore {
   saveTrade(record: TradeRecord): Promise<void>;
   /** Merge by `id` into `order_history` (file/Supabase). */
   upsertOrderHistory(patch: OrderHistoryPatch): Promise<void>;
+  /**
+   * Round-trip id of an `order_history` row with `status: open` for this deployment+symbol, if any.
+   * Used so `positions.id` matches the entry row when reconciling from the venue (e.g. limit filled before a position row existed).
+   */
+  loadOpenOrderHistoryIdForDeployment(
+    deploymentId: string,
+    symbol: string,
+  ): Promise<string | null>;
 
   saveDeployment(state: DeploymentState): Promise<void>;
   loadDeployments(): Promise<DeploymentState[]>;

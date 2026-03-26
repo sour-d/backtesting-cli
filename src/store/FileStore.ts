@@ -120,6 +120,35 @@ export class FileStore implements IStore {
     await appendFile(file, `${JSON.stringify(record)}\n`, 'utf8');
   }
 
+  async loadOpenOrderHistoryIdForDeployment(
+    deploymentId: string,
+    symbol: string,
+  ): Promise<string | null> {
+    const file = this.orderHistoryPath();
+    let map: Record<string, OrderHistoryRecord> = {};
+    try {
+      const raw = await readFile(file, 'utf8');
+      const parsed = JSON.parse(raw) as unknown;
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        map = parsed as Record<string, OrderHistoryRecord>;
+      }
+    } catch {
+      return null;
+    }
+    let best: OrderHistoryRecord | null = null;
+    for (const rec of Object.values(map)) {
+      if (
+        rec.deploymentId !== deploymentId ||
+        rec.symbol !== symbol ||
+        rec.status !== 'open'
+      ) {
+        continue;
+      }
+      if (!best || rec.updatedAtMs > best.updatedAtMs) best = rec;
+    }
+    return best?.id ?? null;
+  }
+
   async upsertOrderHistory(patch: OrderHistoryPatch): Promise<void> {
     const file = this.orderHistoryPath();
     let map: Record<string, OrderHistoryRecord> = {};

@@ -236,6 +236,64 @@ export class LiveBroker implements IBroker {
     await this.syncPositionFromExchange(symbol);
   }
 
+  /**
+   * Match the most recent closed-PnL record for this symbol (last ~14d) to recover real exit order id, close fee, avg exit.
+   */
+  async fetchVenueClosedFillMeta(
+    symbol: string,
+    positionSide: 'Buy' | 'Sell',
+    closedQty: number,
+    instrument: Instrument,
+  ): Promise<{
+    readonly venueExitOrderId: string;
+    readonly exitFee: number;
+    readonly exitPrice: number;
+    readonly exitTimestampMs: number;
+  } | null> {
+    if (this.category === 'spot' || this.category === 'option') {
+      return null;
+    }
+    const targetQty = instrument.roundQty(closedQty);
+    const qtyEps = Math.max(1e-12, instrument.stepSize * 0.5);
+    const startTime = Date.now() - 14 * 86_400_000;
+    try {
+      const res = await this.rest.getClosedPnL({
+        category: this.category,
+        symbol,
+        startTime,
+        limit: 100,
+      });
+      const list = res.result?.list ?? [];
+      const sorted = [...list].sort(
+        (a, b) => Number(b.updatedTime) - Number(a.updatedTime),
+      );
+      for (const p of sorted) {
+        if (String(p.side) !== positionSide) continue;
+        const closedSize = instrument.roundQty(Number(p.closedSize));
+        if (Math.abs(closedSize - targetQty) > qtyEps) continue;
+        const orderId = String(p.orderId ?? '').trim();
+        const exitPrice = Number(p.avgExitPrice);
+        const exitFee = Math.abs(Number(p.closeFee));
+        const exitTimestampMs = Number(p.updatedTime || p.createdTime);
+        if (!orderId || !Number.isFinite(exitPrice) || exitPrice <= 0) continue;
+        return {
+          venueExitOrderId: orderId,
+          exitFee: Number.isFinite(exitFee) ? exitFee : 0,
+          exitPrice,
+          exitTimestampMs: Number.isFinite(exitTimestampMs)
+            ? exitTimestampMs
+            : Date.now(),
+        };
+      }
+    } catch (e) {
+      this.logger.warn('fetchVenueClosedFillMeta failed', {
+        symbol,
+        message: String(e),
+      });
+    }
+    return null;
+  }
+
   private async reconcileAll(): Promise<void> {
     try {
       const res = await this.rest.getPositionInfo({

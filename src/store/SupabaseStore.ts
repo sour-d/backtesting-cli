@@ -202,6 +202,24 @@ export class SupabaseStore implements IStore {
     /* no-op for Supabase */
   }
 
+  async loadOpenOrderHistoryIdForDeployment(
+    deploymentId: string,
+    symbol: string,
+  ): Promise<string | null> {
+    const { data, error } = await this.client
+      .from('order_history')
+      .select('id')
+      .eq('deployment_id', deploymentId)
+      .eq('symbol', symbol)
+      .eq('status', 'open')
+      .order('updated_at_ms', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) throw new Error(`loadOpenOrderHistoryIdForDeployment: ${error.message}`);
+    if (!data || typeof (data as { id?: unknown }).id !== 'string') return null;
+    return (data as { id: string }).id;
+  }
+
   async upsertOrderHistory(patch: OrderHistoryPatch): Promise<void> {
     const { data } = await this.client.from('order_history').select('*').eq('id', patch.id).maybeSingle();
     const existing = data ? mapOrderHistoryRow(data as Record<string, unknown>) : null;

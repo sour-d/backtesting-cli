@@ -78,6 +78,13 @@ export class BacktestStore implements IStore {
     /* no-op — backtest avoids order_history I/O */
   }
 
+  async loadOpenOrderHistoryIdForDeployment(
+    _deploymentId: string,
+    _symbol: string,
+  ): Promise<string | null> {
+    return null;
+  }
+
   async saveDeployment(state: DeploymentState): Promise<void> {
     const all = await this.loadDeployments();
     const next = all.filter((d) => d.id !== state.id).concat(state);
