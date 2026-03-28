@@ -4,7 +4,7 @@ import type { PositionBookSnapshot, PositionRecord } from './types.js';
 import { emptyPositionBookSnapshot } from './types.js';
 
 export interface PositionServiceDeps {
-  /** Used when recomputing available capital after venue {@link setPositionSnapshot} (live). */
+  /** Default taker/maker rate when no per-symbol override is set (see {@link setSymbolFeeRate}). */
   readonly feeRate: number;
 }
 
@@ -22,12 +22,28 @@ let singleton: PositionService | undefined;
  * Execution and persistence live in `TradeEngine`.
  */
 export class PositionService implements IPositionBook {
-  private readonly feeRate: number;
+  private readonly defaultFeeRate: number;
+  /** Per-symbol fee for venue snapshot recomputation (set from broker before sync). */
+  private readonly symbolFeeOverrides = new Map<string, number>();
   private readonly bySymbol = new Map<string, RegistryEntry>();
   private readonly runtimes = new Map<string, PositionRuntime>();
 
   private constructor(deps: PositionServiceDeps) {
-    this.feeRate = deps.feeRate;
+    this.defaultFeeRate = deps.feeRate;
+  }
+
+  /**
+   * Overrides fee used when recomputing available capital after a venue snapshot for `symbol`.
+   * Callers (e.g. {@link TradeEngine}) should set this from {@link IBroker.getFeeRate} when known.
+   */
+  setSymbolFeeRate(symbol: string, rate: number): void {
+    if (Number.isFinite(rate) && rate >= 0) {
+      this.symbolFeeOverrides.set(symbol, rate);
+    }
+  }
+
+  private effectiveFeeRate(symbol: string): number {
+    return this.symbolFeeOverrides.get(symbol) ?? this.defaultFeeRate;
   }
 
   static configure(deps: PositionServiceDeps): void {
@@ -61,12 +77,14 @@ export class PositionService implements IPositionBook {
    */
   clearSymbol(symbol: string): void {
     this.bySymbol.delete(symbol);
+    this.symbolFeeOverrides.delete(symbol);
     this.runtimes.get(symbol)?.clearOpenPositionKeepCapital();
   }
 
   /** Full drop (e.g. deployment removed) — registry + runtime including capital. */
   purgeSymbol(symbol: string): void {
     this.bySymbol.delete(symbol);
+    this.symbolFeeOverrides.delete(symbol);
     this.runtimes.delete(symbol);
   }
 
@@ -123,7 +141,8 @@ export class PositionService implements IPositionBook {
     }
     const qtyAbs = Math.abs(q);
     const notional = qtyAbs * avg;
-    const fee = this.feeRate > 0 ? notional * this.feeRate : 0;
+    const fr = this.effectiveFeeRate(symbol);
+    const fee = fr > 0 ? notional * fr : 0;
     const available =
       q > 0 ? allocated - notional - fee : allocated + notional - fee;
     const clamped = Number.isFinite(available) ? Math.max(0, available) : allocated;

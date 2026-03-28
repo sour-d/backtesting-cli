@@ -73,6 +73,7 @@ export function createLiveEngine(config: LiveEngineConfig): LiveEngineHandles {
     apiSecret: config.apiSecret,
     testnet: config.testnet,
     demoTrading: config.demoTrading,
+    venueSyncMinIntervalMs: config.venueSyncMinIntervalMs,
     getInstrument: (symbol) => marketRuntime.getInstrument(symbol),
     getPositionBook: () => PositionService.getInstance(),
   });
@@ -84,6 +85,8 @@ export function createLiveEngine(config: LiveEngineConfig): LiveEngineHandles {
     marketRuntime,
     strategies,
     defaultKlineInterval: config.klineInterval,
+    brokerFailureThreshold: config.brokerFailureThreshold,
+    brokerPauseCooldownMs: config.brokerPauseCooldownMs,
   });
 
   return { store, logger, marketRuntime, broker, bot, strategies };

@@ -96,7 +96,7 @@ export class ReconciliationService {
     const sync = this.broker.syncPositionFromVenue;
     if (typeof sync !== 'function') return;
     const symbol = instrument.symbol;
-    await sync.call(this.broker, symbol);
+    await sync.call(this.broker, symbol, { force: true });
     await this.reconcileMissingRowIfNeeded(instrument, deploymentId, klineInterval);
     if (this.positionService.getOpenPositionId(symbol)) {
       await this.applyRegistryAfterVenueSync(symbol);

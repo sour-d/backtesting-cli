@@ -1,6 +1,12 @@
 import type { OrderSide } from '../core/types.js';
 import type { Instrument } from '../instrument/Instrument.js';
 
+/** Options for {@link IBroker.syncPositionFromVenue}. */
+export interface SyncPositionFromVenueOptions {
+  /** When true, bypass per-symbol throttle (e.g. immediately after an order). */
+  readonly force?: boolean;
+}
+
 export interface PlaceOrderInput {
   readonly instrument: Instrument;
   readonly side: OrderSide;
@@ -37,7 +43,10 @@ export interface IBroker {
    * Live: pull the latest position for `symbol` from the venue into {@link Instrument}.
    * Omitted in backtest — live periodic sync is driven by {@link ReconciliationService}.
    */
-  syncPositionFromVenue?(symbol: string): Promise<void>;
+  syncPositionFromVenue?(
+    symbol: string,
+    options?: SyncPositionFromVenueOptions,
+  ): Promise<void>;
   /**
    * Live (linear/inverse): after the venue shows a full close, resolve exit order id, fee, and avg exit from Bybit closed PnL.
    * `positionSide` is the **position** side that was open (same as `positions.side`).

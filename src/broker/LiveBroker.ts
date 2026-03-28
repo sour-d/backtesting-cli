@@ -4,7 +4,7 @@ import type { Instrument } from '../instrument/Instrument.js';
 import type { ILogger } from '../logger/ILogger.js';
 import type { IStore } from '../store/IStore.js';
 import type { IPositionBook } from '../position/IPositionBook.js';
-import type { IBroker, PlaceOrderInput } from './IBroker.js';
+import type { IBroker, PlaceOrderInput, SyncPositionFromVenueOptions } from './IBroker.js';
 
 export interface LiveBrokerOptions {
   readonly logger: ILogger;
@@ -17,6 +17,11 @@ export interface LiveBrokerOptions {
   readonly feeRate: number;
   readonly getInstrument: (symbol: string) => Instrument | undefined;
   readonly getPositionBook: () => IPositionBook;
+  /**
+   * Minimum ms between throttled {@link syncPositionFromVenue} calls per symbol.
+   * Direct post-order sync uses {@link syncPositionFromExchange} and ignores this.
+   */
+  readonly venueSyncMinIntervalMs?: number;
 }
 
 /**
@@ -30,6 +35,8 @@ export class LiveBroker implements IBroker {
   private readonly feeRate: number;
   private readonly getInstrument: (symbol: string) => Instrument | undefined;
   private readonly getPositionBook: () => IPositionBook;
+  private readonly venueSyncMinIntervalMs: number;
+  private readonly lastVenueSyncAtMs = new Map<string, number>();
 
   constructor(opts: LiveBrokerOptions) {
     this.logger = opts.logger;
@@ -38,6 +45,7 @@ export class LiveBroker implements IBroker {
     this.feeRate = opts.feeRate;
     this.getInstrument = opts.getInstrument;
     this.getPositionBook = opts.getPositionBook;
+    this.venueSyncMinIntervalMs = opts.venueSyncMinIntervalMs ?? 800;
     this.rest = new RestClientV5({
       key: opts.apiKey,
       secret: opts.apiSecret,
@@ -226,8 +234,46 @@ export class LiveBroker implements IBroker {
     this.logger.info('Trading stop updated', { symbol, stopLoss: sl });
   }
 
-  async syncPositionFromVenue(symbol: string): Promise<void> {
-    await this.syncPositionFromExchange(symbol);
+  async syncPositionFromVenue(
+    symbol: string,
+    options?: SyncPositionFromVenueOptions,
+  ): Promise<void> {
+    const now = Date.now();
+    if (!options?.force) {
+      const last = this.lastVenueSyncAtMs.get(symbol);
+      if (
+        last !== undefined &&
+        now - last < this.venueSyncMinIntervalMs
+      ) {
+        this.logger.debug('DEBUG:: syncPositionFromVenue skipped (throttled)', {
+          symbol,
+          minIntervalMs: this.venueSyncMinIntervalMs,
+        });
+        return;
+      }
+    }
+
+    const run = async (): Promise<void> => {
+      await this.syncPositionFromExchange(symbol);
+      this.lastVenueSyncAtMs.set(symbol, Date.now());
+    };
+
+    try {
+      await run();
+    } catch (e) {
+      this.logger.warn('DEBUG:: syncPositionFromVenue failed, retrying once', {
+        symbol,
+        message: String(e),
+      });
+      try {
+        await run();
+      } catch (e2) {
+        this.logger.warn('DEBUG:: syncPositionFromVenue failed after retry', {
+          symbol,
+          message: String(e2),
+        });
+      }
+    }
   }
 
   /**

@@ -20,4 +20,10 @@ export interface LiveEngineConfig {
   readonly logTargets?: readonly LogTarget[];
   /** Venue/registry reconcile interval (ms). Default 30_000; `0` disables periodic reconcile. */
   readonly reconcileIntervalMs?: number;
+  /** Live: min ms between throttled venue position REST syncs per symbol (default 800). */
+  readonly venueSyncMinIntervalMs?: number;
+  /** Live: consecutive broker throws before pausing signals for that symbol (omit to disable). */
+  readonly brokerFailureThreshold?: number;
+  /** Ms to pause after threshold (default 60_000). */
+  readonly brokerPauseCooldownMs?: number;
 }

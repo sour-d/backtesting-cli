@@ -19,6 +19,8 @@ export interface CreateBrokerConfig {
   readonly demoTrading?: boolean;
   /** Live: `LiveBroker` fee estimate; backtest: `TestBroker` fill fee. */
   readonly feeRate?: number;
+  /** Live only: throttle for {@link LiveBroker.syncPositionFromVenue} (non-force paths). */
+  readonly venueSyncMinIntervalMs?: number;
   readonly getInstrument: (symbol: string) => Instrument | undefined;
   /** Runtime position book — {@link PositionService} after `Bot` wiring. */
   readonly getPositionBook: () => IPositionBook;
@@ -39,6 +41,7 @@ export function createBroker(config: CreateBrokerConfig): IBroker {
         testnet: config.testnet ?? false,
         demoTrading: config.demoTrading ?? false,
         feeRate: config.feeRate ?? 0.0006,
+        venueSyncMinIntervalMs: config.venueSyncMinIntervalMs,
         getInstrument: config.getInstrument,
         getPositionBook: config.getPositionBook,
       };

@@ -8,6 +8,7 @@ import type { IStore } from '../store/IStore.js';
 import type { PositionService } from '../position/PositionService.js';
 import type { PositionRecord } from '../position/types.js';
 import type { StrategyEvaluateResult } from '../strategy/types.js';
+import { resolveBrokerFeeRate } from '../broker/resolveBrokerFeeRate.js';
 
 export interface TradeDeploymentContext {
   readonly deploymentId: string;
@@ -22,6 +23,13 @@ export interface TradeEngineDeps {
   readonly logger: ILogger;
   /** Fallback when {@link IBroker.getFeeRate} is missing or fails. */
   readonly defaultFeeRate: number;
+  /**
+   * When set to a positive number, consecutive broker throws on this symbol pause new signals until cooldown.
+   * Omit or non-positive to disable.
+   */
+  readonly brokerFailureThreshold?: number;
+  /** Ms to pause trading after `brokerFailureThreshold` consecutive failures (default 60_000). */
+  readonly brokerPauseCooldownMs?: number;
 }
 
 export class TradeEngine {
@@ -30,6 +38,10 @@ export class TradeEngine {
   private readonly store: IStore;
   private readonly logger: ILogger;
   private readonly defaultFeeRate: number;
+  private readonly brokerFailureThreshold: number | undefined;
+  private readonly brokerPauseCooldownMs: number;
+  private readonly consecutiveBrokerFailures = new Map<string, number>();
+  private readonly brokerPausedUntilMs = new Map<string, number>();
 
   constructor(deps: TradeEngineDeps) {
     this.broker = deps.broker;
@@ -37,25 +49,57 @@ export class TradeEngine {
     this.store = deps.store;
     this.logger = deps.logger;
     this.defaultFeeRate = deps.defaultFeeRate;
+    const th = deps.brokerFailureThreshold;
+    this.brokerFailureThreshold =
+      th !== undefined && th > 0 ? Math.floor(th) : undefined;
+    this.brokerPauseCooldownMs =
+      deps.brokerPauseCooldownMs !== undefined && deps.brokerPauseCooldownMs > 0
+        ? deps.brokerPauseCooldownMs
+        : 60_000;
   }
 
-  private async resolveFeeRate(symbol: string): Promise<number> {
-    try {
-      const r = await this.broker.getFeeRate?.(symbol);
-      if (typeof r === 'number' && Number.isFinite(r) && r >= 0) {
-        return r;
-      }
-    } catch {
-      /* fall through */
+  private resolveFeeRate(symbol: string): Promise<number> {
+    return resolveBrokerFeeRate(this.broker, symbol, this.defaultFeeRate);
+  }
+
+  private isBrokerPaused(symbol: string): boolean {
+    const until = this.brokerPausedUntilMs.get(symbol);
+    if (until === undefined) return false;
+    if (Date.now() < until) return true;
+    this.brokerPausedUntilMs.delete(symbol);
+    this.resetBrokerFailureStreak(symbol);
+    return false;
+  }
+
+  private resetBrokerFailureStreak(symbol: string): void {
+    this.consecutiveBrokerFailures.delete(symbol);
+  }
+
+  private recordBrokerFailure(symbol: string): void {
+    const threshold = this.brokerFailureThreshold;
+    if (threshold === undefined) return;
+    const n = (this.consecutiveBrokerFailures.get(symbol) ?? 0) + 1;
+    this.consecutiveBrokerFailures.set(symbol, n);
+    this.logger.warn('DEBUG:: broker failure streak', { symbol, n, threshold });
+    if (n >= threshold) {
+      const until = Date.now() + this.brokerPauseCooldownMs;
+      this.brokerPausedUntilMs.set(symbol, until);
+      this.logger.warn('DEBUG:: trading paused after consecutive broker failures', {
+        symbol,
+        n,
+        pauseUntilMs: until,
+        cooldownMs: this.brokerPauseCooldownMs,
+      });
     }
-    return this.defaultFeeRate;
   }
 
   /** Live: pull latest venue size into `positionService` after an order path (no-op in backtest). */
   private async pullVenuePositionIfLive(symbol: string): Promise<void> {
     const sync = this.broker.syncPositionFromVenue;
     if (typeof sync !== 'function') return;
-    await sync.call(this.broker, symbol);
+    const fr = await this.resolveFeeRate(symbol);
+    this.positionService.setSymbolFeeRate(symbol, fr);
+    await sync.call(this.broker, symbol, { force: true });
   }
 
   async execute(
@@ -65,6 +109,15 @@ export class TradeEngine {
   ): Promise<void> {
     const { candle, deploymentId, klineInterval } = deploymentContext;
     if (signal.action === 'HOLD') {
+      return;
+    }
+
+    const symbol = instrument.symbol;
+    if (this.isBrokerPaused(symbol)) {
+      this.logger.warn('DEBUG:: signal skipped — broker pause active', {
+        symbol,
+        action: signal.action,
+      });
       return;
     }
 
@@ -123,12 +176,23 @@ export class TradeEngine {
       this.logger.debug('CLOSE ignored — no open position id', { symbol });
       return;
     }
-    await this.broker.closePosition(
-      symbol,
-      roundTripId,
-      closeAll ? undefined : exitQty,
-      strategyExitPrice,
-    );
+    try {
+      await this.broker.closePosition(
+        symbol,
+        roundTripId,
+        closeAll ? undefined : exitQty,
+        strategyExitPrice,
+      );
+    } catch (e) {
+      this.recordBrokerFailure(symbol);
+      this.logger.warn('DEBUG:: closePosition failed', {
+        symbol,
+        message: String(e),
+      });
+      return;
+    }
+    this.resetBrokerFailureStreak(symbol);
+
     const exitFillPrice = strategyExitPrice ?? candle.close;
     await this.persistTrade({
       instrument,
@@ -192,12 +256,22 @@ export class TradeEngine {
       return;
     }
     const deploymentId = this.positionService.getDetails(instrument.symbol)?.deploymentId;
-    await this.broker.updateStopLoss(
-      instrument.symbol,
-      signal.stopLoss,
-      uid,
-      deploymentId,
-    );
+    try {
+      await this.broker.updateStopLoss(
+        instrument.symbol,
+        signal.stopLoss,
+        uid,
+        deploymentId,
+      );
+    } catch (e) {
+      this.recordBrokerFailure(instrument.symbol);
+      this.logger.warn('DEBUG:: updateStopLoss failed', {
+        symbol: instrument.symbol,
+        message: String(e),
+      });
+      return;
+    }
+    this.resetBrokerFailureStreak(instrument.symbol);
     await this.store.updatePositionStopLoss(uid, signal.stopLoss, Date.now());
     await this.pullVenuePositionIfLive(instrument.symbol);
     this.logger.info('Signal UPDATE_SL executed', {
@@ -218,22 +292,41 @@ export class TradeEngine {
   ): Promise<void> {
     const side = signal.action === 'BUY' ? 'Buy' : 'Sell';
     const symbol = instrument.symbol;
+    const snapPre = this.positionService.getSnapshot(symbol);
+    const qPre = snapPre.currentPositionQty;
+    const eps = 1e-12;
+    if (side === 'Buy' && qPre > eps) {
+      this.logger.debug('DEBUG:: BUY skipped — already long', { symbol, q: qPre });
+      return;
+    }
+    if (side === 'Sell' && qPre < -eps) {
+      this.logger.debug('DEBUG:: SELL skipped — already short', { symbol, q: qPre });
+      return;
+    }
+
     const preUid = this.positionService.getOpenPositionId(symbol);
     const roundTripId = preUid ?? randomUUID();
-    await this.broker.placeOrder({
-      instrument,
-      side,
-      qty: signal.qty,
-      price: signal.price,
-      stopLoss:
-        signal.stopLoss !== undefined &&
-        Number.isFinite(signal.stopLoss) &&
-        signal.stopLoss > 0
-          ? signal.stopLoss
-          : undefined,
-      roundTripId,
-      deploymentId,
-    });
+    try {
+      await this.broker.placeOrder({
+        instrument,
+        side,
+        qty: signal.qty,
+        price: signal.price,
+        stopLoss:
+          signal.stopLoss !== undefined &&
+          Number.isFinite(signal.stopLoss) &&
+          signal.stopLoss > 0
+            ? signal.stopLoss
+            : undefined,
+        roundTripId,
+        deploymentId,
+      });
+    } catch (e) {
+      this.recordBrokerFailure(symbol);
+      this.logger.warn('DEBUG:: placeOrder failed', { symbol, message: String(e) });
+      return;
+    }
+    this.resetBrokerFailureStreak(symbol);
 
     await this.persistTrade({
       instrument,

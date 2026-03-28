@@ -9,6 +9,7 @@ import type { StrategyRegistry } from "../strategy/StrategyRegistry.js";
 import type { ITradingContextProvider } from "./ITradingContextProvider.js";
 import { PositionService } from "../position/PositionService.js";
 import { parseKlineInterval } from "../config/klineInterval.js";
+import { resolveBrokerFeeRate } from "../broker/resolveBrokerFeeRate.js";
 import { ReconciliationService } from "../engine/ReconciliationService.js";
 import { TradeEngine } from "../trade/TradeEngine.js";
 
@@ -41,6 +42,10 @@ export interface BotDeps {
   readonly feeRate?: number;
   /** Raw interval string (e.g. from `KLINE_INTERVAL` / `--interval` / quantlab config). */
   readonly defaultKlineInterval: string;
+  /** Positive: pause signals after this many consecutive broker throws (see {@link TradeEngine}). */
+  readonly brokerFailureThreshold?: number;
+  /** Ms to pause after threshold (default 60_000). */
+  readonly brokerPauseCooldownMs?: number;
 }
 
 /**
@@ -97,6 +102,8 @@ export class Bot implements ITradingContextProvider {
       store: deps.store,
       logger: deps.logger,
       defaultFeeRate: this.feeRate,
+      brokerFailureThreshold: deps.brokerFailureThreshold,
+      brokerPauseCooldownMs: deps.brokerPauseCooldownMs,
     });
   }
 
@@ -259,9 +266,22 @@ export class Bot implements ITradingContextProvider {
     }
 
     const pm = PositionService.getInstance();
+    const fr = await resolveBrokerFeeRate(
+      this.broker,
+      instrument.symbol,
+      this.feeRate,
+    );
+    pm.setSymbolFeeRate(instrument.symbol, fr);
     const sync = this.broker.syncPositionFromVenue;
     if (typeof sync === "function") {
-      await sync.call(this.broker, instrument.symbol);
+      try {
+        await sync.call(this.broker, instrument.symbol);
+      } catch (e) {
+        this.logger.warn("DEBUG:: syncPositionFromVenue (onCandle) failed", {
+          symbol: instrument.symbol,
+          message: String(e),
+        });
+      }
     }
     await this.reconciliationService.reconcileMissingRowIfNeeded(
       instrument,

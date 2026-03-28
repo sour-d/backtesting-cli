@@ -10,15 +10,36 @@ export interface RunLiveLoopResult {
   readonly shutdown: () => Promise<void>;
 }
 
+function envPositiveInt(name: string): number | undefined {
+  const raw = process.env[name];
+  if (raw === undefined || raw === '') return undefined;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : undefined;
+}
+
 /**
  * Connects candle handlers, restores state, starts market runtime, broker worker, and HTTP API.
  */
 export async function runLiveLoop(config: LiveEngineConfig): Promise<RunLiveLoopResult> {
-  const { bot, broker, marketRuntime, logger, store, strategies } = createLiveEngine(config);
+  const effective: LiveEngineConfig = {
+    ...config,
+    venueSyncMinIntervalMs:
+      config.venueSyncMinIntervalMs ??
+      envPositiveInt('VENUE_SYNC_MIN_INTERVAL_MS'),
+    brokerFailureThreshold:
+      config.brokerFailureThreshold ??
+      envPositiveInt('BROKER_FAILURE_THRESHOLD'),
+    brokerPauseCooldownMs:
+      config.brokerPauseCooldownMs ??
+      envPositiveInt('BROKER_PAUSE_COOLDOWN_MS'),
+  };
+
+  const { bot, broker, marketRuntime, logger, store, strategies } =
+    createLiveEngine(effective);
 
   const positionService = PositionService.getInstance();
   const reconciliationService = bot.reconciliationService;
-  const reconcileIntervalMs = config.reconcileIntervalMs ?? 30_000;
+  const reconcileIntervalMs = effective.reconcileIntervalMs ?? 30_000;
 
   const runtime = new RuntimeController({
     marketRuntime,
