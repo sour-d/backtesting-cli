@@ -3,6 +3,8 @@ import { createHttpApp, listenHttp, stopLiveUrlPing } from '../api/httpServer.js
 import { PositionManager } from '../position/PositionManager.js';
 import type { LiveEngineConfig } from './liveConfig.js';
 import { createLiveEngine } from './createLiveEngine.js';
+import { ReconciliationService } from './ReconciliationService.js';
+import { RuntimeController } from './RuntimeController.js';
 
 export interface RunLiveLoopResult {
   readonly server: Server;
@@ -15,11 +17,16 @@ export interface RunLiveLoopResult {
 export async function runLiveLoop(config: LiveEngineConfig): Promise<RunLiveLoopResult> {
   const { bot, broker, marketRuntime, logger, store, strategies } = createLiveEngine(config);
 
-  marketRuntime.onCandle((instrument) => bot.onCandle(instrument));
+  const runtime = new RuntimeController({
+    marketRuntime,
+    broker,
+    bot,
+    positionService: PositionManager.getInstance(),
+    reconciliationService: new ReconciliationService(),
+    logger,
+  });
 
-  await marketRuntime.start();
-  await bot.restoreDeployments();
-  broker.start();
+  await runtime.start();
 
   const app = createHttpApp({ bot, store, strategies, logger });
   const server = listenHttp(app, config.port, logger);
@@ -29,14 +36,7 @@ export async function runLiveLoop(config: LiveEngineConfig): Promise<RunLiveLoop
     await new Promise<void>((resolve, reject) => {
       server.close((err) => (err ? reject(err) : resolve()));
     });
-    try {
-      PositionManager.getInstance().stopReconciliation();
-    } catch {
-      /* not configured */
-    }
-    broker.stop();
-    await marketRuntime.stop();
-    logger.info('Engine shutdown complete');
+    await runtime.stop();
   };
 
   return { server, shutdown };
