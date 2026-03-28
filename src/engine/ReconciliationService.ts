@@ -24,6 +24,8 @@ export interface ReconciliationServiceDeps {
 
 /**
  * Exchange sync + DB/registry alignment. Periodic tick and restore-time hooks only — no signal execution.
+ *
+ * Position and `positions` rows are driven by venue REST sync plus these corrections — not by broker ack alone.
  */
 export class ReconciliationService {
   private readonly broker: IBroker;
@@ -135,7 +137,11 @@ export class ReconciliationService {
     };
     await this.store.createPosition(rec);
     this.positionService.registerOpenPosition(symbol, id, deploymentId, klineInterval);
-    this.logger.info('Position row reconciled from runtime', { symbol, id, deploymentId });
+    this.logger.info('Reconcile correction: created missing positions row from venue', {
+      symbol,
+      id,
+      deploymentId,
+    });
   }
 
   async reconcileTrackedSymbolsFromVenue(): Promise<void> {
@@ -157,6 +163,31 @@ export class ReconciliationService {
       ...this.positionService.getRegisteredSymbols(),
       ...deploymentBySymbol.keys(),
     ]);
+
+    const recover = this.broker.recoverMissingOrderHistory;
+    if (typeof recover === 'function') {
+      const contextsMap = new Map<string, string>();
+      for (const c of this.tradingContext.getActiveSymbols()) {
+        contextsMap.set(c.symbol, c.deploymentId);
+      }
+      for (const s of this.positionService.getRegisteredSymbols()) {
+        const d = this.positionService.getDetails(s);
+        if (d) {
+          contextsMap.set(s, d.deploymentId);
+        }
+      }
+      const active = [...contextsMap.entries()].map(([symbol, deploymentId]) => ({
+        symbol,
+        deploymentId,
+      }));
+      try {
+        await recover.call(this.broker, active);
+      } catch (e) {
+        this.logger.error('CRITICAL:: recoverMissingOrderHistory failed', {
+          message: String(e),
+        });
+      }
+    }
 
     for (const symbol of union) {
       try {
@@ -204,7 +235,7 @@ export class ReconciliationService {
         this.positionService.clearSymbol(symbol);
       } else {
         this.logger.error(
-          'DEBUG:: reconcile: DB position row missing but book shows open qty — keeping registry',
+          'CRITICAL:: exchange/DB mismatch — DB position row missing but book shows open qty — keeping registry',
           { symbol, currentPositionQty: snap.currentPositionQty },
         );
       }
@@ -243,58 +274,65 @@ export class ReconciliationService {
       let venueExitOrderId = 'venue';
       let tradeBarUnix = timestamp;
 
-      const fetchMeta = this.broker.fetchVenueClosedFillMeta;
-      if (typeof fetchMeta === 'function') {
-        const m = await fetchMeta.call(
-          this.broker,
-          symbol,
-          row.side,
-          exitQty,
-          inst,
-        );
-        if (m) {
-          venueExitOrderId = m.venueExitOrderId;
-          exitFee = m.exitFee;
-          exitPrice = inst.roundPrice(m.exitPrice);
-          tsMs = m.exitTimestampMs;
-          tradeBarUnix =
-            m.exitTimestampMs >= 1e12
-              ? Math.floor(m.exitTimestampMs / 1000)
-              : Math.floor(m.exitTimestampMs);
-          this.logger.info('Venue exit enriched from Bybit closed PnL', {
+      try {
+        const fetchMeta = this.broker.fetchVenueClosedFillMeta;
+        if (typeof fetchMeta === 'function') {
+          const m = await fetchMeta.call(
+            this.broker,
             symbol,
-            venueExitOrderId,
-            exitFee,
-            exitPrice,
-          });
+            row.side,
+            exitQty,
+            inst,
+          );
+          if (m) {
+            venueExitOrderId = m.venueExitOrderId;
+            exitFee = m.exitFee;
+            exitPrice = inst.roundPrice(m.exitPrice);
+            tsMs = m.exitTimestampMs;
+            tradeBarUnix =
+              m.exitTimestampMs >= 1e12
+                ? Math.floor(m.exitTimestampMs / 1000)
+                : Math.floor(m.exitTimestampMs);
+            this.logger.info('Venue exit enriched from Bybit closed PnL', {
+              symbol,
+              venueExitOrderId,
+              exitFee,
+              exitPrice,
+            });
+          }
         }
-      }
 
-      await this.persistExitTradeFromVenue({
-        symbol,
-        qty: exitQty,
-        price: exitPrice,
-        exitSide,
-        timestamp: tradeBarUnix,
-        klineInterval: entry.klineInterval,
-      });
-      await this.store.upsertOrderHistory({
-        id: row.id,
-        deploymentId: row.deploymentId,
-        symbol: row.symbol,
-        status: 'closed',
-        updatedAtMs: Date.now(),
-        exitQty,
-        exitPrice,
-        exitFee,
-        exitTimestampMs: tsMs,
-        venueExitOrderId,
-      });
-      await this.store.deletePosition(row.id);
-      this.positionService.clearSymbol(symbol);
-      this.logger.info('Venue position flat — exit trade persisted, row removed', {
-        symbol,
-      });
+        await this.persistExitTradeFromVenue({
+          symbol,
+          qty: exitQty,
+          price: exitPrice,
+          exitSide,
+          timestamp: tradeBarUnix,
+          klineInterval: entry.klineInterval,
+        });
+        await this.store.upsertOrderHistory({
+          id: row.id,
+          deploymentId: row.deploymentId,
+          symbol: row.symbol,
+          status: 'closed',
+          updatedAtMs: Date.now(),
+          exitQty,
+          exitPrice,
+          exitFee,
+          exitTimestampMs: tsMs,
+          venueExitOrderId,
+        });
+        await this.store.deletePosition(row.id);
+        this.positionService.clearSymbol(symbol);
+        this.logger.info('Reconcile correction: venue flat — exit trade persisted, row removed', {
+          symbol,
+        });
+      } catch (e) {
+        this.logger.error(
+          'CRITICAL:: reconcile flat-close sequence aborted — possible partial DB state; retry on next tick',
+          { symbol, message: String(e) },
+        );
+      }
       return;
     }
 
@@ -304,6 +342,11 @@ export class ReconciliationService {
       avgEntryPrice: snap.avgEntryPrice,
       side: posSide,
       updatedAtMs: now,
+    });
+    this.logger.info('Reconcile correction: position snapshot aligned from venue', {
+      symbol,
+      qty: Math.abs(q),
+      side: posSide,
     });
   }
 

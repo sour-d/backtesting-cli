@@ -73,6 +73,7 @@ export class TradeEngine {
     if (Date.now() < until) return true;
     this.brokerPausedUntilMs.delete(symbol);
     this.resetBrokerFailureStreak(symbol);
+    this.logger.info('Broker resumed after cooldown', { symbol });
     return false;
   }
 
@@ -89,7 +90,7 @@ export class TradeEngine {
     if (n >= threshold) {
       const until = Date.now() + this.brokerPauseCooldownMs;
       this.brokerPausedUntilMs.set(symbol, until);
-      this.logger.warn('DEBUG:: trading paused after consecutive broker failures', {
+      this.logger.warn('Broker paused after consecutive broker failures', {
         symbol,
         n,
         pauseUntilMs: until,
@@ -127,6 +128,9 @@ export class TradeEngine {
   /**
    * Same as {@link execute} but does not acquire the symbol mutex — caller must already hold
    * {@link TradeEngineDeps.symbolMutex} for `instrument.symbol` (e.g. {@link Bot.onCandle}).
+   *
+   * When the broker returns `success: true`, the exchange accepted the request (not a fill guarantee).
+   * Position and DB rows are aligned via venue sync and {@link ReconciliationService}.
    */
   async executeDirect(
     signal: StrategyEvaluateResult,

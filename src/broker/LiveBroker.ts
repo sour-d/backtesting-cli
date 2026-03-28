@@ -1,5 +1,6 @@
 import { RestClientV5 } from 'bybit-api';
 import type { CategoryV5 } from 'bybit-api';
+import type { OrderHistoryPatch } from '../core/types.js';
 import type { Instrument } from '../instrument/Instrument.js';
 import type { ILogger } from '../logger/ILogger.js';
 import type { IStore } from '../store/IStore.js';
@@ -37,6 +38,21 @@ function assertBybitOk(
   }
 }
 
+type ParsedPositionList =
+  | { readonly kind: 'invalid' }
+  | { readonly kind: 'flat' }
+  | {
+      readonly kind: 'open';
+      readonly side: string;
+      readonly sizeAbs: number;
+      readonly avg: number;
+      readonly upnl: number;
+    };
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
 export interface LiveBrokerOptions {
   readonly logger: ILogger;
   readonly store: IStore;
@@ -57,6 +73,10 @@ export interface LiveBrokerOptions {
 
 /**
  * Live execution against Bybit V5 — places orders; periodic venue sync is owned by {@link ReconciliationService}.
+ *
+ * `BrokerActionResult.success === true` means the exchange accepted the HTTP/API request (e.g. order ack), not that
+ * the order is filled or that local position state is final. Position truth comes from venue sync
+ * (`syncPositionFromVenue`) and reconciliation against the store.
  */
 export class LiveBroker implements IBroker {
   private readonly logger: ILogger;
@@ -68,6 +88,8 @@ export class LiveBroker implements IBroker {
   private readonly getPositionBook: () => IPositionBook;
   private readonly venueSyncMinIntervalMs: number;
   private readonly lastVenueSyncAtMs = new Map<string, number>();
+  /** In-memory fallback when `upsertOrderHistory` fails after the venue accepted the action. */
+  private readonly pendingOrderHistoryPatches: OrderHistoryPatch[] = [];
 
   constructor(opts: LiveBrokerOptions) {
     this.logger = opts.logger;
@@ -97,6 +119,194 @@ export class LiveBroker implements IBroker {
   async getFeeRate(symbol: string): Promise<number> {
     void symbol;
     return this.feeRate;
+  }
+
+  private parseGetPositionInfoList(
+    res: { result?: { list?: unknown } },
+    symbol: string,
+  ): ParsedPositionList {
+    const list = res.result?.list;
+    if (!Array.isArray(list)) {
+      this.logger.warn(
+        'DEBUG:: getPositionInfo: invalid shape (list missing or not array) — skipping position book update',
+        { symbol },
+      );
+      return { kind: 'invalid' };
+    }
+    if (list.length === 0) {
+      return { kind: 'flat' };
+    }
+    const p = list[0];
+    if (p === null || p === undefined || typeof p !== 'object') {
+      this.logger.warn(
+        'DEBUG:: getPositionInfo: invalid shape (first list entry) — skipping position book update',
+        { symbol },
+      );
+      return { kind: 'invalid' };
+    }
+    const raw = p as { side?: unknown; size?: unknown; avgPrice?: unknown; unrealisedPnl?: unknown };
+    const side = String(raw.side ?? '');
+    const sizeAbs = Number(raw.size ?? 0);
+    if (!Number.isFinite(sizeAbs) || sizeAbs <= 0) {
+      this.logger.warn(
+        'DEBUG:: getPositionInfo: non-empty list but size missing or non-positive — skipping position book update (not flattening)',
+        { symbol, sizeAbs },
+      );
+      return { kind: 'invalid' };
+    }
+    if (side !== 'Buy' && side !== 'Sell') {
+      this.logger.warn(
+        'DEBUG:: getPositionInfo: invalid side — skipping position book update',
+        { symbol, side },
+      );
+      return { kind: 'invalid' };
+    }
+    const avg = Number(raw.avgPrice ?? 0);
+    const upnl = Number(raw.unrealisedPnl ?? 0);
+    if (!Number.isFinite(avg)) {
+      this.logger.warn(
+        'DEBUG:: getPositionInfo: invalid avgPrice — skipping position book update',
+        { symbol },
+      );
+      return { kind: 'invalid' };
+    }
+    return { kind: 'open', side, sizeAbs, avg, upnl };
+  }
+
+  private async tryUpsertOrderHistoryWithBackoff(patch: OrderHistoryPatch): Promise<boolean> {
+    const backoffMs = [0, 120, 280];
+    let lastErr: unknown;
+    for (let i = 0; i < backoffMs.length; i++) {
+      if (backoffMs[i]! > 0) {
+        await sleep(backoffMs[i]!);
+      }
+      try {
+        await this.store.upsertOrderHistory(patch);
+        return true;
+      } catch (e) {
+        lastErr = e;
+      }
+    }
+    this.logger.warn('DEBUG:: upsertOrderHistory failed after retries', {
+      patchId: patch.id,
+      message: String(lastErr),
+    });
+    return false;
+  }
+
+  /**
+   * Persists `order_history` after the venue accepted the action. Retries then queues on failure;
+   * does not change {@link BrokerActionResult.success}.
+   */
+  private async persistOrderHistoryAfterVenueAccept(
+    patch: OrderHistoryPatch,
+    criticalLabel: string,
+    criticalMeta: Record<string, unknown>,
+  ): Promise<void> {
+    const ok = await this.tryUpsertOrderHistoryWithBackoff(patch);
+    if (ok) {
+      return;
+    }
+    this.logger.error(`CRITICAL:: ${criticalLabel}`, {
+      ...criticalMeta,
+      patchId: patch.id,
+    });
+    this.pendingOrderHistoryPatches.push(patch);
+    this.logger.warn('DEBUG:: order_history queued for recoverMissingOrderHistory', {
+      patchId: patch.id,
+    });
+  }
+
+  /**
+   * Flush pending patches and backfill missing open `order_history` when DB has a position row and
+   * the venue reports an open size.
+   */
+  async recoverMissingOrderHistory(
+    activeDeployments?: readonly { readonly symbol: string; readonly deploymentId: string }[],
+  ): Promise<void> {
+    const queue = [...this.pendingOrderHistoryPatches];
+    this.pendingOrderHistoryPatches.length = 0;
+    for (const patch of queue) {
+      const ok = await this.tryUpsertOrderHistoryWithBackoff(patch);
+      if (!ok) {
+        this.pendingOrderHistoryPatches.push(patch);
+        this.logger.error(
+          'CRITICAL:: persistence failure — order_history still pending after recover retry',
+          { patchId: patch.id },
+        );
+      }
+    }
+
+    if (activeDeployments) {
+      for (const { symbol, deploymentId } of activeDeployments) {
+        try {
+          await this.recoverOpenOrderHistoryFromVenueIfMissing(symbol, deploymentId);
+        } catch (e) {
+          this.logger.warn('DEBUG:: recoverOpenOrderHistoryFromVenueIfMissing failed', {
+            symbol,
+            deploymentId,
+            message: String(e),
+          });
+        }
+      }
+    }
+
+    if (this.pendingOrderHistoryPatches.length > 0) {
+      this.logger.error(
+        'CRITICAL:: exchange/DB order_history may be inconsistent — pending patches remain',
+        { count: this.pendingOrderHistoryPatches.length },
+      );
+    }
+  }
+
+  private async recoverOpenOrderHistoryFromVenueIfMissing(
+    symbol: string,
+    deploymentId: string,
+  ): Promise<void> {
+    const row = await this.store.loadPositionByDeploymentId(deploymentId);
+    if (!row || row.symbol !== symbol) {
+      return;
+    }
+    const openId = await this.store.loadOpenOrderHistoryIdForDeployment(deploymentId, symbol);
+    if (openId !== null) {
+      return;
+    }
+    const res = await this.rest.getPositionInfo({
+      category: this.category,
+      symbol,
+    });
+    assertBybitOk(res, 'getPositionInfo(recover)');
+    const parsed = this.parseGetPositionInfoList(res, symbol);
+    if (parsed.kind !== 'open') {
+      return;
+    }
+    const instrument = this.getInstrument(symbol);
+    const now = Date.now();
+    const entryPx = row.avgEntryPrice ?? parsed.avg;
+    const feeRate = await this.getFeeRate(symbol);
+    const entryFee =
+      instrument && entryPx > 0
+        ? Math.abs(row.qty * entryPx) * feeRate
+        : 0;
+    await this.persistOrderHistoryAfterVenueAccept(
+      {
+        id: row.id,
+        deploymentId,
+        symbol,
+        status: 'open',
+        updatedAtMs: now,
+        entrySide: row.side,
+        entryQty: row.qty,
+        entryPrice: entryPx > 0 ? entryPx : parsed.avg,
+        entryOrderType: 'reconcile',
+        entryAtMs: now,
+        entryTimestampMs: now,
+        entryFee,
+        raw: { recovered: true, source: 'recoverMissingOrderHistory' },
+      },
+      'failed to persist recovered order_history after venue check',
+      { symbol, deploymentId, positionId: row.id },
+    );
   }
 
   /** After exchange confirms an order; failures are logged only — never flip {@link BrokerActionResult.success}. */
@@ -134,8 +344,9 @@ export class LiveBroker implements IBroker {
         ? instrument.roundPrice(stopLoss)
         : undefined;
 
+    let res: Awaited<ReturnType<RestClientV5['submitOrder']>>;
     try {
-      const res = await this.rest.submitOrder({
+      res = await this.rest.submitOrder({
         category: this.category,
         symbol: sym,
         side,
@@ -147,13 +358,24 @@ export class LiveBroker implements IBroker {
           : {}),
       });
       assertBybitOk(res, 'submitOrder');
+    } catch (e) {
+      const msg = String(e);
+      this.logger.warn('DEBUG:: placeOrder failed (exchange rejected or transport error)', {
+        symbol: sym,
+        message: msg,
+      });
+      return { success: false, error: msg };
+    }
 
-      const orderId = String(res.result?.orderId ?? '').trim() || 'unknown';
-      const notional = Math.abs(q * refPrice);
-      const feeRate = await this.getFeeRate(sym);
-      const entryFee = notional * feeRate;
-      const now = Date.now();
-      await this.store.upsertOrderHistory({
+    const orderId = String(res.result?.orderId ?? '').trim() || 'unknown';
+    const result: BrokerActionResult = { success: true, orderId };
+
+    const notional = Math.abs(q * refPrice);
+    const feeRate = await this.getFeeRate(sym);
+    const entryFee = notional * feeRate;
+    const now = Date.now();
+    await this.persistOrderHistoryAfterVenueAccept(
+      {
         id: roundTripId,
         deploymentId,
         symbol: sym,
@@ -169,24 +391,22 @@ export class LiveBroker implements IBroker {
         entryTimestampMs: now,
         ...(slRounded !== undefined ? { stopLoss: slRounded } : {}),
         raw: res as unknown as Record<string, unknown>,
-      });
+      },
+      'failed to persist order_history after submitOrder accepted',
+      { symbol: sym, roundTripId, orderId },
+    );
 
-      await this.syncPositionFromExchangeBestEffort(sym);
-      this.logger.info('Order submitted', {
-        symbol: sym,
-        side,
-        qty: q,
-        orderType,
-        orderId,
-        stopLoss: slRounded,
-        stopLossOnOrder: venueSlSupported && slRounded !== undefined,
-      });
-      return { success: true, orderId };
-    } catch (e) {
-      const msg = String(e);
-      this.logger.warn('DEBUG:: placeOrder failed', { symbol: sym, message: msg });
-      return { success: false, error: msg };
-    }
+    await this.syncPositionFromExchangeBestEffort(sym);
+    this.logger.info('Order submitted', {
+      symbol: sym,
+      side,
+      qty: q,
+      orderType,
+      orderId,
+      stopLoss: slRounded,
+      stopLossOnOrder: venueSlSupported && slRounded !== undefined,
+    });
+    return result;
   }
 
   async closePosition(
@@ -216,8 +436,9 @@ export class LiveBroker implements IBroker {
       return { success: false, error: 'zero close qty' };
     }
 
+    let res: Awaited<ReturnType<RestClientV5['submitOrder']>>;
     try {
-      const res = await this.rest.submitOrder({
+      res = await this.rest.submitOrder({
         category: this.category,
         symbol,
         side: closeSide,
@@ -226,16 +447,27 @@ export class LiveBroker implements IBroker {
         reduceOnly: true,
       });
       assertBybitOk(res, 'submitOrder(close)');
+    } catch (e) {
+      const msg = String(e);
+      this.logger.warn('DEBUG:: closePosition failed (exchange rejected or transport error)', {
+        symbol,
+        message: msg,
+      });
+      return { success: false, error: msg };
+    }
 
-      const last = instrument.getCandles(1);
-      const lastClose = last[last.length - 1]?.close;
-      const exitPx = price ?? lastClose ?? 0;
-      const feeRate = await this.getFeeRate(symbol);
-      const exitFee = exitPx > 0 ? Math.abs(qClose * exitPx) * feeRate : 0;
-      const exitOid = res.result?.orderId ?? null;
-      const orderId = String(exitOid ?? '').trim() || undefined;
-      const now = Date.now();
-      await this.store.upsertOrderHistory({
+    const exitOid = res.result?.orderId ?? null;
+    const orderId = String(exitOid ?? '').trim() || undefined;
+    const result: BrokerActionResult = { success: true, orderId };
+
+    const last = instrument.getCandles(1);
+    const lastClose = last[last.length - 1]?.close;
+    const exitPx = price ?? lastClose ?? 0;
+    const feeRate = await this.getFeeRate(symbol);
+    const exitFee = exitPx > 0 ? Math.abs(qClose * exitPx) * feeRate : 0;
+    const now = Date.now();
+    await this.persistOrderHistoryAfterVenueAccept(
+      {
         id: roundTripId,
         updatedAtMs: now,
         status: 'closed',
@@ -246,21 +478,19 @@ export class LiveBroker implements IBroker {
         exitFee,
         exitTimestampMs: now,
         raw: res as unknown as Record<string, unknown>,
-      });
+      },
+      'failed to persist order_history after close accepted',
+      { symbol, roundTripId, orderId },
+    );
 
-      await this.syncPositionFromExchangeBestEffort(symbol);
-      this.logger.info('Position close requested', {
-        symbol,
-        side: closeSide,
-        qty: qClose,
-        strategyPrice: price,
-      });
-      return { success: true, orderId };
-    } catch (e) {
-      const msg = String(e);
-      this.logger.warn('DEBUG:: closePosition failed', { symbol, message: msg });
-      return { success: false, error: msg };
-    }
+    await this.syncPositionFromExchangeBestEffort(symbol);
+    this.logger.info('Position close requested', {
+      symbol,
+      side: closeSide,
+      qty: qClose,
+      strategyPrice: price,
+    });
+    return result;
   }
 
   async updateStopLoss(
@@ -299,24 +529,35 @@ export class LiveBroker implements IBroker {
         slTriggerBy: 'LastPrice',
       });
       assertBybitOk(res, 'setTradingStop');
-      const now = Date.now();
-      await this.store.upsertOrderHistory({
+    } catch (e) {
+      const msg = String(e);
+      this.logger.warn('DEBUG:: updateStopLoss failed (exchange rejected or transport error)', {
+        symbol,
+        message: msg,
+      });
+      return { success: false, error: msg };
+    }
+
+    const result: BrokerActionResult = { success: true };
+
+    const nowSl = Date.now();
+    await this.persistOrderHistoryAfterVenueAccept(
+      {
         id: roundTripId,
-        updatedAtMs: now,
+        updatedAtMs: nowSl,
         stopLoss: sl,
         /** First upsert for this id (e.g. position id from reconcile) requires these — see mergeOrderHistory. */
         ...(deploymentId !== undefined
           ? { deploymentId, symbol, status: 'open' as const }
           : {}),
-      });
-      await this.syncPositionFromExchangeBestEffort(symbol);
-      this.logger.info('Trading stop updated', { symbol, stopLoss: sl });
-      return { success: true };
-    } catch (e) {
-      const msg = String(e);
-      this.logger.warn('DEBUG:: updateStopLoss failed', { symbol, message: msg });
-      return { success: false, error: msg };
-    }
+      },
+      'failed to persist order_history after setTradingStop accepted',
+      { symbol, roundTripId },
+    );
+
+    await this.syncPositionFromExchangeBestEffort(symbol);
+    this.logger.info('Trading stop updated', { symbol, stopLoss: sl });
+    return result;
   }
 
   async syncPositionFromVenue(
@@ -425,24 +666,24 @@ export class LiveBroker implements IBroker {
       symbol,
     });
     assertBybitOk(res, 'getPositionInfo');
-    const list = res.result?.list ?? [];
-    if (list.length === 0) {
+    const parsed = this.parseGetPositionInfoList(res, symbol);
+    if (parsed.kind === 'invalid') {
+      return;
+    }
+    if (parsed.kind === 'flat') {
       this.getPositionBook().setPositionSnapshot(symbol, '', 0, 0, 0);
       return;
     }
-    const p = list[0]!;
-    const side = String(p.side ?? '');
-    const sizeAbs = Number(p.size ?? 0);
-    if (!Number.isFinite(sizeAbs) || sizeAbs <= 0) {
-      this.getPositionBook().setPositionSnapshot(symbol, '', 0, 0, 0);
-      return;
-    }
-    const avg = Number(p.avgPrice ?? 0);
-    const upnl = Number(p.unrealisedPnl ?? 0);
-    this.getPositionBook().setPositionSnapshot(symbol, side, sizeAbs, avg, upnl);
+    this.getPositionBook().setPositionSnapshot(
+      symbol,
+      parsed.side,
+      parsed.sizeAbs,
+      parsed.avg,
+      parsed.upnl,
+    );
 
     const feeRate = await this.getFeeRate(symbol);
-    const fillFee = Math.abs(sizeAbs) * avg * feeRate;
+    const fillFee = Math.abs(parsed.sizeAbs) * parsed.avg * feeRate;
     if (fillFee > 0) {
       this.logger.debug('Estimated fee accrual', { symbol, fillFee });
     }

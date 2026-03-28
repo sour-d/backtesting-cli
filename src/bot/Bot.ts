@@ -250,6 +250,13 @@ export class Bot implements ITradingContextProvider {
         openPosition,
       });
     }
+
+    await this.broker.recoverMissingOrderHistory?.(
+      [...this.activeDeployments.entries()].map(([symbol, meta]) => ({
+        symbol,
+        deploymentId: meta.deploymentId,
+      })),
+    );
   }
 
   async onCandle(instrument: Instrument): Promise<void> {

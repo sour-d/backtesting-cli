@@ -22,7 +22,13 @@ export interface PlaceOrderInput {
   readonly deploymentId: string;
 }
 
-/** Result of mutating broker calls — callers must not persist trades when `success` is false. */
+/**
+ * Result of mutating broker calls — callers must not persist trades when `success` is false.
+ *
+ * When `success` is true, the exchange accepted the request (e.g. order placed / trading-stop set).
+ * That does **not** guarantee fill or that the position state matches intent; live truth is driven by
+ * venue sync plus {@link ReconciliationService} (position book + DB rows).
+ */
 export interface BrokerActionResult {
   readonly success: boolean;
   readonly orderId?: string;
@@ -79,6 +85,13 @@ export interface IBroker {
    * Live: may reflect exchange tier; backtest: fixed config. Fallback when omitted: caller default.
    */
   getFeeRate?(symbol: string): Promise<number>;
+  /**
+   * Live: flush failed `order_history` upserts and, for active deployments, backfill missing open rows
+   * when the venue still shows a position. Invoked after restore and during periodic reconciliation.
+   */
+  recoverMissingOrderHistory?(
+    activeDeployments?: readonly { readonly symbol: string; readonly deploymentId: string }[],
+  ): Promise<void>;
   start(): void;
   stop(): void;
 }
