@@ -9,6 +9,7 @@ import type { PositionService } from '../position/PositionService.js';
 import type { PositionRecord } from '../position/types.js';
 import type { StrategyEvaluateResult } from '../strategy/types.js';
 import { resolveBrokerFeeRate } from '../broker/resolveBrokerFeeRate.js';
+import type { PerSymbolMutex } from '../util/perSymbolMutex.js';
 
 export interface TradeDeploymentContext {
   readonly deploymentId: string;
@@ -30,6 +31,8 @@ export interface TradeEngineDeps {
   readonly brokerFailureThreshold?: number;
   /** Ms to pause trading after `brokerFailureThreshold` consecutive failures (default 60_000). */
   readonly brokerPauseCooldownMs?: number;
+  /** Serializes venue sync + reconcile + execution per symbol. */
+  readonly symbolMutex: PerSymbolMutex;
 }
 
 export class TradeEngine {
@@ -40,6 +43,7 @@ export class TradeEngine {
   private readonly defaultFeeRate: number;
   private readonly brokerFailureThreshold: number | undefined;
   private readonly brokerPauseCooldownMs: number;
+  private readonly symbolMutex: PerSymbolMutex;
   private readonly consecutiveBrokerFailures = new Map<string, number>();
   private readonly brokerPausedUntilMs = new Map<string, number>();
 
@@ -56,6 +60,7 @@ export class TradeEngine {
       deps.brokerPauseCooldownMs !== undefined && deps.brokerPauseCooldownMs > 0
         ? deps.brokerPauseCooldownMs
         : 60_000;
+    this.symbolMutex = deps.symbolMutex;
   }
 
   private resolveFeeRate(symbol: string): Promise<number> {
@@ -102,12 +107,32 @@ export class TradeEngine {
     await sync.call(this.broker, symbol, { force: true });
   }
 
+  /**
+   * Runs the signal under a per-symbol mutex (e.g. HTTP or tests without {@link executeDirect}'s outer lock).
+   */
   async execute(
     signal: StrategyEvaluateResult,
     instrument: Instrument,
     deploymentContext: TradeDeploymentContext,
   ): Promise<void> {
-    const { candle, deploymentId, klineInterval } = deploymentContext;
+    if (signal.action === 'HOLD') {
+      return;
+    }
+    const symbol = instrument.symbol;
+    return this.symbolMutex.runExclusive(symbol, () =>
+      this.executeDirect(signal, instrument, deploymentContext),
+    );
+  }
+
+  /**
+   * Same as {@link execute} but does not acquire the symbol mutex — caller must already hold
+   * {@link TradeEngineDeps.symbolMutex} for `instrument.symbol` (e.g. {@link Bot.onCandle}).
+   */
+  async executeDirect(
+    signal: StrategyEvaluateResult,
+    instrument: Instrument,
+    deploymentContext: TradeDeploymentContext,
+  ): Promise<void> {
     if (signal.action === 'HOLD') {
       return;
     }
@@ -120,6 +145,8 @@ export class TradeEngine {
       });
       return;
     }
+
+    const { candle, deploymentId, klineInterval } = deploymentContext;
 
     if (signal.action === 'CLOSE') {
       await this.handleClose(instrument, candle, signal, klineInterval);
@@ -176,33 +203,38 @@ export class TradeEngine {
       this.logger.debug('CLOSE ignored — no open position id', { symbol });
       return;
     }
-    try {
-      await this.broker.closePosition(
-        symbol,
-        roundTripId,
-        closeAll ? undefined : exitQty,
-        strategyExitPrice,
-      );
-    } catch (e) {
+    const closeRes = await this.broker.closePosition(
+      symbol,
+      roundTripId,
+      closeAll ? undefined : exitQty,
+      strategyExitPrice,
+    );
+    if (!closeRes.success) {
       this.recordBrokerFailure(symbol);
       this.logger.warn('DEBUG:: closePosition failed', {
         symbol,
-        message: String(e),
+        error: closeRes.error,
       });
       return;
     }
     this.resetBrokerFailureStreak(symbol);
 
     const exitFillPrice = strategyExitPrice ?? candle.close;
-    await this.persistTrade({
-      instrument,
-      candle,
-      kind: 'exit',
-      qty: exitQty,
-      price: exitFillPrice,
-      side: exitSide,
-      klineInterval,
-    });
+    if (!Number.isFinite(exitFillPrice) || exitFillPrice <= 0) {
+      this.logger.warn('DEBUG:: skip exit trade record — invalid price after successful close', {
+        symbol,
+      });
+    } else {
+      await this.persistTrade({
+        instrument,
+        candle,
+        kind: 'exit',
+        qty: exitQty,
+        price: exitFillPrice,
+        side: exitSide,
+        klineInterval,
+      });
+    }
 
     const uid = this.positionService.getOpenPositionId(symbol);
     const now = Date.now();
@@ -256,18 +288,17 @@ export class TradeEngine {
       return;
     }
     const deploymentId = this.positionService.getDetails(instrument.symbol)?.deploymentId;
-    try {
-      await this.broker.updateStopLoss(
-        instrument.symbol,
-        signal.stopLoss,
-        uid,
-        deploymentId,
-      );
-    } catch (e) {
+    const slRes = await this.broker.updateStopLoss(
+      instrument.symbol,
+      signal.stopLoss,
+      uid,
+      deploymentId,
+    );
+    if (!slRes.success) {
       this.recordBrokerFailure(instrument.symbol);
       this.logger.warn('DEBUG:: updateStopLoss failed', {
         symbol: instrument.symbol,
-        message: String(e),
+        error: slRes.error,
       });
       return;
     }
@@ -306,37 +337,48 @@ export class TradeEngine {
 
     const preUid = this.positionService.getOpenPositionId(symbol);
     const roundTripId = preUid ?? randomUUID();
-    try {
-      await this.broker.placeOrder({
-        instrument,
-        side,
-        qty: signal.qty,
-        price: signal.price,
-        stopLoss:
-          signal.stopLoss !== undefined &&
-          Number.isFinite(signal.stopLoss) &&
-          signal.stopLoss > 0
-            ? signal.stopLoss
-            : undefined,
-        roundTripId,
-        deploymentId,
-      });
-    } catch (e) {
+    const orderRes = await this.broker.placeOrder({
+      instrument,
+      side,
+      qty: signal.qty,
+      price: signal.price,
+      stopLoss:
+        signal.stopLoss !== undefined &&
+        Number.isFinite(signal.stopLoss) &&
+        signal.stopLoss > 0
+          ? signal.stopLoss
+          : undefined,
+      roundTripId,
+      deploymentId,
+    });
+    if (!orderRes.success) {
       this.recordBrokerFailure(symbol);
-      this.logger.warn('DEBUG:: placeOrder failed', { symbol, message: String(e) });
+      this.logger.warn('DEBUG:: placeOrder failed', { symbol, error: orderRes.error });
       return;
     }
     this.resetBrokerFailureStreak(symbol);
 
-    await this.persistTrade({
-      instrument,
-      candle,
-      kind: 'entry',
-      qty: signal.qty,
-      price: signal.price,
-      side,
-      klineInterval,
-    });
+    const entryPrice =
+      signal.price !== undefined &&
+      Number.isFinite(signal.price) &&
+      signal.price > 0
+        ? signal.price
+        : candle.close;
+    if (!Number.isFinite(entryPrice) || entryPrice <= 0) {
+      this.logger.warn('DEBUG:: skip entry trade record — invalid price after successful order', {
+        symbol,
+      });
+    } else {
+      await this.persistTrade({
+        instrument,
+        candle,
+        kind: 'entry',
+        qty: signal.qty,
+        price: entryPrice,
+        side,
+        klineInterval,
+      });
+    }
 
     const uid = this.positionService.getOpenPositionId(symbol);
     const now = Date.now();

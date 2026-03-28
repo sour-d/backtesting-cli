@@ -4,7 +4,39 @@ import type { Instrument } from '../instrument/Instrument.js';
 import type { ILogger } from '../logger/ILogger.js';
 import type { IStore } from '../store/IStore.js';
 import type { IPositionBook } from '../position/IPositionBook.js';
-import type { IBroker, PlaceOrderInput, SyncPositionFromVenueOptions } from './IBroker.js';
+import type {
+  IBroker,
+  BrokerActionResult,
+  PlaceOrderInput,
+  SyncPositionFromVenueOptions,
+} from './IBroker.js';
+
+/** Bybit V5 `retCode !== 0` business failure (or malformed response). */
+function bybitBusinessError(res: {
+  retCode?: unknown;
+  retMsg?: unknown;
+}): string | null {
+  const raw = res.retCode;
+  const code =
+    typeof raw === 'number'
+      ? raw
+      : typeof raw === 'string'
+        ? Number(raw)
+        : Number.NaN;
+  if (!Number.isFinite(code) || code === 0) return null;
+  const msg = res.retMsg;
+  return typeof msg === 'string' && msg.length > 0 ? msg : `retCode=${code}`;
+}
+
+function assertBybitOk(
+  res: { retCode?: unknown; retMsg?: unknown },
+  context: string,
+): void {
+  const err = bybitBusinessError(res);
+  if (err) {
+    throw new Error(`${context}: ${err}`);
+  }
+}
 
 export interface LiveBrokerOptions {
   readonly logger: ILogger;
@@ -68,19 +100,20 @@ export class LiveBroker implements IBroker {
     return this.feeRate;
   }
 
-  async placeOrder(input: PlaceOrderInput): Promise<void> {
+  async placeOrder(input: PlaceOrderInput): Promise<BrokerActionResult> {
     const { instrument, side, qty, price, stopLoss, roundTripId, deploymentId } = input;
+    const sym = instrument.symbol;
     const q = instrument.roundQty(qty);
     const last = instrument.getCandles(1);
     const lastClose = last[last.length - 1]?.close;
     const refPrice = price ?? lastClose;
     if (refPrice === undefined || refPrice <= 0) {
-      this.logger.warn('Order rejected: no reference price', { symbol: instrument.symbol });
-      return;
+      this.logger.warn('Order rejected: no reference price', { symbol: sym });
+      return { success: false, error: 'no reference price' };
     }
     if (!instrument.canOpenPosition(q, refPrice)) {
-      this.logger.warn('Order rejected by instrument constraints', { symbol: instrument.symbol, qty: q });
-      return;
+      this.logger.warn('Order rejected by instrument constraints', { symbol: sym, qty: q });
+      return { success: false, error: 'instrument constraints rejected order' };
     }
 
     const orderType = price !== undefined ? 'Limit' : 'Market';
@@ -90,61 +123,77 @@ export class LiveBroker implements IBroker {
         ? instrument.roundPrice(stopLoss)
         : undefined;
 
-    const res = await this.rest.submitOrder({
-      category: this.category,
-      symbol: instrument.symbol,
-      side,
-      orderType,
-      qty: String(q),
-      price: price !== undefined ? String(instrument.roundPrice(price)) : undefined,
-      ...(venueSlSupported && slRounded !== undefined
-        ? { stopLoss: String(slRounded), slTriggerBy: 'LastPrice' as const }
-        : {}),
-    });
+    try {
+      const res = await this.rest.submitOrder({
+        category: this.category,
+        symbol: sym,
+        side,
+        orderType,
+        qty: String(q),
+        price: price !== undefined ? String(instrument.roundPrice(price)) : undefined,
+        ...(venueSlSupported && slRounded !== undefined
+          ? { stopLoss: String(slRounded), slTriggerBy: 'LastPrice' as const }
+          : {}),
+      });
+      assertBybitOk(res, 'submitOrder');
 
-    const orderId = res.result?.orderId ?? 'unknown';
-    const notional = Math.abs(q * refPrice);
-    const entryFee = notional * this.feeRate;
-    const now = Date.now();
-    await this.store.upsertOrderHistory({
-      id: roundTripId,
-      deploymentId,
-      symbol: instrument.symbol,
-      status: 'open',
-      updatedAtMs: now,
-      entrySide: side,
-      entryQty: q,
-      entryPrice: price ?? refPrice,
-      entryOrderType: orderType,
-      venueEntryOrderId: orderId,
-      entryAtMs: now,
-      entryFee,
-      entryTimestampMs: now,
-      ...(slRounded !== undefined ? { stopLoss: slRounded } : {}),
-      raw: res as unknown as Record<string, unknown>,
-    });
+      const orderId = String(res.result?.orderId ?? '').trim() || 'unknown';
+      const notional = Math.abs(q * refPrice);
+      const feeRate = await this.getFeeRate(sym);
+      const entryFee = notional * feeRate;
+      const now = Date.now();
+      await this.store.upsertOrderHistory({
+        id: roundTripId,
+        deploymentId,
+        symbol: sym,
+        status: 'open',
+        updatedAtMs: now,
+        entrySide: side,
+        entryQty: q,
+        entryPrice: price ?? refPrice,
+        entryOrderType: orderType,
+        venueEntryOrderId: orderId,
+        entryAtMs: now,
+        entryFee,
+        entryTimestampMs: now,
+        ...(slRounded !== undefined ? { stopLoss: slRounded } : {}),
+        raw: res as unknown as Record<string, unknown>,
+      });
 
-    await this.syncPositionFromExchange(instrument.symbol);
-    this.logger.info('Order submitted', {
-      symbol: instrument.symbol,
-      side,
-      qty: q,
-      orderType,
-      orderId,
-      stopLoss: slRounded,
-      stopLossOnOrder: venueSlSupported && slRounded !== undefined,
-    });
+      await this.syncPositionFromExchange(sym);
+      this.logger.info('Order submitted', {
+        symbol: sym,
+        side,
+        qty: q,
+        orderType,
+        orderId,
+        stopLoss: slRounded,
+        stopLossOnOrder: venueSlSupported && slRounded !== undefined,
+      });
+      return { success: true, orderId };
+    } catch (e) {
+      const msg = String(e);
+      this.logger.warn('DEBUG:: placeOrder failed', { symbol: sym, message: msg });
+      return { success: false, error: msg };
+    }
   }
 
-  async closePosition(symbol: string, roundTripId: string, qty?: number, price?: number): Promise<void> {
+  async closePosition(
+    symbol: string,
+    roundTripId: string,
+    qty?: number,
+    price?: number,
+  ): Promise<BrokerActionResult> {
     const instrument = this.getInstrument(symbol);
     if (!instrument) {
       this.logger.warn('closePosition: unknown symbol', { symbol });
-      return;
+      return { success: false, error: 'unknown symbol' };
     }
     const book = this.getPositionBook();
     const closeSide = book.getCloseOrderSide(symbol);
-    if (!closeSide) return;
+    if (!closeSide) {
+      return { success: false, error: 'flat position' };
+    }
 
     const posAbs = Math.abs(book.getSnapshot(symbol).currentPositionQty);
     const requested =
@@ -152,42 +201,54 @@ export class LiveBroker implements IBroker {
         ? Math.min(instrument.roundQty(qty), posAbs)
         : posAbs;
     const qClose = instrument.roundQty(requested);
-    if (qClose <= 0) return;
+    if (qClose <= 0) {
+      return { success: false, error: 'zero close qty' };
+    }
 
-    /** Live path: still market close; optional `price` is logged as strategy hint only. */
-    const res = await this.rest.submitOrder({
-      category: this.category,
-      symbol,
-      side: closeSide,
-      orderType: 'Market',
-      qty: String(qClose),
-      reduceOnly: true,
-    });
-    await this.syncPositionFromExchange(symbol);
-    const last = instrument.getCandles(1);
-    const lastClose = last[last.length - 1]?.close;
-    const exitPx = price ?? lastClose ?? 0;
-    const exitFee = exitPx > 0 ? Math.abs(qClose * exitPx) * this.feeRate : 0;
-    const exitOid = res.result?.orderId ?? null;
-    const now = Date.now();
-    await this.store.upsertOrderHistory({
-      id: roundTripId,
-      updatedAtMs: now,
-      status: 'closed',
-      venueExitOrderId: exitOid,
-      exitAtMs: now,
-      exitQty: qClose,
-      exitPrice: exitPx > 0 ? exitPx : null,
-      exitFee,
-      exitTimestampMs: now,
-      raw: res as unknown as Record<string, unknown>,
-    });
-    this.logger.info('Position close requested', {
-      symbol,
-      side: closeSide,
-      qty: qClose,
-      strategyPrice: price,
-    });
+    try {
+      const res = await this.rest.submitOrder({
+        category: this.category,
+        symbol,
+        side: closeSide,
+        orderType: 'Market',
+        qty: String(qClose),
+        reduceOnly: true,
+      });
+      assertBybitOk(res, 'submitOrder(close)');
+
+      await this.syncPositionFromExchange(symbol);
+      const last = instrument.getCandles(1);
+      const lastClose = last[last.length - 1]?.close;
+      const exitPx = price ?? lastClose ?? 0;
+      const feeRate = await this.getFeeRate(symbol);
+      const exitFee = exitPx > 0 ? Math.abs(qClose * exitPx) * feeRate : 0;
+      const exitOid = res.result?.orderId ?? null;
+      const orderId = String(exitOid ?? '').trim() || undefined;
+      const now = Date.now();
+      await this.store.upsertOrderHistory({
+        id: roundTripId,
+        updatedAtMs: now,
+        status: 'closed',
+        venueExitOrderId: exitOid,
+        exitAtMs: now,
+        exitQty: qClose,
+        exitPrice: exitPx > 0 ? exitPx : null,
+        exitFee,
+        exitTimestampMs: now,
+        raw: res as unknown as Record<string, unknown>,
+      });
+      this.logger.info('Position close requested', {
+        symbol,
+        side: closeSide,
+        qty: qClose,
+        strategyPrice: price,
+      });
+      return { success: true, orderId };
+    } catch (e) {
+      const msg = String(e);
+      this.logger.warn('DEBUG:: closePosition failed', { symbol, message: msg });
+      return { success: false, error: msg };
+    }
   }
 
   async updateStopLoss(
@@ -195,43 +256,54 @@ export class LiveBroker implements IBroker {
     stopLoss: number,
     roundTripId: string,
     deploymentId?: string,
-  ): Promise<void> {
+  ): Promise<BrokerActionResult> {
     if (this.category === 'spot' || this.category === 'option') {
-      this.logger.warn('updateStopLoss: not supported for category', { category: this.category, symbol });
-      return;
+      this.logger.warn('updateStopLoss: not supported for category', {
+        category: this.category,
+        symbol,
+      });
+      return { success: false, error: 'category not supported' };
     }
     const instrument = this.getInstrument(symbol);
     if (!instrument) {
       this.logger.warn('updateStopLoss: unknown symbol', { symbol });
-      return;
+      return { success: false, error: 'unknown symbol' };
     }
     if (!Number.isFinite(stopLoss) || stopLoss <= 0) {
       this.logger.warn('updateStopLoss: invalid stopLoss', { symbol, stopLoss });
-      return;
+      return { success: false, error: 'invalid stopLoss' };
     }
     if (Math.abs(this.getPositionBook().getSnapshot(symbol).currentPositionQty) < 1e-12) {
       this.logger.debug('updateStopLoss ignored — flat', { symbol });
-      return;
+      return { success: false, error: 'flat position' };
     }
     const sl = instrument.roundPrice(stopLoss);
-    await this.rest.setTradingStop({
-      category: this.category,
-      symbol,
-      stopLoss: String(sl),
-      positionIdx: 0,
-      slTriggerBy: 'LastPrice',
-    });
-    const now = Date.now();
-    await this.store.upsertOrderHistory({
-      id: roundTripId,
-      updatedAtMs: now,
-      stopLoss: sl,
-      /** First upsert for this id (e.g. position id from reconcile) requires these — see mergeOrderHistory. */
-      ...(deploymentId !== undefined
-        ? { deploymentId, symbol, status: 'open' as const }
-        : {}),
-    });
-    this.logger.info('Trading stop updated', { symbol, stopLoss: sl });
+    try {
+      const res = await this.rest.setTradingStop({
+        category: this.category,
+        symbol,
+        stopLoss: String(sl),
+        positionIdx: 0,
+        slTriggerBy: 'LastPrice',
+      });
+      assertBybitOk(res, 'setTradingStop');
+      const now = Date.now();
+      await this.store.upsertOrderHistory({
+        id: roundTripId,
+        updatedAtMs: now,
+        stopLoss: sl,
+        /** First upsert for this id (e.g. position id from reconcile) requires these — see mergeOrderHistory. */
+        ...(deploymentId !== undefined
+          ? { deploymentId, symbol, status: 'open' as const }
+          : {}),
+      });
+      this.logger.info('Trading stop updated', { symbol, stopLoss: sl });
+      return { success: true };
+    } catch (e) {
+      const msg = String(e);
+      this.logger.warn('DEBUG:: updateStopLoss failed', { symbol, message: msg });
+      return { success: false, error: msg };
+    }
   }
 
   async syncPositionFromVenue(
@@ -339,15 +411,25 @@ export class LiveBroker implements IBroker {
       category: this.category,
       symbol,
     });
-    const p = res.result?.list?.[0];
-    if (!p) return;
+    assertBybitOk(res, 'getPositionInfo');
+    const list = res.result?.list ?? [];
+    if (list.length === 0) {
+      this.getPositionBook().setPositionSnapshot(symbol, '', 0, 0, 0);
+      return;
+    }
+    const p = list[0]!;
     const side = String(p.side ?? '');
     const sizeAbs = Number(p.size ?? 0);
+    if (!Number.isFinite(sizeAbs) || sizeAbs <= 0) {
+      this.getPositionBook().setPositionSnapshot(symbol, '', 0, 0, 0);
+      return;
+    }
     const avg = Number(p.avgPrice ?? 0);
     const upnl = Number(p.unrealisedPnl ?? 0);
     this.getPositionBook().setPositionSnapshot(symbol, side, sizeAbs, avg, upnl);
 
-    const fillFee = Math.abs(sizeAbs) * avg * this.feeRate;
+    const feeRate = await this.getFeeRate(symbol);
+    const fillFee = Math.abs(sizeAbs) * avg * feeRate;
     if (fillFee > 0) {
       this.logger.debug('Estimated fee accrual', { symbol, fillFee });
     }

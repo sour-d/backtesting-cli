@@ -12,6 +12,7 @@ import { parseKlineInterval } from "../config/klineInterval.js";
 import { resolveBrokerFeeRate } from "../broker/resolveBrokerFeeRate.js";
 import { ReconciliationService } from "../engine/ReconciliationService.js";
 import { TradeEngine } from "../trade/TradeEngine.js";
+import { PerSymbolMutex } from "../util/perSymbolMutex.js";
 
 function applyIndicatorRegistrations(
   instrument: Instrument,
@@ -54,6 +55,8 @@ export interface BotDeps {
 export class Bot implements ITradingContextProvider {
   readonly tradeEngine: TradeEngine;
   readonly reconciliationService: ReconciliationService;
+  /** Shared with {@link TradeEngine} and {@link ReconciliationService} for per-symbol serialization. */
+  readonly symbolMutex = new PerSymbolMutex();
   private readonly logger: ILogger;
   private readonly store: IStore;
   private readonly broker: IBroker;
@@ -95,6 +98,7 @@ export class Bot implements ITradingContextProvider {
       defaultFeeRate: this.feeRate,
       getInstrument,
       tradingContext: this,
+      symbolMutex: this.symbolMutex,
     });
     this.tradeEngine = new TradeEngine({
       broker: deps.broker,
@@ -104,6 +108,7 @@ export class Bot implements ITradingContextProvider {
       defaultFeeRate: this.feeRate,
       brokerFailureThreshold: deps.brokerFailureThreshold,
       brokerPauseCooldownMs: deps.brokerPauseCooldownMs,
+      symbolMutex: this.symbolMutex,
     });
   }
 
@@ -265,39 +270,41 @@ export class Bot implements ITradingContextProvider {
       return;
     }
 
-    const pm = PositionService.getInstance();
-    const fr = await resolveBrokerFeeRate(
-      this.broker,
-      instrument.symbol,
-      this.feeRate,
-    );
-    pm.setSymbolFeeRate(instrument.symbol, fr);
-    const sync = this.broker.syncPositionFromVenue;
-    if (typeof sync === "function") {
-      try {
-        await sync.call(this.broker, instrument.symbol);
-      } catch (e) {
-        this.logger.warn("DEBUG:: syncPositionFromVenue (onCandle) failed", {
-          symbol: instrument.symbol,
-          message: String(e),
+    await this.symbolMutex.runExclusive(instrument.symbol, async () => {
+      const pm = PositionService.getInstance();
+      const fr = await resolveBrokerFeeRate(
+        this.broker,
+        instrument.symbol,
+        this.feeRate,
+      );
+      pm.setSymbolFeeRate(instrument.symbol, fr);
+      const sync = this.broker.syncPositionFromVenue;
+      if (typeof sync === "function") {
+        try {
+          await sync.call(this.broker, instrument.symbol);
+        } catch (e) {
+          this.logger.warn("DEBUG:: syncPositionFromVenue (onCandle) failed", {
+            symbol: instrument.symbol,
+            message: String(e),
+          });
+        }
+      }
+      await this.reconciliationService.reconcileMissingRowIfNeeded(
+        instrument,
+        dep.deploymentId,
+        dep.klineInterval,
+      );
+      const position = pm.getSnapshot(instrument.symbol);
+      const raw = await strategy.evaluate(instrument, position);
+      const signals = Array.isArray(raw) ? raw : [raw];
+      for (const signal of signals) {
+        const candle = instrument.getCandles(1)[0]!;
+        await this.tradeEngine.executeDirect(signal, instrument, {
+          deploymentId: dep.deploymentId,
+          klineInterval: dep.klineInterval,
+          candle,
         });
       }
-    }
-    await this.reconciliationService.reconcileMissingRowIfNeeded(
-      instrument,
-      dep.deploymentId,
-      dep.klineInterval,
-    );
-    const position = pm.getSnapshot(instrument.symbol);
-    const raw = await strategy.evaluate(instrument, position);
-    const signals = Array.isArray(raw) ? raw : [raw];
-    for (const signal of signals) {
-      const candle = instrument.getCandles(1)[0]!;
-      await this.tradeEngine.execute(signal, instrument, {
-        deploymentId: dep.deploymentId,
-        klineInterval: dep.klineInterval,
-        candle,
-      });
-    }
+    });
   }
 }

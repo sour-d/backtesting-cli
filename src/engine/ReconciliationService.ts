@@ -1,12 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import type { TradeRecord } from '../core/types.js';
 import type { IBroker } from '../broker/IBroker.js';
+import { resolveBrokerFeeRate } from '../broker/resolveBrokerFeeRate.js';
 import type { Instrument } from '../instrument/Instrument.js';
 import type { ILogger } from '../logger/ILogger.js';
 import type { ITradingContextProvider } from '../bot/ITradingContextProvider.js';
 import type { PositionService } from '../position/PositionService.js';
 import type { PositionRecord } from '../position/types.js';
 import type { IStore } from '../store/IStore.js';
+import type { PerSymbolMutex } from '../util/perSymbolMutex.js';
 
 export interface ReconciliationServiceDeps {
   readonly broker: IBroker;
@@ -17,6 +19,7 @@ export interface ReconciliationServiceDeps {
   readonly defaultFeeRate: number;
   readonly getInstrument: (symbol: string) => Instrument | undefined;
   readonly tradingContext: ITradingContextProvider;
+  readonly symbolMutex: PerSymbolMutex;
 }
 
 /**
@@ -30,6 +33,7 @@ export class ReconciliationService {
   private readonly defaultFeeRate: number;
   private readonly getInstrument: (symbol: string) => Instrument | undefined;
   private readonly tradingContext: ITradingContextProvider;
+  private readonly symbolMutex: PerSymbolMutex;
   private timer: ReturnType<typeof setInterval> | undefined;
   private reconcileRunning = false;
 
@@ -41,18 +45,7 @@ export class ReconciliationService {
     this.defaultFeeRate = deps.defaultFeeRate;
     this.getInstrument = deps.getInstrument;
     this.tradingContext = deps.tradingContext;
-  }
-
-  private async resolveFeeRate(symbol: string): Promise<number> {
-    try {
-      const r = await this.broker.getFeeRate?.(symbol);
-      if (typeof r === 'number' && Number.isFinite(r) && r >= 0) {
-        return r;
-      }
-    } catch {
-      /* fall through */
-    }
-    return this.defaultFeeRate;
+    this.symbolMutex = deps.symbolMutex;
   }
 
   private async reconcileLoop(): Promise<void> {
@@ -93,14 +86,16 @@ export class ReconciliationService {
     deploymentId: string,
     klineInterval: string,
   ): Promise<void> {
-    const sync = this.broker.syncPositionFromVenue;
-    if (typeof sync !== 'function') return;
     const symbol = instrument.symbol;
-    await sync.call(this.broker, symbol, { force: true });
-    await this.reconcileMissingRowIfNeeded(instrument, deploymentId, klineInterval);
-    if (this.positionService.getOpenPositionId(symbol)) {
-      await this.applyRegistryAfterVenueSync(symbol);
-    }
+    await this.symbolMutex.runExclusive(symbol, async () => {
+      const sync = this.broker.syncPositionFromVenue;
+      if (typeof sync !== 'function') return;
+      await sync.call(this.broker, symbol, { force: true });
+      await this.reconcileMissingRowIfNeeded(instrument, deploymentId, klineInterval);
+      if (this.positionService.getOpenPositionId(symbol)) {
+        await this.applyRegistryAfterVenueSync(symbol);
+      }
+    });
   }
 
   async reconcileMissingRowIfNeeded(
@@ -165,20 +160,22 @@ export class ReconciliationService {
 
     for (const symbol of union) {
       try {
-        await sync.call(this.broker, symbol);
-        if (this.positionService.getDetails(symbol)) {
-          await this.applyRegistryAfterVenueSync(symbol);
-        } else {
-          const inst = this.getInstrument(symbol);
-          const ctx = deploymentBySymbol.get(symbol);
-          if (inst && ctx) {
-            await this.reconcileMissingRowIfNeeded(
-              inst,
-              ctx.deploymentId,
-              ctx.klineInterval,
-            );
+        await this.symbolMutex.runExclusive(symbol, async () => {
+          await sync.call(this.broker, symbol);
+          if (this.positionService.getDetails(symbol)) {
+            await this.applyRegistryAfterVenueSync(symbol);
+          } else {
+            const inst = this.getInstrument(symbol);
+            const ctx = deploymentBySymbol.get(symbol);
+            if (inst && ctx) {
+              await this.reconcileMissingRowIfNeeded(
+                inst,
+                ctx.deploymentId,
+                ctx.klineInterval,
+              );
+            }
           }
-        }
+        });
       } catch (e) {
         this.logger.error('PositionManager venue reconcile failed', {
           symbol,
@@ -202,7 +199,15 @@ export class ReconciliationService {
 
     const row = await this.store.loadPositionByDeploymentId(entry.deploymentId);
     if (!row) {
-      this.positionService.clearSymbol(symbol);
+      const snap = this.positionService.getSnapshot(symbol);
+      if (Math.abs(snap.currentPositionQty) < 1e-12) {
+        this.positionService.clearSymbol(symbol);
+      } else {
+        this.logger.error(
+          'DEBUG:: reconcile: DB position row missing but book shows open qty — keeping registry',
+          { symbol, currentPositionQty: snap.currentPositionQty },
+        );
+      }
       return;
     }
 
@@ -228,7 +233,11 @@ export class ReconciliationService {
       const timestamp = last?.dateUnix ?? Date.now();
       let exitPrice = price;
       let tsMs = timestamp < 1e12 ? timestamp * 1000 : timestamp;
-      const feeRateForExit = await this.resolveFeeRate(symbol);
+      const feeRateForExit = await resolveBrokerFeeRate(
+        this.broker,
+        symbol,
+        this.defaultFeeRate,
+      );
       let exitFee =
         feeRateForExit > 0 ? exitQty * exitPrice * feeRateForExit : 0;
       let venueExitOrderId = 'venue';
@@ -327,7 +336,11 @@ export class ReconciliationService {
     klineInterval: string;
   }): Promise<void> {
     const notional = params.qty * params.price;
-    const feeRate = await this.resolveFeeRate(params.symbol);
+    const feeRate = await resolveBrokerFeeRate(
+      this.broker,
+      params.symbol,
+      this.defaultFeeRate,
+    );
     const rec: TradeRecord = {
       id: randomUUID(),
       symbol: params.symbol,

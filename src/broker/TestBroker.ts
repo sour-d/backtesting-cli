@@ -3,7 +3,7 @@ import type { Instrument } from '../instrument/Instrument.js';
 import type { ILogger } from '../logger/ILogger.js';
 import type { IPositionBook } from '../position/IPositionBook.js';
 import type { IStore } from '../store/IStore.js';
-import type { IBroker, PlaceOrderInput } from './IBroker.js';
+import type { BrokerActionResult, IBroker, PlaceOrderInput } from './IBroker.js';
 
 export interface TestBrokerOptions {
   readonly logger: ILogger;
@@ -47,23 +47,23 @@ export class TestBroker implements IBroker {
     return this.feeRate;
   }
 
-  async placeOrder(input: PlaceOrderInput): Promise<void> {
+  async placeOrder(input: PlaceOrderInput): Promise<BrokerActionResult> {
     const { instrument, side, qty, price, stopLoss, roundTripId, deploymentId } = input;
     const q = instrument.roundQty(qty);
     const last = instrument.getCandles(1);
     if (last.length === 0) {
       this.logger.warn('TestBroker: order rejected — no candles on instrument', { symbol: instrument.symbol });
-      return;
+      return { success: false, error: 'no candles' };
     }
     const lastClose = last[last.length - 1]?.close;
     const refPrice = price ?? lastClose;
     if (refPrice === undefined || refPrice <= 0) {
       this.logger.warn('TestBroker: order rejected — no reference price', { symbol: instrument.symbol });
-      return;
+      return { success: false, error: 'no reference price' };
     }
     if (!instrument.canOpenPosition(q, refPrice)) {
       this.logger.warn('TestBroker: order rejected by instrument constraints', { symbol: instrument.symbol, qty: q });
-      return;
+      return { success: false, error: 'instrument constraints' };
     }
 
     const fee = Math.abs(q * refPrice) * this.feeRate;
@@ -95,28 +95,36 @@ export class TestBroker implements IBroker {
       raw: { mode: 'backtest', category: this.category },
     });
     this.logger.info('TestBroker fill', { symbol: instrument.symbol, side, qty: q, refPrice, fee });
+    return { success: true, orderId: 'backtest' };
   }
 
-  async closePosition(symbol: string, roundTripId: string, qty?: number, price?: number): Promise<void> {
+  async closePosition(
+    symbol: string,
+    roundTripId: string,
+    qty?: number,
+    price?: number,
+  ): Promise<BrokerActionResult> {
     const instrument = this.getInstrument(symbol);
     if (!instrument) {
       this.logger.warn('TestBroker.closePosition: unknown symbol', { symbol });
-      return;
+      return { success: false, error: 'unknown symbol' };
     }
     const book = this.getPositionBook();
     const closeSide = book.getCloseOrderSide(symbol);
-    if (!closeSide) return;
+    if (!closeSide) {
+      return { success: false, error: 'flat position' };
+    }
 
     const last = instrument.getCandles(1);
     if (last.length === 0) {
       this.logger.warn('TestBroker: close rejected — no candles', { symbol });
-      return;
+      return { success: false, error: 'no candles' };
     }
     const lastClose = last[last.length - 1]?.close;
     const refPrice = price ?? lastClose;
     if (refPrice === undefined || refPrice <= 0) {
       this.logger.warn('TestBroker: close rejected — no reference price', { symbol });
-      return;
+      return { success: false, error: 'no reference price' };
     }
 
     const posAbs = Math.abs(book.getSnapshot(symbol).currentPositionQty);
@@ -125,7 +133,9 @@ export class TestBroker implements IBroker {
         ? Math.min(instrument.roundQty(qty), posAbs)
         : posAbs;
     const rounded = instrument.roundQty(requested);
-    if (rounded <= 0 || rounded > posAbs + 1e-12) return;
+    if (rounded <= 0 || rounded > posAbs + 1e-12) {
+      return { success: false, error: 'invalid close qty' };
+    }
     const fee = Math.abs(rounded * refPrice) * this.feeRate;
     book.applyEntry(symbol, closeSide, rounded, refPrice, fee);
 
@@ -145,6 +155,7 @@ export class TestBroker implements IBroker {
       raw: { mode: 'backtest', reduceOnly: true },
     });
     this.logger.info('TestBroker position closed', { symbol, side: closeSide, qty: rounded, refPrice, fee });
+    return { success: true, orderId: 'backtest' };
   }
 
   async updateStopLoss(
@@ -152,15 +163,15 @@ export class TestBroker implements IBroker {
     stopLoss: number,
     roundTripId: string,
     deploymentId?: string,
-  ): Promise<void> {
+  ): Promise<BrokerActionResult> {
     const instrument = this.getInstrument(symbol);
     if (!instrument) {
       this.logger.warn('TestBroker.updateStopLoss: unknown symbol', { symbol });
-      return;
+      return { success: false, error: 'unknown symbol' };
     }
     if (!Number.isFinite(stopLoss) || stopLoss <= 0) {
       this.logger.warn('TestBroker.updateStopLoss: invalid stopLoss', { symbol, stopLoss });
-      return;
+      return { success: false, error: 'invalid stopLoss' };
     }
     const sl = instrument.roundPrice(stopLoss);
     await this.store.upsertOrderHistory({
@@ -172,5 +183,6 @@ export class TestBroker implements IBroker {
         : {}),
     });
     this.logger.info('TestBroker updateStopLoss (no venue API)', { symbol, stopLoss: sl });
+    return { success: true };
   }
 }

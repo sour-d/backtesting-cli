@@ -21,9 +21,9 @@ const noopLogger: ILogger = {
 };
 
 const stubBroker = {
-  placeOrder: async () => {},
-  closePosition: async () => {},
-  updateStopLoss: async () => {},
+  placeOrder: async () => ({ success: true as const }),
+  closePosition: async () => ({ success: true as const }),
+  updateStopLoss: async () => ({ success: true as const }),
   getFeeRate: async () => 0.001,
   start: () => {},
   stop: () => {},
