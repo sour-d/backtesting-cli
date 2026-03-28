@@ -15,7 +15,7 @@ export interface TestBrokerOptions {
 }
 
 /**
- * Deterministic fills for backtest — updates {@link IPositionBook} (PositionManager) on fills.
+ * Deterministic fills for backtest — updates {@link IPositionBook} (`PositionService`) on fills.
  */
 export class TestBroker implements IBroker {
   private readonly logger: ILogger;

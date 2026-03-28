@@ -20,7 +20,7 @@ export interface CreateBrokerConfig {
   /** Live: `LiveBroker` fee estimate; backtest: `TestBroker` fill fee. */
   readonly feeRate?: number;
   readonly getInstrument: (symbol: string) => Instrument | undefined;
-  /** Runtime position book — {@link PositionManager} after `Bot` wiring. */
+  /** Runtime position book — {@link PositionService} after `Bot` wiring. */
   readonly getPositionBook: () => IPositionBook;
 }
 

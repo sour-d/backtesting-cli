@@ -1,5 +1,5 @@
 /**
- * Snapshot of runtime position + capital for strategies (source: {@link PositionManager} only).
+ * Snapshot of runtime position + capital for strategies (source: {@link PositionService} only).
  */
 export interface PositionBookSnapshot {
   readonly currentPositionQty: number;

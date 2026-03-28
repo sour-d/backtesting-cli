@@ -8,7 +8,7 @@ import type { InstrumentCategory, InstrumentStatic } from "./types.js";
 
 /**
  * Per-symbol **market** context: exchange constraints + candle book + indicators.
- * Position, capital, and fills live in {@link PositionManager} / `IPositionBook` only.
+ * Position, capital, and fills live in {@link PositionService} / `IPositionBook` only.
  */
 export class Instrument {
   private readonly staticFields: InstrumentStatic;

@@ -3,13 +3,7 @@ import { PositionRuntime } from './PositionRuntime.js';
 import type { PositionBookSnapshot, PositionRecord } from './types.js';
 import { emptyPositionBookSnapshot } from './types.js';
 
-export interface ActiveDeploymentContext {
-  readonly symbol: string;
-  readonly deploymentId: string;
-  readonly klineInterval: string;
-}
-
-export interface PositionManagerDeps {
+export interface PositionServiceDeps {
   /** Used when recomputing available capital after venue {@link setPositionSnapshot} (live). */
   readonly feeRate: number;
 }
@@ -21,28 +15,28 @@ interface RegistryEntry {
   readonly klineInterval: string;
 }
 
-let singleton: PositionManager | undefined;
+let singleton: PositionService | undefined;
 
 /**
  * Singleton position book: runtime qty/capital per symbol + open-position registry (symbol → row id).
  * Execution and persistence live in `TradeEngine`.
  */
-export class PositionManager implements IPositionBook {
+export class PositionService implements IPositionBook {
   private readonly feeRate: number;
   private readonly bySymbol = new Map<string, RegistryEntry>();
   private readonly runtimes = new Map<string, PositionRuntime>();
 
-  private constructor(deps: PositionManagerDeps) {
+  private constructor(deps: PositionServiceDeps) {
     this.feeRate = deps.feeRate;
   }
 
-  static configure(deps: PositionManagerDeps): void {
-    singleton = new PositionManager(deps);
+  static configure(deps: PositionServiceDeps): void {
+    singleton = new PositionService(deps);
   }
 
-  static getInstance(): PositionManager {
+  static getInstance(): PositionService {
     if (!singleton) {
-      throw new Error('PositionManager.configure() must be called before getInstance()');
+      throw new Error('PositionService.configure() must be called before getInstance()');
     }
     return singleton;
   }

@@ -6,7 +6,8 @@ import type { IBroker } from "../broker/IBroker.js";
 import type { IStore } from "../store/IStore.js";
 import type { IStrategy } from "../strategy/IStrategy.js";
 import type { StrategyRegistry } from "../strategy/StrategyRegistry.js";
-import { PositionManager } from "../position/PositionManager.js";
+import type { ITradingContextProvider } from "./ITradingContextProvider.js";
+import { PositionService } from "../position/PositionService.js";
 import { parseKlineInterval } from "../config/klineInterval.js";
 import { ReconciliationService } from "../engine/ReconciliationService.js";
 import { TradeEngine } from "../trade/TradeEngine.js";
@@ -45,7 +46,7 @@ export interface BotDeps {
 /**
  * Strategy runtime + deployment persistence. Does not own market ingress — only reacts to candles.
  */
-export class Bot {
+export class Bot implements ITradingContextProvider {
   readonly tradeEngine: TradeEngine;
   readonly reconciliationService: ReconciliationService;
   private readonly logger: ILogger;
@@ -61,7 +62,7 @@ export class Bot {
     {
       readonly strategyId: string;
       readonly deploymentId: string;
-      /** Raw Bybit-style interval (e.g. `"5"`, `"60"`) for trade JSONL + {@link PositionManager}. */
+      /** Raw Bybit-style interval (e.g. `"5"`, `"60"`) for trade JSONL + {@link PositionService}. */
       readonly klineInterval: string;
     }
   >();
@@ -75,17 +76,11 @@ export class Bot {
     this.feeRate = deps.feeRate ?? 0;
     this.defaultKlineInterval = deps.defaultKlineInterval;
 
-    PositionManager.configure({
+    PositionService.configure({
       feeRate: this.feeRate,
     });
-    const positionService = PositionManager.getInstance();
+    const positionService = PositionService.getInstance();
     const getInstrument = (symbol: string) => deps.marketRuntime.getInstrument(symbol);
-    const getActiveDeploymentContexts = () =>
-      Array.from(this.activeDeployments.entries()).map(([symbol, v]) => ({
-        symbol,
-        deploymentId: v.deploymentId,
-        klineInterval: v.klineInterval,
-      }));
 
     this.reconciliationService = new ReconciliationService({
       broker: deps.broker,
@@ -94,7 +89,7 @@ export class Bot {
       logger: deps.logger,
       feeRate: this.feeRate,
       getInstrument,
-      getActiveDeploymentContexts,
+      tradingContext: this,
     });
     this.tradeEngine = new TradeEngine({
       broker: deps.broker,
@@ -103,6 +98,18 @@ export class Bot {
       logger: deps.logger,
       feeRate: this.feeRate,
     });
+  }
+
+  getActiveSymbols(): Array<{
+    symbol: string;
+    deploymentId: string;
+    klineInterval: string;
+  }> {
+    return Array.from(this.activeDeployments.entries()).map(([symbol, v]) => ({
+      symbol,
+      deploymentId: v.deploymentId,
+      klineInterval: v.klineInterval,
+    }));
   }
 
   async deploy(req: DeployRequest): Promise<{ readonly klineInterval: string }> {
@@ -116,7 +123,7 @@ export class Bot {
 
     const spec = await this.marketRuntime.fetchInstrumentStatic(req.symbol);
     const instrument = new Instrument(spec, strategy.getIndicators() ?? []);
-    PositionManager.getInstance().setCapitalAllocation(
+    PositionService.getInstance().setCapitalAllocation(
       req.symbol,
       req.capital,
       req.capital,
@@ -158,7 +165,7 @@ export class Bot {
       throw new Error(`Deployment not found: ${id}`);
     }
 
-    PositionManager.getInstance().purgeSymbol(d.symbol);
+    PositionService.getInstance().purgeSymbol(d.symbol);
     await this.marketRuntime.unregisterInstrument(d.symbol);
     this.activeDeployments.delete(d.symbol);
     await this.store.deleteDeployment(id);
@@ -169,62 +176,60 @@ export class Bot {
     const rows = await this.store.loadDeployments();
     const live = rows.filter((r) => r.status === "active");
     this.logger.info("Restoring deployments", { count: live.length });
-    const pm = PositionManager.getInstance();
-    await Promise.all(
-      live.map(async (d) => {
-        const strategy = this.registry.resolve(d.strategyId);
-        if (!strategy) {
-          this.logger.error("Skipping deployment — unknown strategy", {
-            id: d.id,
-            strategyId: d.strategyId,
-          });
-          return;
-        }
-        const intervalRaw = (d.klineInterval ?? this.defaultKlineInterval).trim();
-        const klineInterval = parseKlineInterval(intervalRaw);
-
-        const spec = await this.marketRuntime.fetchInstrumentStatic(d.symbol);
-        const instrument = new Instrument(spec, strategy.getIndicators());
-        pm.setCapitalAllocation(d.symbol, d.capital, d.capital);
-        applyIndicatorRegistrations(instrument, strategy);
-        await this.marketRuntime.registerInstrument(instrument, { klineInterval });
-
-        this.activeDeployments.set(d.symbol, {
+    const pm = PositionService.getInstance();
+    for (const d of live) {
+      const strategy = this.registry.resolve(d.strategyId);
+      if (!strategy) {
+        this.logger.error("Skipping deployment — unknown strategy", {
+          id: d.id,
           strategyId: d.strategyId,
-          deploymentId: d.id,
-          klineInterval: intervalRaw,
         });
+        continue;
+      }
+      const intervalRaw = (d.klineInterval ?? this.defaultKlineInterval).trim();
+      const klineInterval = parseKlineInterval(intervalRaw);
 
-        const row = await this.store.loadPositionByDeploymentId(d.id);
-        const openPosition = row
-          ? {
-              positionId: row.id,
-              side: row.side,
-              qty: row.qty,
-              avgEntryPrice: row.avgEntryPrice ?? null,
-            }
-          : null;
-        if (row) {
-          pm.registerOpenPosition(d.symbol, row.id, d.id, intervalRaw);
-          pm.hydrateFromStoredRow(d.symbol, row);
-        }
+      const spec = await this.marketRuntime.fetchInstrumentStatic(d.symbol);
+      const instrument = new Instrument(spec, strategy.getIndicators());
+      pm.setCapitalAllocation(d.symbol, d.capital, d.capital);
+      applyIndicatorRegistrations(instrument, strategy);
+      await this.marketRuntime.registerInstrument(instrument, { klineInterval });
 
-        await this.reconciliationService.syncAfterRestore(
-          instrument,
-          d.id,
-          intervalRaw,
-        );
+      this.activeDeployments.set(d.symbol, {
+        strategyId: d.strategyId,
+        deploymentId: d.id,
+        klineInterval: intervalRaw,
+      });
 
-        this.logger.info("Restored deployment", {
-          deploymentId: d.id,
-          symbol: d.symbol,
-          strategyId: d.strategyId,
-          klineInterval: intervalRaw,
-          capital: d.capital,
-          openPosition,
-        });
-      }),
-    );
+      const row = await this.store.loadPositionByDeploymentId(d.id);
+      const openPosition = row
+        ? {
+            positionId: row.id,
+            side: row.side,
+            qty: row.qty,
+            avgEntryPrice: row.avgEntryPrice ?? null,
+          }
+        : null;
+      if (row) {
+        pm.registerOpenPosition(d.symbol, row.id, d.id, intervalRaw);
+        pm.hydrateFromStoredRow(d.symbol, row);
+      }
+
+      await this.reconciliationService.syncAfterRestore(
+        instrument,
+        d.id,
+        intervalRaw,
+      );
+
+      this.logger.info("Restored deployment", {
+        deploymentId: d.id,
+        symbol: d.symbol,
+        strategyId: d.strategyId,
+        klineInterval: intervalRaw,
+        capital: d.capital,
+        openPosition,
+      });
+    }
   }
 
   async onCandle(instrument: Instrument): Promise<void> {
@@ -245,7 +250,7 @@ export class Bot {
       return;
     }
 
-    const pm = PositionManager.getInstance();
+    const pm = PositionService.getInstance();
     const position = pm.getSnapshot(instrument.symbol);
     const raw = await strategy.evaluate(instrument, position);
     const signals = Array.isArray(raw) ? raw : [raw];

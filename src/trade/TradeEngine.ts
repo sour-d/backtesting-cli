@@ -5,7 +5,7 @@ import type { IBroker } from '../broker/IBroker.js';
 import type { Instrument } from '../instrument/Instrument.js';
 import type { ILogger } from '../logger/ILogger.js';
 import type { IStore } from '../store/IStore.js';
-import type { PositionManager } from '../position/PositionManager.js';
+import type { PositionService } from '../position/PositionService.js';
 import type { PositionRecord } from '../position/types.js';
 import type { StrategyEvaluateResult } from '../strategy/types.js';
 
@@ -17,7 +17,7 @@ export interface TradeDeploymentContext {
 
 export interface TradeEngineDeps {
   readonly broker: IBroker;
-  readonly positionService: PositionManager;
+  readonly positionService: PositionService;
   readonly store: IStore;
   readonly logger: ILogger;
   readonly feeRate: number;
@@ -25,7 +25,7 @@ export interface TradeEngineDeps {
 
 export class TradeEngine {
   private readonly broker: IBroker;
-  private readonly positionService: PositionManager;
+  private readonly positionService: PositionService;
   private readonly store: IStore;
   private readonly logger: ILogger;
   private readonly feeRate: number;
@@ -36,6 +36,13 @@ export class TradeEngine {
     this.store = deps.store;
     this.logger = deps.logger;
     this.feeRate = deps.feeRate;
+  }
+
+  /** Live: pull latest venue size into `positionService` after an order path (no-op in backtest). */
+  private async pullVenuePositionIfLive(symbol: string): Promise<void> {
+    const sync = this.broker.syncPositionFromVenue;
+    if (typeof sync !== 'function') return;
+    await sync.call(this.broker, symbol);
   }
 
   async execute(
@@ -136,6 +143,8 @@ export class TradeEngine {
       });
     }
 
+    await this.pullVenuePositionIfLive(symbol);
+
     this.logger.info('Signal CLOSE executed', {
       symbol,
       exitRefPrice: exitFillPrice,
@@ -177,6 +186,7 @@ export class TradeEngine {
       deploymentId,
     );
     await this.store.updatePositionStopLoss(uid, signal.stopLoss, Date.now());
+    await this.pullVenuePositionIfLive(instrument.symbol);
     this.logger.info('Signal UPDATE_SL executed', {
       symbol: instrument.symbol,
       stopLoss: signal.stopLoss,
@@ -229,6 +239,7 @@ export class TradeEngine {
     const qtyAbs = Math.abs(q);
 
     if (Math.abs(q) < 1e-12) {
+      await this.pullVenuePositionIfLive(symbol);
       this.logger.info('Signal executed', {
         symbol,
         action: signal.action,
@@ -264,6 +275,8 @@ export class TradeEngine {
       await this.store.createPosition(rec);
       this.positionService.registerOpenPosition(symbol, roundTripId, deploymentId, klineInterval);
     }
+
+    await this.pullVenuePositionIfLive(symbol);
 
     this.logger.info('Signal executed', {
       symbol,

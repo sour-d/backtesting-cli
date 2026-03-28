@@ -3,18 +3,19 @@ import type { TradeRecord } from '../core/types.js';
 import type { IBroker } from '../broker/IBroker.js';
 import type { Instrument } from '../instrument/Instrument.js';
 import type { ILogger } from '../logger/ILogger.js';
-import type { ActiveDeploymentContext, PositionManager } from '../position/PositionManager.js';
+import type { ITradingContextProvider } from '../bot/ITradingContextProvider.js';
+import type { PositionService } from '../position/PositionService.js';
 import type { PositionRecord } from '../position/types.js';
 import type { IStore } from '../store/IStore.js';
 
 export interface ReconciliationServiceDeps {
   readonly broker: IBroker;
-  readonly positionService: PositionManager;
+  readonly positionService: PositionService;
   readonly store: IStore;
   readonly logger: ILogger;
   readonly feeRate: number;
   readonly getInstrument: (symbol: string) => Instrument | undefined;
-  readonly getActiveDeploymentContexts?: () => ReadonlyArray<ActiveDeploymentContext>;
+  readonly tradingContext: ITradingContextProvider;
 }
 
 /**
@@ -22,12 +23,12 @@ export interface ReconciliationServiceDeps {
  */
 export class ReconciliationService {
   private readonly broker: IBroker;
-  private readonly positionService: PositionManager;
+  private readonly positionService: PositionService;
   private readonly store: IStore;
   private readonly logger: ILogger;
   private readonly feeRate: number;
   private readonly getInstrument: (symbol: string) => Instrument | undefined;
-  private readonly getActiveDeploymentContexts?: () => ReadonlyArray<ActiveDeploymentContext>;
+  private readonly tradingContext: ITradingContextProvider;
   private timer: ReturnType<typeof setInterval> | undefined;
 
   constructor(deps: ReconciliationServiceDeps) {
@@ -37,7 +38,7 @@ export class ReconciliationService {
     this.logger = deps.logger;
     this.feeRate = deps.feeRate;
     this.getInstrument = deps.getInstrument;
-    this.getActiveDeploymentContexts = deps.getActiveDeploymentContexts;
+    this.tradingContext = deps.tradingContext;
   }
 
   start(intervalMs: number): void {
@@ -61,7 +62,7 @@ export class ReconciliationService {
   }
 
   /**
-   * After hydrate/register on `PositionManager`, pull venue size, create missing `positions` row, align DB/registry.
+   * After hydrate/register on `PositionService`, pull venue size, create missing `positions` row, align DB/registry.
    */
   async syncAfterRestore(
     instrument: Instrument,
@@ -126,14 +127,11 @@ export class ReconciliationService {
       string,
       { readonly deploymentId: string; readonly klineInterval: string }
     >();
-    const getCtx = this.getActiveDeploymentContexts;
-    if (typeof getCtx === 'function') {
-      for (const c of getCtx()) {
-        deploymentBySymbol.set(c.symbol, {
-          deploymentId: c.deploymentId,
-          klineInterval: c.klineInterval,
-        });
-      }
+    for (const c of this.tradingContext.getActiveSymbols()) {
+      deploymentBySymbol.set(c.symbol, {
+        deploymentId: c.deploymentId,
+        klineInterval: c.klineInterval,
+      });
     }
 
     const union = new Set<string>([

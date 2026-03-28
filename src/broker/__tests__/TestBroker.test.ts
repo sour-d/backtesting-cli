@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { Instrument } from '../../instrument/Instrument.js';
 import type { InstrumentStatic } from '../../instrument/types.js';
 import type { ILogger } from '../../logger/ILogger.js';
-import { PositionManager } from '../../position/PositionManager.js';
+import { PositionService } from '../../position/PositionService.js';
 import type { IStore } from '../../store/IStore.js';
 import { BacktestStore } from '../../store/BacktestStore.js';
 import { FileStore } from '../../store/FileStore.js';
@@ -43,15 +43,15 @@ const spec: InstrumentStatic = {
 };
 
 function wirePm(): void {
-  PositionManager.resetForTests();
-  PositionManager.configure({
+  PositionService.resetForTests();
+  PositionService.configure({
     feeRate: 0.001,
   });
-  PositionManager.getInstance().setCapitalAllocation(spec.symbol, 10_000, 10_000);
+  PositionService.getInstance().setCapitalAllocation(spec.symbol, 10_000, 10_000);
 }
 
 afterEach(() => {
-  PositionManager.resetForTests();
+  PositionService.resetForTests();
 });
 
 describe('TestBroker', () => {
@@ -75,7 +75,7 @@ describe('TestBroker', () => {
       category: 'linear',
       feeRate: 0.001,
       getInstrument: () => inst,
-      getPositionBook: () => PositionManager.getInstance(),
+      getPositionBook: () => PositionService.getInstance(),
     });
 
     await broker.placeOrder({
@@ -87,7 +87,7 @@ describe('TestBroker', () => {
       deploymentId: DEPLOYMENT_ID,
     });
 
-    const snap = PositionManager.getInstance().getSnapshot(spec.symbol);
+    const snap = PositionService.getInstance().getSnapshot(spec.symbol);
     expect(snap.currentPositionQty).toBeCloseTo(0.5, 5);
     expect(snap.avgEntryPrice).toBeCloseTo(100, 5);
   });
@@ -112,7 +112,7 @@ describe('TestBroker', () => {
       category: 'linear',
       feeRate: 0.001,
       getInstrument: () => inst,
-      getPositionBook: () => PositionManager.getInstance(),
+      getPositionBook: () => PositionService.getInstance(),
     });
 
     await broker.placeOrder({
@@ -124,12 +124,12 @@ describe('TestBroker', () => {
       deploymentId: DEPLOYMENT_ID,
     });
     expect(
-      PositionManager.getInstance().getSnapshot(spec.symbol).currentPositionQty,
+      PositionService.getInstance().getSnapshot(spec.symbol).currentPositionQty,
     ).toBeGreaterThan(0);
 
     await broker.closePosition('SOLUSDT', ROUND_TRIP_ID);
     expect(
-      Math.abs(PositionManager.getInstance().getSnapshot(spec.symbol).currentPositionQty),
+      Math.abs(PositionService.getInstance().getSnapshot(spec.symbol).currentPositionQty),
     ).toBeLessThan(1e-9);
   });
 
@@ -166,7 +166,7 @@ describe('TestBroker', () => {
       category: 'linear',
       feeRate: 0.001,
       getInstrument: () => instExplicit,
-      getPositionBook: () => PositionManager.getInstance(),
+      getPositionBook: () => PositionService.getInstance(),
     });
     await brokerExplicit.placeOrder({
       instrument: instExplicit,
@@ -177,10 +177,10 @@ describe('TestBroker', () => {
       deploymentId: DEPLOYMENT_ID,
     });
     await brokerExplicit.closePosition('SOLUSDT', ROUND_TRIP_ID, undefined, 96);
-    const capExplicit = PositionManager.getInstance().getSnapshot(spec.symbol).availableCapital;
+    const capExplicit = PositionService.getInstance().getSnapshot(spec.symbol).availableCapital;
 
     const instBarClose = mkInstrument();
-    PositionManager.resetForTests();
+    PositionService.resetForTests();
     wirePm();
     const brokerBarClose = new TestBroker({
       logger: noopLogger,
@@ -188,7 +188,7 @@ describe('TestBroker', () => {
       category: 'linear',
       feeRate: 0.001,
       getInstrument: () => instBarClose,
-      getPositionBook: () => PositionManager.getInstance(),
+      getPositionBook: () => PositionService.getInstance(),
     });
     await brokerBarClose.placeOrder({
       instrument: instBarClose,
@@ -199,7 +199,7 @@ describe('TestBroker', () => {
       deploymentId: DEPLOYMENT_ID,
     });
     await brokerBarClose.closePosition('SOLUSDT', ROUND_TRIP_ID);
-    const capBarClose = PositionManager.getInstance().getSnapshot(spec.symbol).availableCapital;
+    const capBarClose = PositionService.getInstance().getSnapshot(spec.symbol).availableCapital;
 
     expect(capExplicit).not.toBe(capBarClose);
   });
@@ -225,7 +225,7 @@ describe('TestBroker', () => {
       category: 'linear',
       feeRate: 0.001,
       getInstrument: () => inst,
-      getPositionBook: () => PositionManager.getInstance(),
+      getPositionBook: () => PositionService.getInstance(),
     });
 
     const rt = 'rt-single-id';

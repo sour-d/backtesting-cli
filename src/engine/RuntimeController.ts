@@ -2,14 +2,14 @@ import type { Bot } from '../bot/Bot.js';
 import type { IBroker } from '../broker/IBroker.js';
 import type { ILogger } from '../logger/ILogger.js';
 import type { IMarketRuntime } from '../market-runtime/IMarketRuntime.js';
-import type { PositionManager } from '../position/PositionManager.js';
+import type { PositionService } from '../position/PositionService.js';
 import type { ReconciliationService } from './ReconciliationService.js';
 
 export interface RuntimeControllerDeps {
   readonly marketRuntime: IMarketRuntime;
   readonly broker: IBroker;
   readonly bot: Bot;
-  readonly positionService: PositionManager;
+  readonly positionService: PositionService;
   readonly reconciliationService: ReconciliationService;
   readonly logger: ILogger;
   /** Live venue/registry reconcile interval; `0` skips {@link ReconciliationService#start}. */
@@ -23,7 +23,7 @@ export class RuntimeController {
   readonly marketRuntime: IMarketRuntime;
   readonly broker: IBroker;
   readonly bot: Bot;
-  readonly positionService: PositionManager;
+  readonly positionService: PositionService;
   readonly reconciliationService: ReconciliationService;
   private readonly logger: ILogger;
   private readonly reconcileIntervalMs: number;

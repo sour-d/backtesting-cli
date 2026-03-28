@@ -1,6 +1,6 @@
 import type { Server } from 'node:http';
 import { createHttpApp, listenHttp, stopLiveUrlPing } from '../api/httpServer.js';
-import { PositionManager } from '../position/PositionManager.js';
+import { PositionService } from '../position/PositionService.js';
 import type { LiveEngineConfig } from './liveConfig.js';
 import { createLiveEngine } from './createLiveEngine.js';
 import { RuntimeController } from './RuntimeController.js';
@@ -16,7 +16,7 @@ export interface RunLiveLoopResult {
 export async function runLiveLoop(config: LiveEngineConfig): Promise<RunLiveLoopResult> {
   const { bot, broker, marketRuntime, logger, store, strategies } = createLiveEngine(config);
 
-  const positionService = PositionManager.getInstance();
+  const positionService = PositionService.getInstance();
   const reconciliationService = bot.reconciliationService;
   const reconcileIntervalMs = config.reconcileIntervalMs ?? 30_000;
 

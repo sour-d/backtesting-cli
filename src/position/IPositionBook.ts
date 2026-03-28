@@ -1,7 +1,7 @@
 import type { PositionBookSnapshot } from './types.js';
 
 /**
- * Mutable position/capital book keyed by symbol — implemented by {@link PositionManager}.
+ * Mutable position/capital book keyed by symbol — implemented by {@link PositionService}.
  * Brokers update this; strategies read snapshots only.
  */
 export interface IPositionBook {

@@ -11,7 +11,7 @@ export interface IStrategy {
    */
   getIndicators(): { compute: IndicatorCompute; name: string }[];
   /**
-   * `position` is the current book from {@link PositionManager} (venue-synced on live before each bar).
+   * `position` is the current book from {@link PositionService} (live: periodic reconcile + post-trade venue pull).
    */
   evaluate(
     instrument: Instrument,
