@@ -5,7 +5,7 @@ import type { IBroker } from '../broker/IBroker.js';
 import type { Instrument } from '../instrument/Instrument.js';
 import type { ILogger } from '../logger/ILogger.js';
 import type { IStore } from '../store/IStore.js';
-import type { ActiveDeploymentContext, PositionManager } from '../position/PositionManager.js';
+import type { PositionManager } from '../position/PositionManager.js';
 import type { PositionRecord } from '../position/types.js';
 import type { StrategyEvaluateResult } from '../strategy/types.js';
 
@@ -21,8 +21,6 @@ export interface TradeEngineDeps {
   readonly store: IStore;
   readonly logger: ILogger;
   readonly feeRate: number;
-  readonly getInstrument: (symbol: string) => Instrument | undefined;
-  readonly getActiveDeploymentContexts?: () => ReadonlyArray<ActiveDeploymentContext>;
 }
 
 export class TradeEngine {
@@ -31,8 +29,6 @@ export class TradeEngine {
   private readonly store: IStore;
   private readonly logger: ILogger;
   private readonly feeRate: number;
-  private readonly getInstrument: (symbol: string) => Instrument | undefined;
-  private readonly getActiveDeploymentContexts?: () => ReadonlyArray<ActiveDeploymentContext>;
 
   constructor(deps: TradeEngineDeps) {
     this.broker = deps.broker;
@@ -40,8 +36,6 @@ export class TradeEngine {
     this.store = deps.store;
     this.logger = deps.logger;
     this.feeRate = deps.feeRate;
-    this.getInstrument = deps.getInstrument;
-    this.getActiveDeploymentContexts = deps.getActiveDeploymentContexts;
   }
 
   async execute(
@@ -71,221 +65,6 @@ export class TradeEngine {
 
     const _never: never = signal;
     void _never;
-  }
-
-  /**
-   * Live restore: after hydrate/register on {@link PositionManager}, pull venue size,
-   * create a `positions` row if the exchange shows size but we had none, then align DB/registry when flat or open.
-   */
-  async syncOpenPositionFromVenueAfterRestore(
-    instrument: Instrument,
-    deploymentId: string,
-    klineInterval: string,
-  ): Promise<void> {
-    const sync = this.broker.syncPositionFromVenue;
-    if (typeof sync !== 'function') return;
-    const symbol = instrument.symbol;
-    await sync.call(this.broker, symbol);
-    await this.reconcileMissingRowIfNeeded(instrument, deploymentId, klineInterval);
-    if (this.positionService.getOpenPositionId(symbol)) {
-      await this.applyRegistryAfterVenueSync(symbol);
-    }
-  }
-
-  async reconcileMissingRowIfNeeded(
-    instrument: Instrument,
-    deploymentId: string,
-    klineInterval: string,
-  ): Promise<void> {
-    const { symbol } = instrument;
-    if (this.positionService.getOpenPositionId(symbol)) return;
-    const snap = this.positionService.getSnapshot(symbol);
-    const q = snap.currentPositionQty;
-    if (Math.abs(q) < 1e-12) return;
-
-    const linked =
-      (await this.store.loadOpenOrderHistoryIdForDeployment(deploymentId, symbol)) ??
-      null;
-    const id = linked ?? randomUUID();
-    if (linked) {
-      this.logger.debug('Reconcile position id linked to open order_history', {
-        symbol,
-        deploymentId,
-        id: linked,
-      });
-    }
-    const now = Date.now();
-    const side: 'Buy' | 'Sell' = q > 0 ? 'Buy' : 'Sell';
-    const rec: PositionRecord = {
-      id,
-      deploymentId,
-      symbol,
-      side,
-      qty: Math.abs(q),
-      avgEntryPrice: snap.avgEntryPrice,
-      stopLoss: null,
-      openedAtMs: now,
-      updatedAtMs: now,
-    };
-    await this.store.createPosition(rec);
-    this.positionService.registerOpenPosition(symbol, id, deploymentId, klineInterval);
-    this.logger.info('Position row reconciled from runtime', { symbol, id, deploymentId });
-  }
-
-  async reconcileTrackedSymbolsFromVenue(): Promise<void> {
-    const sync = this.broker.syncPositionFromVenue;
-    if (typeof sync !== 'function') return;
-
-    const deploymentBySymbol = new Map<
-      string,
-      { readonly deploymentId: string; readonly klineInterval: string }
-    >();
-    const getCtx = this.getActiveDeploymentContexts;
-    if (typeof getCtx === 'function') {
-      for (const c of getCtx()) {
-        deploymentBySymbol.set(c.symbol, {
-          deploymentId: c.deploymentId,
-          klineInterval: c.klineInterval,
-        });
-      }
-    }
-
-    const union = new Set<string>([
-      ...this.positionService.getRegisteredSymbols(),
-      ...deploymentBySymbol.keys(),
-    ]);
-
-    for (const symbol of union) {
-      try {
-        await sync.call(this.broker, symbol);
-        if (this.positionService.getDetails(symbol)) {
-          await this.applyRegistryAfterVenueSync(symbol);
-        } else {
-          const inst = this.getInstrument(symbol);
-          const ctx = deploymentBySymbol.get(symbol);
-          if (inst && ctx) {
-            await this.reconcileMissingRowIfNeeded(
-              inst,
-              ctx.deploymentId,
-              ctx.klineInterval,
-            );
-          }
-        }
-      } catch (e) {
-        this.logger.error('PositionManager venue reconcile failed', {
-          symbol,
-          message: String(e),
-        });
-      }
-    }
-  }
-
-  private async applyRegistryAfterVenueSync(symbol: string): Promise<void> {
-    const entry = this.positionService.getDetails(symbol);
-    if (!entry) return;
-
-    const inst = this.getInstrument(symbol);
-    if (!inst) {
-      this.logger.warn('PositionManager: instrument missing after venue sync', {
-        symbol,
-      });
-      return;
-    }
-
-    const row = await this.store.loadPositionByDeploymentId(entry.deploymentId);
-    if (!row) {
-      this.positionService.clearSymbol(symbol);
-      return;
-    }
-
-    const snap = this.positionService.getSnapshot(symbol);
-    const q = snap.currentPositionQty;
-    const now = Date.now();
-
-    if (Math.abs(q) < 1e-12) {
-      const exitSide: 'Buy' | 'Sell' = row.side === 'Buy' ? 'Sell' : 'Buy';
-      const exitQty = row.qty;
-      const last = inst.getCandles(1)[0];
-      const price =
-        last !== undefined && last.close > 0
-          ? last.close
-          : row.avgEntryPrice ?? 0;
-      if (price <= 0) {
-        this.logger.warn('PositionManager: skip exit trade — invalid price', {
-          symbol,
-        });
-      } else {
-        const timestamp = last?.dateUnix ?? Date.now();
-        let exitPrice = price;
-        let tsMs = timestamp < 1e12 ? timestamp * 1000 : timestamp;
-        let exitFee =
-          this.feeRate > 0 ? exitQty * exitPrice * this.feeRate : 0;
-        let venueExitOrderId = 'venue';
-        let tradeBarUnix = timestamp;
-
-        const fetchMeta = this.broker.fetchVenueClosedFillMeta;
-        if (typeof fetchMeta === 'function') {
-          const m = await fetchMeta.call(
-            this.broker,
-            symbol,
-            row.side,
-            exitQty,
-            inst,
-          );
-          if (m) {
-            venueExitOrderId = m.venueExitOrderId;
-            exitFee = m.exitFee;
-            exitPrice = inst.roundPrice(m.exitPrice);
-            tsMs = m.exitTimestampMs;
-            tradeBarUnix =
-              m.exitTimestampMs >= 1e12
-                ? Math.floor(m.exitTimestampMs / 1000)
-                : Math.floor(m.exitTimestampMs);
-            this.logger.info('Venue exit enriched from Bybit closed PnL', {
-              symbol,
-              venueExitOrderId,
-              exitFee,
-              exitPrice,
-            });
-          }
-        }
-
-        await this.persistExitTradeFromVenue({
-          symbol,
-          qty: exitQty,
-          price: exitPrice,
-          exitSide,
-          timestamp: tradeBarUnix,
-          klineInterval: entry.klineInterval,
-        });
-        await this.store.upsertOrderHistory({
-          id: row.id,
-          deploymentId: row.deploymentId,
-          symbol: row.symbol,
-          status: 'closed',
-          updatedAtMs: Date.now(),
-          exitQty,
-          exitPrice,
-          exitFee,
-          exitTimestampMs: tsMs,
-          venueExitOrderId,
-        });
-      }
-      await this.store.deletePosition(row.id);
-      this.positionService.clearSymbol(symbol);
-      this.logger.info('Venue position flat — exit trade persisted, row removed', {
-        symbol,
-      });
-      return;
-    }
-
-    const posSide: 'Buy' | 'Sell' = q > 0 ? 'Buy' : 'Sell';
-    await this.store.updatePositionOpenSnapshot(row.id, {
-      qty: Math.abs(q),
-      avgEntryPrice: snap.avgEntryPrice,
-      side: posSide,
-      updatedAtMs: now,
-    });
   }
 
   private async handleClose(
@@ -512,25 +291,6 @@ export class TradeEngine {
       price: params.price,
       timestamp: params.candle.dateUnix,
       kind: params.kind,
-      klineInterval: params.klineInterval,
-    });
-  }
-
-  private async persistExitTradeFromVenue(params: {
-    symbol: string;
-    qty: number;
-    price: number;
-    exitSide: 'Buy' | 'Sell';
-    timestamp: number;
-    klineInterval: string;
-  }): Promise<void> {
-    await this.saveTradeRecord({
-      symbol: params.symbol,
-      side: params.exitSide,
-      qty: params.qty,
-      price: params.price,
-      timestamp: params.timestamp,
-      kind: 'exit',
       klineInterval: params.klineInterval,
     });
   }

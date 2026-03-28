@@ -8,6 +8,7 @@ import type { IStrategy } from "../strategy/IStrategy.js";
 import type { StrategyRegistry } from "../strategy/StrategyRegistry.js";
 import { PositionManager } from "../position/PositionManager.js";
 import { parseKlineInterval } from "../config/klineInterval.js";
+import { ReconciliationService } from "../engine/ReconciliationService.js";
 import { TradeEngine } from "../trade/TradeEngine.js";
 
 function applyIndicatorRegistrations(
@@ -46,6 +47,7 @@ export interface BotDeps {
  */
 export class Bot {
   readonly tradeEngine: TradeEngine;
+  readonly reconciliationService: ReconciliationService;
   private readonly logger: ILogger;
   private readonly store: IStore;
   private readonly broker: IBroker;
@@ -76,19 +78,30 @@ export class Bot {
     PositionManager.configure({
       feeRate: this.feeRate,
     });
-    this.tradeEngine = new TradeEngine({
+    const positionService = PositionManager.getInstance();
+    const getInstrument = (symbol: string) => deps.marketRuntime.getInstrument(symbol);
+    const getActiveDeploymentContexts = () =>
+      Array.from(this.activeDeployments.entries()).map(([symbol, v]) => ({
+        symbol,
+        deploymentId: v.deploymentId,
+        klineInterval: v.klineInterval,
+      }));
+
+    this.reconciliationService = new ReconciliationService({
       broker: deps.broker,
-      positionService: PositionManager.getInstance(),
+      positionService,
       store: deps.store,
       logger: deps.logger,
       feeRate: this.feeRate,
-      getInstrument: (symbol) => deps.marketRuntime.getInstrument(symbol),
-      getActiveDeploymentContexts: () =>
-        Array.from(this.activeDeployments.entries()).map(([symbol, v]) => ({
-          symbol,
-          deploymentId: v.deploymentId,
-          klineInterval: v.klineInterval,
-        })),
+      getInstrument,
+      getActiveDeploymentContexts,
+    });
+    this.tradeEngine = new TradeEngine({
+      broker: deps.broker,
+      positionService,
+      store: deps.store,
+      logger: deps.logger,
+      feeRate: this.feeRate,
     });
   }
 
@@ -196,7 +209,7 @@ export class Bot {
           pm.hydrateFromStoredRow(d.symbol, row);
         }
 
-        await this.tradeEngine.syncOpenPositionFromVenueAfterRestore(
+        await this.reconciliationService.syncAfterRestore(
           instrument,
           d.id,
           intervalRaw,
@@ -233,17 +246,6 @@ export class Bot {
     }
 
     const pm = PositionManager.getInstance();
-    const sync = this.broker.syncPositionFromVenue;
-    if (typeof sync === "function") {
-      await sync.call(this.broker, instrument.symbol);
-    }
-
-    await this.tradeEngine.reconcileMissingRowIfNeeded(
-      instrument,
-      dep.deploymentId,
-      dep.klineInterval,
-    );
-
     const position = pm.getSnapshot(instrument.symbol);
     const raw = await strategy.evaluate(instrument, position);
     const signals = Array.isArray(raw) ? raw : [raw];
