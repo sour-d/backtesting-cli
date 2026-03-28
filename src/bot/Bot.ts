@@ -8,6 +8,7 @@ import type { IStrategy } from "../strategy/IStrategy.js";
 import type { StrategyRegistry } from "../strategy/StrategyRegistry.js";
 import { PositionManager } from "../position/PositionManager.js";
 import { parseKlineInterval } from "../config/klineInterval.js";
+import { TradeEngine } from "../trade/TradeEngine.js";
 
 function applyIndicatorRegistrations(
   instrument: Instrument,
@@ -34,7 +35,7 @@ export interface BotDeps {
   readonly broker: IBroker;
   readonly marketRuntime: IMarketRuntime;
   readonly strategies: StrategyRegistry;
-  /** When set (e.g. backtest), used for `TradeRecord.fee` in `PositionManager`. */
+  /** When set (e.g. backtest), used for `TradeRecord.fee` in {@link TradeEngine}. */
   readonly feeRate?: number;
   /** Raw interval string (e.g. from `KLINE_INTERVAL` / `--interval` / quantlab config). */
   readonly defaultKlineInterval: string;
@@ -44,6 +45,7 @@ export interface BotDeps {
  * Strategy runtime + deployment persistence. Does not own market ingress — only reacts to candles.
  */
 export class Bot {
+  readonly tradeEngine: TradeEngine;
   private readonly logger: ILogger;
   private readonly store: IStore;
   private readonly broker: IBroker;
@@ -72,10 +74,14 @@ export class Bot {
     this.defaultKlineInterval = deps.defaultKlineInterval;
 
     PositionManager.configure({
-      broker: deps.broker,
-      store: deps.store,
       feeRate: this.feeRate,
+    });
+    this.tradeEngine = new TradeEngine({
+      broker: deps.broker,
+      positionService: PositionManager.getInstance(),
+      store: deps.store,
       logger: deps.logger,
+      feeRate: this.feeRate,
       getInstrument: (symbol) => deps.marketRuntime.getInstrument(symbol),
       getActiveDeploymentContexts: () =>
         Array.from(this.activeDeployments.entries()).map(([symbol, v]) => ({
@@ -190,7 +196,7 @@ export class Bot {
           pm.hydrateFromStoredRow(d.symbol, row);
         }
 
-        await pm.syncOpenPositionFromVenueAfterRestore(
+        await this.tradeEngine.syncOpenPositionFromVenueAfterRestore(
           instrument,
           d.id,
           intervalRaw,
@@ -232,7 +238,7 @@ export class Bot {
       await sync.call(this.broker, instrument.symbol);
     }
 
-    await pm.reconcileMissingRowIfNeeded(
+    await this.tradeEngine.reconcileMissingRowIfNeeded(
       instrument,
       dep.deploymentId,
       dep.klineInterval,
@@ -243,13 +249,11 @@ export class Bot {
     const signals = Array.isArray(raw) ? raw : [raw];
     for (const signal of signals) {
       const candle = instrument.getCandles(1)[0]!;
-      await pm.processSignal(
-        instrument,
+      await this.tradeEngine.execute(signal, instrument, {
+        deploymentId: dep.deploymentId,
+        klineInterval: dep.klineInterval,
         candle,
-        signal,
-        dep.deploymentId,
-        dep.klineInterval,
-      );
+      });
     }
   }
 }

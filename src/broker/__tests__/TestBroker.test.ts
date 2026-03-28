@@ -42,14 +42,10 @@ const spec: InstrumentStatic = {
   qtyPrecision: 1,
 };
 
-function wirePm(store: IStore, getInstrument: () => Instrument): void {
+function wirePm(): void {
   PositionManager.resetForTests();
   PositionManager.configure({
-    broker: stubBroker,
-    store,
     feeRate: 0.001,
-    logger: noopLogger,
-    getInstrument,
   });
   PositionManager.getInstance().setCapitalAllocation(spec.symbol, 10_000, 10_000);
 }
@@ -71,7 +67,7 @@ describe('TestBroker', () => {
       volume: 1,
     });
 
-    wirePm(store, () => inst);
+    wirePm();
 
     const broker = new TestBroker({
       logger: noopLogger,
@@ -108,7 +104,7 @@ describe('TestBroker', () => {
       volume: 1,
     });
 
-    wirePm(store, () => inst);
+    wirePm();
 
     const broker = new TestBroker({
       logger: noopLogger,
@@ -163,7 +159,7 @@ describe('TestBroker', () => {
     };
 
     const instExplicit = mkInstrument();
-    wirePm(storeA, () => instExplicit);
+    wirePm();
     const brokerExplicit = new TestBroker({
       logger: noopLogger,
       store: storeA,
@@ -185,7 +181,7 @@ describe('TestBroker', () => {
 
     const instBarClose = mkInstrument();
     PositionManager.resetForTests();
-    wirePm(storeB, () => instBarClose);
+    wirePm();
     const brokerBarClose = new TestBroker({
       logger: noopLogger,
       store: storeB,
@@ -221,7 +217,7 @@ describe('TestBroker', () => {
       volume: 1,
     });
 
-    wirePm(store, () => inst);
+    wirePm();
 
     const broker = new TestBroker({
       logger: noopLogger,

@@ -18,12 +18,7 @@ export async function runLiveLoop(config: LiveEngineConfig): Promise<RunLiveLoop
   const { bot, broker, marketRuntime, logger, store, strategies } = createLiveEngine(config);
 
   const positionService = PositionManager.getInstance();
-  const reconciliationService = new ReconciliationService(
-    broker,
-    positionService,
-    store,
-    logger,
-  );
+  const reconciliationService = new ReconciliationService(broker, bot.tradeEngine, logger);
   const reconcileIntervalMs = config.reconcileIntervalMs ?? 30_000;
 
   const runtime = new RuntimeController({
