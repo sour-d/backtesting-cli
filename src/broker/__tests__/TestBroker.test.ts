@@ -24,6 +24,7 @@ const stubBroker = {
   placeOrder: async () => {},
   closePosition: async () => {},
   updateStopLoss: async () => {},
+  getFeeRate: async () => 0.001,
   start: () => {},
   stop: () => {},
 } as IBroker;

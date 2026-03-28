@@ -53,6 +53,11 @@ export interface IBroker {
     readonly exitPrice: number;
     readonly exitTimestampMs: number;
   } | null>;
+  /**
+   * Taker/maker fee rate for notional-based estimates (e.g. trade JSONL fee).
+   * Live: may reflect exchange tier; backtest: fixed config. Fallback when omitted: caller default.
+   */
+  getFeeRate?(symbol: string): Promise<number>;
   start(): void;
   stop(): void;
 }

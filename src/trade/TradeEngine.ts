@@ -20,7 +20,8 @@ export interface TradeEngineDeps {
   readonly positionService: PositionService;
   readonly store: IStore;
   readonly logger: ILogger;
-  readonly feeRate: number;
+  /** Fallback when {@link IBroker.getFeeRate} is missing or fails. */
+  readonly defaultFeeRate: number;
 }
 
 export class TradeEngine {
@@ -28,14 +29,26 @@ export class TradeEngine {
   private readonly positionService: PositionService;
   private readonly store: IStore;
   private readonly logger: ILogger;
-  private readonly feeRate: number;
+  private readonly defaultFeeRate: number;
 
   constructor(deps: TradeEngineDeps) {
     this.broker = deps.broker;
     this.positionService = deps.positionService;
     this.store = deps.store;
     this.logger = deps.logger;
-    this.feeRate = deps.feeRate;
+    this.defaultFeeRate = deps.defaultFeeRate;
+  }
+
+  private async resolveFeeRate(symbol: string): Promise<number> {
+    try {
+      const r = await this.broker.getFeeRate?.(symbol);
+      if (typeof r === 'number' && Number.isFinite(r) && r >= 0) {
+        return r;
+      }
+    } catch {
+      /* fall through */
+    }
+    return this.defaultFeeRate;
   }
 
   /** Live: pull latest venue size into `positionService` after an order path (no-op in backtest). */
@@ -318,6 +331,7 @@ export class TradeEngine {
     klineInterval: string;
   }): Promise<void> {
     const notional = params.qty * params.price;
+    const feeRate = await this.resolveFeeRate(params.symbol);
     const rec: TradeRecord = {
       id: randomUUID(),
       symbol: params.symbol,
@@ -325,7 +339,7 @@ export class TradeEngine {
       side: params.side,
       qty: params.qty,
       price: params.price,
-      fee: this.feeRate > 0 ? notional * this.feeRate : 0,
+      fee: feeRate > 0 ? notional * feeRate : 0,
       timestamp: params.timestamp,
       kind: params.kind,
     };

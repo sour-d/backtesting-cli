@@ -54,6 +54,12 @@ export class LiveBroker implements IBroker {
     /* periodic reconcile: ReconciliationService */
   }
 
+  /** Configured default; exchange-specific fee API can be wired here later. */
+  async getFeeRate(symbol: string): Promise<number> {
+    void symbol;
+    return this.feeRate;
+  }
+
   async placeOrder(input: PlaceOrderInput): Promise<void> {
     const { instrument, side, qty, price, stopLoss, roundTripId, deploymentId } = input;
     const q = instrument.roundQty(qty);

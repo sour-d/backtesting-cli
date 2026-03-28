@@ -13,7 +13,8 @@ export interface ReconciliationServiceDeps {
   readonly positionService: PositionService;
   readonly store: IStore;
   readonly logger: ILogger;
-  readonly feeRate: number;
+  /** Fallback when {@link IBroker.getFeeRate} is missing or fails. */
+  readonly defaultFeeRate: number;
   readonly getInstrument: (symbol: string) => Instrument | undefined;
   readonly tradingContext: ITradingContextProvider;
 }
@@ -26,19 +27,42 @@ export class ReconciliationService {
   private readonly positionService: PositionService;
   private readonly store: IStore;
   private readonly logger: ILogger;
-  private readonly feeRate: number;
+  private readonly defaultFeeRate: number;
   private readonly getInstrument: (symbol: string) => Instrument | undefined;
   private readonly tradingContext: ITradingContextProvider;
   private timer: ReturnType<typeof setInterval> | undefined;
+  private reconcileRunning = false;
 
   constructor(deps: ReconciliationServiceDeps) {
     this.broker = deps.broker;
     this.positionService = deps.positionService;
     this.store = deps.store;
     this.logger = deps.logger;
-    this.feeRate = deps.feeRate;
+    this.defaultFeeRate = deps.defaultFeeRate;
     this.getInstrument = deps.getInstrument;
     this.tradingContext = deps.tradingContext;
+  }
+
+  private async resolveFeeRate(symbol: string): Promise<number> {
+    try {
+      const r = await this.broker.getFeeRate?.(symbol);
+      if (typeof r === 'number' && Number.isFinite(r) && r >= 0) {
+        return r;
+      }
+    } catch {
+      /* fall through */
+    }
+    return this.defaultFeeRate;
+  }
+
+  private async reconcileLoop(): Promise<void> {
+    if (this.reconcileRunning) return;
+    this.reconcileRunning = true;
+    try {
+      await this.reconcileTrackedSymbolsFromVenue();
+    } finally {
+      this.reconcileRunning = false;
+    }
   }
 
   start(intervalMs: number): void {
@@ -48,7 +72,7 @@ export class ReconciliationService {
       return;
     }
     this.timer = setInterval(() => {
-      void this.reconcileTrackedSymbolsFromVenue();
+      void this.reconcileLoop();
     }, intervalMs);
     this.logger.info('DEBUG:: ReconciliationService started', { intervalMs });
   }
@@ -195,66 +219,68 @@ export class ReconciliationService {
           ? last.close
           : row.avgEntryPrice ?? 0;
       if (price <= 0) {
-        this.logger.warn('PositionManager: skip exit trade — invalid price', {
+        this.logger.warn('PositionManager: skip exit trade — invalid price (position row kept)', {
           symbol,
         });
-      } else {
-        const timestamp = last?.dateUnix ?? Date.now();
-        let exitPrice = price;
-        let tsMs = timestamp < 1e12 ? timestamp * 1000 : timestamp;
-        let exitFee =
-          this.feeRate > 0 ? exitQty * exitPrice * this.feeRate : 0;
-        let venueExitOrderId = 'venue';
-        let tradeBarUnix = timestamp;
-
-        const fetchMeta = this.broker.fetchVenueClosedFillMeta;
-        if (typeof fetchMeta === 'function') {
-          const m = await fetchMeta.call(
-            this.broker,
-            symbol,
-            row.side,
-            exitQty,
-            inst,
-          );
-          if (m) {
-            venueExitOrderId = m.venueExitOrderId;
-            exitFee = m.exitFee;
-            exitPrice = inst.roundPrice(m.exitPrice);
-            tsMs = m.exitTimestampMs;
-            tradeBarUnix =
-              m.exitTimestampMs >= 1e12
-                ? Math.floor(m.exitTimestampMs / 1000)
-                : Math.floor(m.exitTimestampMs);
-            this.logger.info('Venue exit enriched from Bybit closed PnL', {
-              symbol,
-              venueExitOrderId,
-              exitFee,
-              exitPrice,
-            });
-          }
-        }
-
-        await this.persistExitTradeFromVenue({
-          symbol,
-          qty: exitQty,
-          price: exitPrice,
-          exitSide,
-          timestamp: tradeBarUnix,
-          klineInterval: entry.klineInterval,
-        });
-        await this.store.upsertOrderHistory({
-          id: row.id,
-          deploymentId: row.deploymentId,
-          symbol: row.symbol,
-          status: 'closed',
-          updatedAtMs: Date.now(),
-          exitQty,
-          exitPrice,
-          exitFee,
-          exitTimestampMs: tsMs,
-          venueExitOrderId,
-        });
+        return;
       }
+
+      const timestamp = last?.dateUnix ?? Date.now();
+      let exitPrice = price;
+      let tsMs = timestamp < 1e12 ? timestamp * 1000 : timestamp;
+      const feeRateForExit = await this.resolveFeeRate(symbol);
+      let exitFee =
+        feeRateForExit > 0 ? exitQty * exitPrice * feeRateForExit : 0;
+      let venueExitOrderId = 'venue';
+      let tradeBarUnix = timestamp;
+
+      const fetchMeta = this.broker.fetchVenueClosedFillMeta;
+      if (typeof fetchMeta === 'function') {
+        const m = await fetchMeta.call(
+          this.broker,
+          symbol,
+          row.side,
+          exitQty,
+          inst,
+        );
+        if (m) {
+          venueExitOrderId = m.venueExitOrderId;
+          exitFee = m.exitFee;
+          exitPrice = inst.roundPrice(m.exitPrice);
+          tsMs = m.exitTimestampMs;
+          tradeBarUnix =
+            m.exitTimestampMs >= 1e12
+              ? Math.floor(m.exitTimestampMs / 1000)
+              : Math.floor(m.exitTimestampMs);
+          this.logger.info('Venue exit enriched from Bybit closed PnL', {
+            symbol,
+            venueExitOrderId,
+            exitFee,
+            exitPrice,
+          });
+        }
+      }
+
+      await this.persistExitTradeFromVenue({
+        symbol,
+        qty: exitQty,
+        price: exitPrice,
+        exitSide,
+        timestamp: tradeBarUnix,
+        klineInterval: entry.klineInterval,
+      });
+      await this.store.upsertOrderHistory({
+        id: row.id,
+        deploymentId: row.deploymentId,
+        symbol: row.symbol,
+        status: 'closed',
+        updatedAtMs: Date.now(),
+        exitQty,
+        exitPrice,
+        exitFee,
+        exitTimestampMs: tsMs,
+        venueExitOrderId,
+      });
       await this.store.deletePosition(row.id);
       this.positionService.clearSymbol(symbol);
       this.logger.info('Venue position flat — exit trade persisted, row removed', {
@@ -301,6 +327,7 @@ export class ReconciliationService {
     klineInterval: string;
   }): Promise<void> {
     const notional = params.qty * params.price;
+    const feeRate = await this.resolveFeeRate(params.symbol);
     const rec: TradeRecord = {
       id: randomUUID(),
       symbol: params.symbol,
@@ -308,7 +335,7 @@ export class ReconciliationService {
       side: params.side,
       qty: params.qty,
       price: params.price,
-      fee: this.feeRate > 0 ? notional * this.feeRate : 0,
+      fee: feeRate > 0 ? notional * feeRate : 0,
       timestamp: params.timestamp,
       kind: params.kind,
     };

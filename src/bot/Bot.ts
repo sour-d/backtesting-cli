@@ -87,7 +87,7 @@ export class Bot implements ITradingContextProvider {
       positionService,
       store: deps.store,
       logger: deps.logger,
-      feeRate: this.feeRate,
+      defaultFeeRate: this.feeRate,
       getInstrument,
       tradingContext: this,
     });
@@ -96,7 +96,7 @@ export class Bot implements ITradingContextProvider {
       positionService,
       store: deps.store,
       logger: deps.logger,
-      feeRate: this.feeRate,
+      defaultFeeRate: this.feeRate,
     });
   }
 
@@ -165,7 +165,15 @@ export class Bot implements ITradingContextProvider {
       throw new Error(`Deployment not found: ${id}`);
     }
 
-    PositionService.getInstance().purgeSymbol(d.symbol);
+    const pm = PositionService.getInstance();
+    const openQty = Math.abs(pm.getSnapshot(d.symbol).currentPositionQty);
+    if (openQty >= 1e-12) {
+      throw new Error(
+        `Cannot remove deployment ${id} (${d.symbol}): position is open (qty ${openQty}). Close the position first.`,
+      );
+    }
+
+    pm.purgeSymbol(d.symbol);
     await this.marketRuntime.unregisterInstrument(d.symbol);
     this.activeDeployments.delete(d.symbol);
     await this.store.deleteDeployment(id);
@@ -251,6 +259,15 @@ export class Bot implements ITradingContextProvider {
     }
 
     const pm = PositionService.getInstance();
+    const sync = this.broker.syncPositionFromVenue;
+    if (typeof sync === "function") {
+      await sync.call(this.broker, instrument.symbol);
+    }
+    await this.reconciliationService.reconcileMissingRowIfNeeded(
+      instrument,
+      dep.deploymentId,
+      dep.klineInterval,
+    );
     const position = pm.getSnapshot(instrument.symbol);
     const raw = await strategy.evaluate(instrument, position);
     const signals = Array.isArray(raw) ? raw : [raw];
