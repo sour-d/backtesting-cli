@@ -33,6 +33,12 @@ export interface IStore {
   loadRecentCandles(symbol: string, klineInterval: string, limit: number): Promise<Candle[]>;
 
   saveTrade(record: TradeRecord): Promise<void>;
+  /**
+   * Insert or replace by `record.id` (dedupe JSONL / future DB upsert). Used for idempotent reconcile exits.
+   */
+  upsertTrade(record: TradeRecord): Promise<void>;
+  /** Resolve a persisted trade by id, if the store supports it (file JSONL scan; Supabase: null until trades table). */
+  loadTradeById(id: string): Promise<TradeRecord | null>;
   /** Merge by `id` into `order_history` (file/Supabase). */
   upsertOrderHistory(patch: OrderHistoryPatch): Promise<void>;
   /**
@@ -63,6 +69,8 @@ export interface IStore {
   ): Promise<void>;
   deletePosition(id: string): Promise<void>;
   loadPositionByDeploymentId(deploymentId: string): Promise<PositionRecord | null>;
+  /** Resolve open row by primary key (pending order_history routing, diagnostics). */
+  loadPositionById(id: string): Promise<PositionRecord | null>;
 
   saveLog(record: LogRecord): Promise<void>;
 }

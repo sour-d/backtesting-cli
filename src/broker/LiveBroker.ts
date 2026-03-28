@@ -217,40 +217,56 @@ export class LiveBroker implements IBroker {
     });
   }
 
-  /**
-   * Flush pending patches and backfill missing open `order_history` when DB has a position row and
-   * the venue reports an open size.
-   */
-  async recoverMissingOrderHistory(
-    activeDeployments?: readonly { readonly symbol: string; readonly deploymentId: string }[],
-  ): Promise<void> {
-    const queue = [...this.pendingOrderHistoryPatches];
+  private async flushPendingOrderHistoryPatchesForSymbol(symbol: string): Promise<void> {
+    const keep: OrderHistoryPatch[] = [];
+    const mine: OrderHistoryPatch[] = [];
+    for (const p of this.pendingOrderHistoryPatches) {
+      let sym: string | undefined = p.symbol;
+      if (sym === undefined) {
+        const row = await this.store.loadPositionById(p.id);
+        sym = row?.symbol;
+      }
+      if (sym === symbol) {
+        mine.push(p);
+      } else {
+        keep.push(p);
+      }
+    }
     this.pendingOrderHistoryPatches.length = 0;
-    for (const patch of queue) {
+    this.pendingOrderHistoryPatches.push(...keep);
+    for (const patch of mine) {
       const ok = await this.tryUpsertOrderHistoryWithBackoff(patch);
       if (!ok) {
         this.pendingOrderHistoryPatches.push(patch);
         this.logger.error(
           'CRITICAL:: persistence failure — order_history still pending after recover retry',
-          { patchId: patch.id },
+          { patchId: patch.id, symbol },
         );
       }
     }
+  }
 
-    if (activeDeployments) {
-      for (const { symbol, deploymentId } of activeDeployments) {
-        try {
-          await this.recoverOpenOrderHistoryFromVenueIfMissing(symbol, deploymentId);
-        } catch (e) {
-          this.logger.warn('DEBUG:: recoverOpenOrderHistoryFromVenueIfMissing failed', {
-            symbol,
-            deploymentId,
-            message: String(e),
-          });
-        }
-      }
+  /**
+   * Call only inside the engine per-symbol mutex. Flushes pending patches for `symbol`, then backfills
+   * missing open `order_history` when a DB position row exists and the venue reports open size.
+   */
+  async recoverMissingOrderHistoryForSymbol(
+    symbol: string,
+    deploymentId: string,
+  ): Promise<void> {
+    await this.flushPendingOrderHistoryPatchesForSymbol(symbol);
+    try {
+      await this.recoverOpenOrderHistoryFromVenueIfMissing(symbol, deploymentId);
+    } catch (e) {
+      this.logger.warn('DEBUG:: recoverOpenOrderHistoryFromVenueIfMissing failed', {
+        symbol,
+        deploymentId,
+        message: String(e),
+      });
     }
+  }
 
+  reportPendingOrderHistoryPatchesIfAny(): void {
     if (this.pendingOrderHistoryPatches.length > 0) {
       this.logger.error(
         'CRITICAL:: exchange/DB order_history may be inconsistent — pending patches remain',
@@ -469,6 +485,7 @@ export class LiveBroker implements IBroker {
     await this.persistOrderHistoryAfterVenueAccept(
       {
         id: roundTripId,
+        symbol,
         updatedAtMs: now,
         status: 'closed',
         venueExitOrderId: exitOid,
@@ -544,11 +561,12 @@ export class LiveBroker implements IBroker {
     await this.persistOrderHistoryAfterVenueAccept(
       {
         id: roundTripId,
+        symbol,
         updatedAtMs: nowSl,
         stopLoss: sl,
         /** First upsert for this id (e.g. position id from reconcile) requires these — see mergeOrderHistory. */
         ...(deploymentId !== undefined
-          ? { deploymentId, symbol, status: 'open' as const }
+          ? { deploymentId, status: 'open' as const }
           : {}),
       },
       'failed to persist order_history after setTradingStop accepted',

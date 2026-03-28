@@ -1,4 +1,4 @@
-import { mkdir, appendFile, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, appendFile, readdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import type { Candle, LogRecord, OrderHistoryPatch, TradeRecord } from '../core/types.js';
 import { backtestTradeFileName } from '../engine/backtestSummary.js';
@@ -72,6 +72,68 @@ export class BacktestStore implements IStore {
     const file = join(this.root, 'trades', backtestTradeFileName(record.symbol, record.klineInterval));
     await this.ensureDir(file);
     await appendFile(file, `${JSON.stringify(record)}\n`, 'utf8');
+  }
+
+  async loadTradeById(id: string): Promise<TradeRecord | null> {
+    const dir = join(this.root, 'trades');
+    let names: string[] = [];
+    try {
+      names = await readdir(dir);
+    } catch {
+      return null;
+    }
+    for (const name of names) {
+      if (!name.endsWith('.jsonl')) continue;
+      const file = join(dir, name);
+      let lines: string[] = [];
+      try {
+        const raw = await readFile(file, 'utf8');
+        lines = raw.trim() ? raw.trim().split('\n').filter(Boolean) : [];
+      } catch {
+        continue;
+      }
+      for (const line of lines) {
+        try {
+          const o = JSON.parse(line) as TradeRecord;
+          if (o?.id === id) {
+            return o;
+          }
+        } catch {
+          /* skip */
+        }
+      }
+    }
+    return null;
+  }
+
+  async upsertTrade(record: TradeRecord): Promise<void> {
+    const file = join(this.root, 'trades', backtestTradeFileName(record.symbol, record.klineInterval));
+    await this.ensureDir(file);
+    let lines: string[] = [];
+    try {
+      const raw = await readFile(file, 'utf8');
+      lines = raw.trim() ? raw.trim().split('\n').filter(Boolean) : [];
+    } catch {
+      lines = [];
+    }
+    const byId = new Map<string, TradeRecord>();
+    for (const line of lines) {
+      try {
+        const o = JSON.parse(line) as TradeRecord;
+        if (typeof o?.id === 'string') {
+          byId.set(o.id, o);
+        }
+      } catch {
+        /* skip corrupt line */
+      }
+    }
+    byId.set(record.id, record);
+    const merged = [...byId.values()].sort((a, b) => a.timestamp - b.timestamp);
+    await writeFile(
+      file,
+      merged.length > 0 ? `${merged.map((r) => JSON.stringify(r)).join('\n')}\n` : '',
+      'utf8',
+    );
   }
 
   async upsertOrderHistory(_patch: OrderHistoryPatch): Promise<void> {
@@ -161,6 +223,11 @@ export class BacktestStore implements IStore {
   async loadPositionByDeploymentId(deploymentId: string): Promise<PositionRecord | null> {
     const rows = await this.readPositions();
     return rows.find((p) => p.deploymentId === deploymentId) ?? null;
+  }
+
+  async loadPositionById(id: string): Promise<PositionRecord | null> {
+    const rows = await this.readPositions();
+    return rows.find((p) => p.id === id) ?? null;
   }
 
   async saveLog(_record: LogRecord): Promise<void> {

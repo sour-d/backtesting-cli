@@ -86,12 +86,15 @@ export interface IBroker {
    */
   getFeeRate?(symbol: string): Promise<number>;
   /**
-   * Live: flush failed `order_history` upserts and, for active deployments, backfill missing open rows
-   * when the venue still shows a position. Invoked after restore and during periodic reconciliation.
+   * Live: must run under the engine `PerSymbolMutex` for `symbol` — flush pending `order_history` patches
+   * for this symbol and backfill missing open rows when the venue still shows size.
    */
-  recoverMissingOrderHistory?(
-    activeDeployments?: readonly { readonly symbol: string; readonly deploymentId: string }[],
+  recoverMissingOrderHistoryForSymbol?(
+    symbol: string,
+    deploymentId: string,
   ): Promise<void>;
+  /** Live: log if any `order_history` patches remain pending after a full reconcile pass. */
+  reportPendingOrderHistoryPatchesIfAny?(): void;
   start(): void;
   stop(): void;
 }

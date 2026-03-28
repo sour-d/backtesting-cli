@@ -202,6 +202,14 @@ export class SupabaseStore implements IStore {
     /* no-op for Supabase */
   }
 
+  async upsertTrade(_record: TradeRecord): Promise<void> {
+    /* no-op — same as saveTrade until a trades table exists */
+  }
+
+  async loadTradeById(_id: string): Promise<TradeRecord | null> {
+    return null;
+  }
+
   async loadOpenOrderHistoryIdForDeployment(
     deploymentId: string,
     symbol: string,
@@ -339,6 +347,17 @@ export class SupabaseStore implements IStore {
       .eq('deployment_id', deploymentId)
       .maybeSingle();
     if (error) throw new Error(`loadPositionByDeploymentId: ${error.message}`);
+    if (!data) return null;
+    return mapPositionRow(data as Record<string, unknown>);
+  }
+
+  async loadPositionById(id: string): Promise<PositionRecord | null> {
+    const { data, error } = await this.client
+      .from('positions')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+    if (error) throw new Error(`loadPositionById: ${error.message}`);
     if (!data) return null;
     return mapPositionRow(data as Record<string, unknown>);
   }

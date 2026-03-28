@@ -120,6 +120,58 @@ export class FileStore implements IStore {
     await appendFile(file, `${JSON.stringify(record)}\n`, 'utf8');
   }
 
+  async loadTradeById(id: string): Promise<TradeRecord | null> {
+    const file = join(this.root, 'trades.jsonl');
+    let lines: string[] = [];
+    try {
+      const raw = await readFile(file, 'utf8');
+      lines = raw.trim() ? raw.trim().split('\n').filter(Boolean) : [];
+    } catch {
+      return null;
+    }
+    for (const line of lines) {
+      try {
+        const o = JSON.parse(line) as TradeRecord;
+        if (o?.id === id) {
+          return o;
+        }
+      } catch {
+        /* skip */
+      }
+    }
+    return null;
+  }
+
+  async upsertTrade(record: TradeRecord): Promise<void> {
+    const file = join(this.root, 'trades.jsonl');
+    await this.ensureDir(file);
+    let lines: string[] = [];
+    try {
+      const raw = await readFile(file, 'utf8');
+      lines = raw.trim() ? raw.trim().split('\n').filter(Boolean) : [];
+    } catch {
+      lines = [];
+    }
+    const byId = new Map<string, TradeRecord>();
+    for (const line of lines) {
+      try {
+        const o = JSON.parse(line) as TradeRecord;
+        if (typeof o?.id === 'string') {
+          byId.set(o.id, o);
+        }
+      } catch {
+        /* skip corrupt line */
+      }
+    }
+    byId.set(record.id, record);
+    const merged = [...byId.values()].sort((a, b) => a.timestamp - b.timestamp);
+    await writeFile(
+      file,
+      merged.length > 0 ? `${merged.map((r) => JSON.stringify(r)).join('\n')}\n` : '',
+      'utf8',
+    );
+  }
+
   async loadOpenOrderHistoryIdForDeployment(
     deploymentId: string,
     symbol: string,
@@ -244,6 +296,11 @@ export class FileStore implements IStore {
   async loadPositionByDeploymentId(deploymentId: string): Promise<PositionRecord | null> {
     const rows = await this.readPositions();
     return rows.find((p) => p.deploymentId === deploymentId) ?? null;
+  }
+
+  async loadPositionById(id: string): Promise<PositionRecord | null> {
+    const rows = await this.readPositions();
+    return rows.find((p) => p.id === id) ?? null;
   }
 
   async saveLog(record: LogRecord): Promise<void> {

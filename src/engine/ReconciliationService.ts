@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { reconcileVenueExitTradeId } from '../core/reconcileTradeIds.js';
 import type { TradeRecord } from '../core/types.js';
 import type { IBroker } from '../broker/IBroker.js';
 import { resolveBrokerFeeRate } from '../broker/resolveBrokerFeeRate.js';
@@ -97,6 +98,7 @@ export class ReconciliationService {
       if (this.positionService.getOpenPositionId(symbol)) {
         await this.applyRegistryAfterVenueSync(symbol);
       }
+      await this.broker.recoverMissingOrderHistoryForSymbol?.(symbol, deploymentId);
     });
   }
 
@@ -164,34 +166,18 @@ export class ReconciliationService {
       ...deploymentBySymbol.keys(),
     ]);
 
-    const recover = this.broker.recoverMissingOrderHistory;
-    if (typeof recover === 'function') {
-      const contextsMap = new Map<string, string>();
-      for (const c of this.tradingContext.getActiveSymbols()) {
-        contextsMap.set(c.symbol, c.deploymentId);
-      }
-      for (const s of this.positionService.getRegisteredSymbols()) {
-        const d = this.positionService.getDetails(s);
-        if (d) {
-          contextsMap.set(s, d.deploymentId);
-        }
-      }
-      const active = [...contextsMap.entries()].map(([symbol, deploymentId]) => ({
-        symbol,
-        deploymentId,
-      }));
-      try {
-        await recover.call(this.broker, active);
-      } catch (e) {
-        this.logger.error('CRITICAL:: recoverMissingOrderHistory failed', {
-          message: String(e),
-        });
-      }
-    }
-
     for (const symbol of union) {
       try {
         await this.symbolMutex.runExclusive(symbol, async () => {
+          const deploymentId =
+            deploymentBySymbol.get(symbol)?.deploymentId ??
+            this.positionService.getDetails(symbol)?.deploymentId;
+          if (
+            deploymentId &&
+            typeof this.broker.recoverMissingOrderHistoryForSymbol === 'function'
+          ) {
+            await this.broker.recoverMissingOrderHistoryForSymbol(symbol, deploymentId);
+          }
           await sync.call(this.broker, symbol);
           if (this.positionService.getDetails(symbol)) {
             await this.applyRegistryAfterVenueSync(symbol);
@@ -214,6 +200,8 @@ export class ReconciliationService {
         });
       }
     }
+
+    this.broker.reportPendingOrderHistoryPatchesIfAny?.();
   }
 
   private async applyRegistryAfterVenueSync(symbol: string): Promise<void> {
@@ -304,6 +292,7 @@ export class ReconciliationService {
 
         await this.persistExitTradeFromVenue({
           symbol,
+          positionId: row.id,
           qty: exitQty,
           price: exitPrice,
           exitSide,
@@ -352,30 +341,40 @@ export class ReconciliationService {
 
   private async persistExitTradeFromVenue(params: {
     symbol: string;
+    positionId: string;
     qty: number;
     price: number;
     exitSide: 'Buy' | 'Sell';
     timestamp: number;
     klineInterval: string;
   }): Promise<void> {
-    await this.saveReconcileTradeRecord({
+    const tradeId = reconcileVenueExitTradeId(params.symbol, params.positionId);
+    const existing = await this.store.loadTradeById(tradeId);
+    if (existing) {
+      this.logger.debug('DEBUG:: reconcile exit trade already present — skipping duplicate write', {
+        tradeId,
+        symbol: params.symbol,
+      });
+      return;
+    }
+    await this.saveReconcileExitTradeRecord({
       symbol: params.symbol,
+      positionId: params.positionId,
       side: params.exitSide,
       qty: params.qty,
       price: params.price,
       timestamp: params.timestamp,
-      kind: 'exit',
       klineInterval: params.klineInterval,
     });
   }
 
-  private async saveReconcileTradeRecord(params: {
+  private async saveReconcileExitTradeRecord(params: {
     symbol: string;
+    positionId: string;
     side: 'Buy' | 'Sell';
     qty: number;
     price: number;
     timestamp: number;
-    kind: TradeRecord['kind'];
     klineInterval: string;
   }): Promise<void> {
     const notional = params.qty * params.price;
@@ -385,7 +384,7 @@ export class ReconciliationService {
       this.defaultFeeRate,
     );
     const rec: TradeRecord = {
-      id: randomUUID(),
+      id: reconcileVenueExitTradeId(params.symbol, params.positionId),
       symbol: params.symbol,
       klineInterval: params.klineInterval,
       side: params.side,
@@ -393,8 +392,8 @@ export class ReconciliationService {
       price: params.price,
       fee: feeRate > 0 ? notional * feeRate : 0,
       timestamp: params.timestamp,
-      kind: params.kind,
+      kind: 'exit',
     };
-    await this.store.saveTrade(rec);
+    await this.store.upsertTrade(rec);
   }
 }
