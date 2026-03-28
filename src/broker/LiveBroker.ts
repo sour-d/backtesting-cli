@@ -11,30 +11,29 @@ import type {
   SyncPositionFromVenueOptions,
 } from './IBroker.js';
 
-/** Bybit V5 `retCode !== 0` business failure (or malformed response). */
-function bybitBusinessError(res: {
-  retCode?: unknown;
-  retMsg?: unknown;
-}): string | null {
-  const raw = res.retCode;
-  const code =
-    typeof raw === 'number'
-      ? raw
-      : typeof raw === 'string'
-        ? Number(raw)
-        : Number.NaN;
-  if (!Number.isFinite(code) || code === 0) return null;
-  const msg = res.retMsg;
-  return typeof msg === 'string' && msg.length > 0 ? msg : `retCode=${code}`;
-}
-
+/** Requires present, numeric `retCode === 0`; otherwise throws (malformed = failure). */
 function assertBybitOk(
   res: { retCode?: unknown; retMsg?: unknown },
   context: string,
 ): void {
-  const err = bybitBusinessError(res);
-  if (err) {
-    throw new Error(`${context}: ${err}`);
+  const raw = res.retCode;
+  if (raw === undefined || raw === null) {
+    throw new Error(`${context}: missing retCode`);
+  }
+  const code =
+    typeof raw === 'number'
+      ? raw
+      : typeof raw === 'string'
+        ? Number(String(raw).trim())
+        : Number.NaN;
+  if (!Number.isFinite(code)) {
+    throw new Error(`${context}: invalid retCode (${String(raw)})`);
+  }
+  if (code !== 0) {
+    const msg = res.retMsg;
+    const detail =
+      typeof msg === 'string' && msg.length > 0 ? msg : `retCode=${code}`;
+    throw new Error(`${context}: ${detail}`);
   }
 }
 
@@ -100,6 +99,18 @@ export class LiveBroker implements IBroker {
     return this.feeRate;
   }
 
+  /** After exchange confirms an order; failures are logged only — never flip {@link BrokerActionResult.success}. */
+  private async syncPositionFromExchangeBestEffort(symbol: string): Promise<void> {
+    try {
+      await this.syncPositionFromExchange(symbol);
+    } catch (e) {
+      this.logger.warn('DEBUG:: syncPositionFromExchange best-effort failed after venue call', {
+        symbol,
+        message: String(e),
+      });
+    }
+  }
+
   async placeOrder(input: PlaceOrderInput): Promise<BrokerActionResult> {
     const { instrument, side, qty, price, stopLoss, roundTripId, deploymentId } = input;
     const sym = instrument.symbol;
@@ -160,7 +171,7 @@ export class LiveBroker implements IBroker {
         raw: res as unknown as Record<string, unknown>,
       });
 
-      await this.syncPositionFromExchange(sym);
+      await this.syncPositionFromExchangeBestEffort(sym);
       this.logger.info('Order submitted', {
         symbol: sym,
         side,
@@ -216,7 +227,6 @@ export class LiveBroker implements IBroker {
       });
       assertBybitOk(res, 'submitOrder(close)');
 
-      await this.syncPositionFromExchange(symbol);
       const last = instrument.getCandles(1);
       const lastClose = last[last.length - 1]?.close;
       const exitPx = price ?? lastClose ?? 0;
@@ -237,6 +247,8 @@ export class LiveBroker implements IBroker {
         exitTimestampMs: now,
         raw: res as unknown as Record<string, unknown>,
       });
+
+      await this.syncPositionFromExchangeBestEffort(symbol);
       this.logger.info('Position close requested', {
         symbol,
         side: closeSide,
@@ -297,6 +309,7 @@ export class LiveBroker implements IBroker {
           ? { deploymentId, symbol, status: 'open' as const }
           : {}),
       });
+      await this.syncPositionFromExchangeBestEffort(symbol);
       this.logger.info('Trading stop updated', { symbol, stopLoss: sl });
       return { success: true };
     } catch (e) {
