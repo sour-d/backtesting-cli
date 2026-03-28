@@ -15,13 +15,12 @@ export interface LiveBrokerOptions {
   readonly testnet: boolean;
   readonly demoTrading: boolean;
   readonly feeRate: number;
-  readonly reconcileIntervalMs: number;
   readonly getInstrument: (symbol: string) => Instrument | undefined;
   readonly getPositionBook: () => IPositionBook;
 }
 
 /**
- * Live execution against Bybit V5 — places orders and periodically reconciles positions into Instrument state.
+ * Live execution against Bybit V5 — places orders; periodic venue sync is owned by {@link ReconciliationService}.
  */
 export class LiveBroker implements IBroker {
   private readonly logger: ILogger;
@@ -31,8 +30,6 @@ export class LiveBroker implements IBroker {
   private readonly feeRate: number;
   private readonly getInstrument: (symbol: string) => Instrument | undefined;
   private readonly getPositionBook: () => IPositionBook;
-  private readonly reconcileIntervalMs: number;
-  private timer: ReturnType<typeof setInterval> | undefined;
 
   constructor(opts: LiveBrokerOptions) {
     this.logger = opts.logger;
@@ -41,7 +38,6 @@ export class LiveBroker implements IBroker {
     this.feeRate = opts.feeRate;
     this.getInstrument = opts.getInstrument;
     this.getPositionBook = opts.getPositionBook;
-    this.reconcileIntervalMs = opts.reconcileIntervalMs;
     this.rest = new RestClientV5({
       key: opts.apiKey,
       secret: opts.apiSecret,
@@ -51,19 +47,11 @@ export class LiveBroker implements IBroker {
   }
 
   start(): void {
-    if (this.timer) return;
-    this.timer = setInterval(() => {
-      void this.reconcileAll();
-    }, this.reconcileIntervalMs);
-    this.logger.info('LiveBroker reconciliation worker started');
+    /* periodic reconcile: ReconciliationService */
   }
 
   stop(): void {
-    if (this.timer) {
-      clearInterval(this.timer);
-      this.timer = undefined;
-    }
-    this.logger.info('LiveBroker reconciliation worker stopped');
+    /* periodic reconcile: ReconciliationService */
   }
 
   async placeOrder(input: PlaceOrderInput): Promise<void> {
@@ -292,28 +280,6 @@ export class LiveBroker implements IBroker {
       });
     }
     return null;
-  }
-
-  private async reconcileAll(): Promise<void> {
-    try {
-      const res = await this.rest.getPositionInfo({
-        category: this.category,
-        limit: 200,
-      });
-      const list = res.result?.list ?? [];
-      for (const p of list) {
-        const sym = p.symbol;
-        const inst = this.getInstrument(sym);
-        if (!inst) continue;
-        const side = String(p.side ?? '');
-        const sizeAbs = Number(p.size ?? 0);
-        const avg = Number(p.avgPrice ?? 0);
-        const upnl = Number(p.unrealisedPnl ?? 0);
-        this.getPositionBook().setPositionSnapshot(sym, side, sizeAbs, avg, upnl);
-      }
-    } catch (e) {
-      this.logger.error('Reconciliation failed', { message: String(e) });
-    }
   }
 
   private async syncPositionFromExchange(symbol: string): Promise<void> {

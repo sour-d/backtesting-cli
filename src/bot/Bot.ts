@@ -38,11 +38,6 @@ export interface BotDeps {
   readonly feeRate?: number;
   /** Raw interval string (e.g. from `KLINE_INTERVAL` / `--interval` / quantlab config). */
   readonly defaultKlineInterval: string;
-  /**
-   * Live: interval (ms) for {@link PositionManager} to sync tracked symbols from the venue and align DB + exit trades.
-   * `0` disables (default / backtest).
-   */
-  readonly positionReconcileIntervalMs?: number;
 }
 
 /**
@@ -82,7 +77,6 @@ export class Bot {
       feeRate: this.feeRate,
       logger: deps.logger,
       getInstrument: (symbol) => deps.marketRuntime.getInstrument(symbol),
-      reconcileIntervalMs: deps.positionReconcileIntervalMs ?? 0,
       getActiveDeploymentContexts: () =>
         Array.from(this.activeDeployments.entries()).map(([symbol, v]) => ({
           symbol,

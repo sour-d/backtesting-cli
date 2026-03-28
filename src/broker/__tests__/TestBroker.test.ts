@@ -50,7 +50,6 @@ function wirePm(store: IStore, getInstrument: () => Instrument): void {
     feeRate: 0.001,
     logger: noopLogger,
     getInstrument,
-    reconcileIntervalMs: 0,
   });
   PositionManager.getInstance().setCapitalAllocation(spec.symbol, 10_000, 10_000);
 }

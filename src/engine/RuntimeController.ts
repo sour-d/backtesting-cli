@@ -12,6 +12,8 @@ export interface RuntimeControllerDeps {
   readonly positionService: PositionManager;
   readonly reconciliationService: ReconciliationService;
   readonly logger: ILogger;
+  /** Live venue/registry reconcile interval; `0` skips {@link ReconciliationService#start}. */
+  readonly reconcileIntervalMs: number;
 }
 
 /**
@@ -24,6 +26,7 @@ export class RuntimeController {
   readonly positionService: PositionManager;
   readonly reconciliationService: ReconciliationService;
   private readonly logger: ILogger;
+  private readonly reconcileIntervalMs: number;
 
   constructor(deps: RuntimeControllerDeps) {
     this.marketRuntime = deps.marketRuntime;
@@ -32,6 +35,7 @@ export class RuntimeController {
     this.positionService = deps.positionService;
     this.reconciliationService = deps.reconciliationService;
     this.logger = deps.logger;
+    this.reconcileIntervalMs = deps.reconcileIntervalMs;
   }
 
   /** Reload deployments and bot state from persistence (idempotent with respect to a single run). */
@@ -46,18 +50,17 @@ export class RuntimeController {
     this.marketRuntime.onCandle((instrument) => this.bot.onCandle(instrument));
     await this.marketRuntime.start();
     await this.restore();
+    if (this.reconcileIntervalMs > 0) {
+      this.reconciliationService.start(this.reconcileIntervalMs);
+    }
     this.broker.start();
   }
 
   /**
-   * Stop position venue reconciliation, broker worker, and market runtime.
+   * Stop reconciliation loop, broker hooks, and market runtime.
    */
   async stop(): Promise<void> {
-    try {
-      this.positionService.stopReconciliation();
-    } catch {
-      /* not configured */
-    }
+    this.reconciliationService.stop();
     this.broker.stop();
     await this.marketRuntime.stop();
     this.logger.info('Engine shutdown complete');

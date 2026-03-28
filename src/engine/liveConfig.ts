@@ -18,4 +18,6 @@ export interface LiveEngineConfig {
   readonly supabaseKey: string;
   /** Defaults to console + db when omitted */
   readonly logTargets?: readonly LogTarget[];
+  /** Venue/registry reconcile interval (ms). Default 30_000; `0` disables periodic reconcile. */
+  readonly reconcileIntervalMs?: number;
 }

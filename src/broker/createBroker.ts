@@ -17,9 +17,8 @@ export interface CreateBrokerConfig {
   readonly apiSecret?: string;
   readonly testnet?: boolean;
   readonly demoTrading?: boolean;
-  /** Live: `LiveBroker` reconcile fee estimate; backtest: `TestBroker` fill fee. */
+  /** Live: `LiveBroker` fee estimate; backtest: `TestBroker` fill fee. */
   readonly feeRate?: number;
-  readonly reconcileIntervalMs?: number;
   readonly getInstrument: (symbol: string) => Instrument | undefined;
   /** Runtime position book — {@link PositionManager} after `Bot` wiring. */
   readonly getPositionBook: () => IPositionBook;
@@ -40,7 +39,6 @@ export function createBroker(config: CreateBrokerConfig): IBroker {
         testnet: config.testnet ?? false,
         demoTrading: config.demoTrading ?? false,
         feeRate: config.feeRate ?? 0.0006,
-        reconcileIntervalMs: config.reconcileIntervalMs ?? 30_000,
         getInstrument: config.getInstrument,
         getPositionBook: config.getPositionBook,
       };

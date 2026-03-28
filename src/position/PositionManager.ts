@@ -24,13 +24,8 @@ export interface PositionManagerDeps {
   readonly logger: ILogger;
   readonly getInstrument: (symbol: string) => Instrument | undefined;
   /**
-   * How often to sync tracked symbols from the venue and align `positions` + exit trades.
-   * Set `0` to disable (backtest). Live typically `30_000`.
-   */
-  readonly reconcileIntervalMs: number;
-  /**
    * Live: current deployments (symbol → deployment id + kline interval).
-   * Used on the timer to run `reconcileMissingRowIfNeeded` for symbols not yet in `bySymbol` (e.g. limit filled but entry path never registered).
+   * Used by {@link reconcileTrackedSymbolsFromVenue} for symbols not yet in `bySymbol` (e.g. limit filled but entry path never registered).
    */
   readonly getActiveDeploymentContexts?: () => ReadonlyArray<ActiveDeploymentContext>;
 }
@@ -57,7 +52,6 @@ export class PositionManager implements IPositionBook {
   private readonly getActiveDeploymentContexts?: () => ReadonlyArray<ActiveDeploymentContext>;
   private readonly bySymbol = new Map<string, RegistryEntry>();
   private readonly runtimes = new Map<string, PositionRuntime>();
-  private reconcileTimer: ReturnType<typeof setInterval> | undefined;
 
   private constructor(deps: PositionManagerDeps) {
     this.broker = deps.broker;
@@ -66,32 +60,9 @@ export class PositionManager implements IPositionBook {
     this.logger = deps.logger;
     this.getInstrument = deps.getInstrument;
     this.getActiveDeploymentContexts = deps.getActiveDeploymentContexts;
-
-    const sync = this.broker.syncPositionFromVenue;
-    if (
-      typeof sync === 'function' &&
-      deps.reconcileIntervalMs > 0
-    ) {
-      this.reconcileTimer = setInterval(() => {
-        void this.reconcileTrackedSymbolsFromVenue();
-      }, deps.reconcileIntervalMs);
-      this.logger.info('PositionManager venue reconciliation started', {
-        intervalMs: deps.reconcileIntervalMs,
-      });
-    }
-  }
-
-  /** Stop periodic venue sync (e.g. live engine shutdown). */
-  stopReconciliation(): void {
-    if (this.reconcileTimer) {
-      clearInterval(this.reconcileTimer);
-      this.reconcileTimer = undefined;
-      this.logger.info('PositionManager venue reconciliation stopped');
-    }
   }
 
   static configure(deps: PositionManagerDeps): void {
-    singleton?.stopReconciliation();
     singleton = new PositionManager(deps);
   }
 
@@ -104,7 +75,6 @@ export class PositionManager implements IPositionBook {
 
   /** Test isolation — clears singleton and registry. */
   static resetForTests(): void {
-    singleton?.stopReconciliation();
     singleton = undefined;
   }
 

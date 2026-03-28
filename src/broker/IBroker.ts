@@ -35,7 +35,7 @@ export interface IBroker {
   ): Promise<void>;
   /**
    * Live: pull the latest position for `symbol` from the venue into {@link Instrument}.
-   * Omitted in backtest — {@link PositionManager} skips periodic venue reconciliation.
+   * Omitted in backtest — live periodic sync is driven by {@link ReconciliationService}.
    */
   syncPositionFromVenue?(symbol: string): Promise<void>;
   /**

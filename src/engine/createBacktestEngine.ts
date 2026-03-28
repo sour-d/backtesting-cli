@@ -68,7 +68,6 @@ export function createBacktestEngine(config: BacktestEngineConfig): BacktestEngi
     strategies,
     feeRate: config.feeRate,
     defaultKlineInterval: config.klineInterval,
-    positionReconcileIntervalMs: 0,
   });
 
   return { store, logger, marketRuntime, broker, bot, strategies };

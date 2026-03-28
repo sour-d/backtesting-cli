@@ -17,13 +17,23 @@ export interface RunLiveLoopResult {
 export async function runLiveLoop(config: LiveEngineConfig): Promise<RunLiveLoopResult> {
   const { bot, broker, marketRuntime, logger, store, strategies } = createLiveEngine(config);
 
+  const positionService = PositionManager.getInstance();
+  const reconciliationService = new ReconciliationService(
+    broker,
+    positionService,
+    store,
+    logger,
+  );
+  const reconcileIntervalMs = config.reconcileIntervalMs ?? 30_000;
+
   const runtime = new RuntimeController({
     marketRuntime,
     broker,
     bot,
-    positionService: PositionManager.getInstance(),
-    reconciliationService: new ReconciliationService(),
+    positionService,
+    reconciliationService,
     logger,
+    reconcileIntervalMs,
   });
 
   await runtime.start();

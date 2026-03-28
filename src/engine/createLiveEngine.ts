@@ -84,7 +84,6 @@ export function createLiveEngine(config: LiveEngineConfig): LiveEngineHandles {
     marketRuntime,
     strategies,
     defaultKlineInterval: config.klineInterval,
-    positionReconcileIntervalMs: 30_000,
   });
 
   return { store, logger, marketRuntime, broker, bot, strategies };
