@@ -44,12 +44,12 @@ export class RuntimeController {
   }
 
   /**
-   * Wire candle handling, start market runtime, restore deployments, start broker worker.
+   * Restore persistence first (no live WS yet), wire candles, connect market feed, then broker/reconcile hooks.
    */
   async start(): Promise<void> {
+    await this.restore();
     this.marketRuntime.onCandle((instrument) => this.bot.onCandle(instrument));
     await this.marketRuntime.start();
-    await this.restore();
     if (this.reconcileIntervalMs > 0) {
       this.reconciliationService.start(this.reconcileIntervalMs);
     }

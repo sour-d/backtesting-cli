@@ -94,6 +94,14 @@ export class LiveMarketRuntime implements IMarketRuntime {
   async start(): Promise<void> {
     if (this.started) return;
     await Promise.all(this.ws.connectAll());
+
+    const cat = this.category as CategoryV5;
+    for (const symbol of this.instruments.keys()) {
+      const interval = this.instrumentIntervals.get(symbol) ?? this.defaultKlineInterval;
+      const topic = `kline.${interval}.${symbol}`;
+      await Promise.all(this.ws.subscribeV5(topic, cat));
+    }
+
     this.started = true;
     this.logger.info('LiveMarketRuntime started', { category: this.category });
   }
@@ -120,9 +128,16 @@ export class LiveMarketRuntime implements IMarketRuntime {
 
     const cat = this.category as CategoryV5;
     const topic = `kline.${interval}.${symbol}`;
-    await Promise.all(this.ws.subscribeV5(topic, cat));
+    if (this.started) {
+      await Promise.all(this.ws.subscribeV5(topic, cat));
+    }
 
-    this.logger.info('Instrument registered', { symbol, interval, warmup: this.warmupCandles });
+    this.logger.info('Instrument registered', {
+      symbol,
+      interval,
+      warmup: this.warmupCandles,
+      wsSubscribed: this.started,
+    });
   }
 
   async unregisterInstrument(symbol: string): Promise<void> {
@@ -130,7 +145,9 @@ export class LiveMarketRuntime implements IMarketRuntime {
     if (!inst) return;
     const interval = this.instrumentIntervals.get(symbol) ?? this.defaultKlineInterval;
     const topic = `kline.${interval}.${symbol}`;
-    await Promise.all(this.ws.unsubscribeV5(topic, this.category as CategoryV5));
+    if (this.started) {
+      await Promise.all(this.ws.unsubscribeV5(topic, this.category as CategoryV5));
+    }
     this.instrumentIntervals.delete(symbol);
     this.instruments.delete(symbol);
     this.lastEmittedStart.delete(symbol);
@@ -176,6 +193,7 @@ export class LiveMarketRuntime implements IMarketRuntime {
   }
 
   private async onWsUpdate(msg: unknown): Promise<void> {
+    if (!this.started) return;
     if (!msg || typeof msg !== 'object') return;
     const m = msg as { topic?: string; data?: unknown };
     const topic = m.topic;
