@@ -6,9 +6,8 @@ import { parseKlineInterval } from '../config/klineInterval.js';
 import { createLogger } from '../logger/createLogger.js';
 import { FileMarketRuntime } from '../market-runtime/FileMarketRuntime.js';
 import { createStore } from '../store/createStore.js';
-import { NoopStrategy } from '../strategy/builtin/NoopStrategy.js';
-import { MovingAverageV2Strategy } from '../strategy/mav2/MovingAverageV2Strategy.js';
-import { StrategyRegistry } from '../strategy/StrategyRegistry.js';
+import type { StrategyRegistry } from '../strategy/StrategyRegistry.js';
+import { createStrategyRegistry } from './createStrategyRegistry.js';
 import type { BacktestEngineConfig } from './backtestConfig.js';
 
 const MODE = 'backtest' as const;
@@ -20,6 +19,7 @@ export interface BacktestEngineHandles {
   readonly broker: ReturnType<typeof createBroker>;
   readonly bot: ReturnType<typeof createBot>;
   readonly strategies: StrategyRegistry;
+  readonly positionService: PositionService;
 }
 
 export function createBacktestEngine(config: BacktestEngineConfig): BacktestEngineHandles {
@@ -33,11 +33,8 @@ export function createBacktestEngine(config: BacktestEngineConfig): BacktestEngi
     baseDir: config.dataDir,
   });
 
-  const strategies = new StrategyRegistry();
-  const mav2 = new MovingAverageV2Strategy();
-  strategies.register('noop', new NoopStrategy(logger));
-  strategies.register('mav2', mav2);
-  strategies.register('MovingAverage_v2', mav2);
+  const strategies = createStrategyRegistry({ mode: MODE, logger });
+  const positionService = new PositionService({ feeRate: config.feeRate });
 
   const marketRuntime = new FileMarketRuntime({
     logger,
@@ -57,7 +54,7 @@ export function createBacktestEngine(config: BacktestEngineConfig): BacktestEngi
     category: config.category as CategoryV5,
     feeRate: config.feeRate,
     getInstrument: (symbol) => marketRuntime.getInstrument(symbol),
-    getPositionBook: () => PositionService.getInstance(),
+    getPositionBook: () => positionService,
   });
 
   const bot = createBot(MODE, {
@@ -66,9 +63,10 @@ export function createBacktestEngine(config: BacktestEngineConfig): BacktestEngi
     broker,
     marketRuntime,
     strategies,
+    positionService,
     feeRate: config.feeRate,
     defaultKlineInterval: config.klineInterval,
   });
 
-  return { store, logger, marketRuntime, broker, bot, strategies };
+  return { store, logger, marketRuntime, broker, bot, strategies, positionService };
 }

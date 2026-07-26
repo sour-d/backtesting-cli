@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import { join } from 'node:path';
 import { loadQuantlabConfig, parseConfigTimeRange } from '../config/loadConfig.js';
 import type { LogLevelName } from '../logger/ILogger.js';
 import {
@@ -8,6 +7,8 @@ import {
   prepareBacktestRun,
 } from './backtestSummary.js';
 import { createBacktestEngine } from './createBacktestEngine.js';
+import { EventBus } from './events/EventBus.js';
+import { wireEngineEvents } from './wireEngineEvents.js';
 
 export interface RunBacktestLoopOptions {
   readonly configPath: string;
@@ -39,7 +40,18 @@ export async function runBacktestLoop(opts: RunBacktestLoopOptions): Promise<voi
     quiet: opts.quiet,
   });
 
-  marketRuntime.onCandle((instrument) => bot.onCandle(instrument));
+  const bus = new EventBus(logger);
+  wireEngineEvents({
+    bus,
+    bot,
+    reconciliationService: bot.reconciliationService,
+    broker,
+    reconcileIntervalMs: 0,
+    logger,
+  });
+  marketRuntime.onCandle((instrument) => {
+    void bus.publish({ type: 'CandleClosed', instrument });
+  });
 
   for (const symbol of ql.symbols) {
     await bot.deploy({

@@ -1,7 +1,7 @@
 import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { Instrument } from '../../instrument/Instrument.js';
 import type { InstrumentStatic } from '../../instrument/types.js';
 import type { ILogger } from '../../logger/ILogger.js';
@@ -43,17 +43,11 @@ const spec: InstrumentStatic = {
   qtyPrecision: 1,
 };
 
-function wirePm(): void {
-  PositionService.resetForTests();
-  PositionService.configure({
-    feeRate: 0.001,
-  });
-  PositionService.getInstance().setCapitalAllocation(spec.symbol, 10_000, 10_000);
+function newPositionBook(): PositionService {
+  const pm = new PositionService({ feeRate: 0.001 });
+  pm.setCapitalAllocation(spec.symbol, 10_000, 10_000);
+  return pm;
 }
-
-afterEach(() => {
-  PositionService.resetForTests();
-});
 
 describe('TestBroker', () => {
   it('placeOrder applies entry and updates position', async () => {
@@ -68,7 +62,7 @@ describe('TestBroker', () => {
       volume: 1,
     });
 
-    wirePm();
+    const pm = newPositionBook();
 
     const broker = new TestBroker({
       logger: noopLogger,
@@ -76,7 +70,7 @@ describe('TestBroker', () => {
       category: 'linear',
       feeRate: 0.001,
       getInstrument: () => inst,
-      getPositionBook: () => PositionService.getInstance(),
+      getPositionBook: () => pm,
     });
 
     await broker.placeOrder({
@@ -88,7 +82,7 @@ describe('TestBroker', () => {
       deploymentId: DEPLOYMENT_ID,
     });
 
-    const snap = PositionService.getInstance().getSnapshot(spec.symbol);
+    const snap = pm.getSnapshot(spec.symbol);
     expect(snap.currentPositionQty).toBeCloseTo(0.5, 5);
     expect(snap.avgEntryPrice).toBeCloseTo(100, 5);
   });
@@ -105,7 +99,7 @@ describe('TestBroker', () => {
       volume: 1,
     });
 
-    wirePm();
+    const pm = newPositionBook();
 
     const broker = new TestBroker({
       logger: noopLogger,
@@ -113,7 +107,7 @@ describe('TestBroker', () => {
       category: 'linear',
       feeRate: 0.001,
       getInstrument: () => inst,
-      getPositionBook: () => PositionService.getInstance(),
+      getPositionBook: () => pm,
     });
 
     await broker.placeOrder({
@@ -124,14 +118,10 @@ describe('TestBroker', () => {
       roundTripId: ROUND_TRIP_ID,
       deploymentId: DEPLOYMENT_ID,
     });
-    expect(
-      PositionService.getInstance().getSnapshot(spec.symbol).currentPositionQty,
-    ).toBeGreaterThan(0);
+    expect(pm.getSnapshot(spec.symbol).currentPositionQty).toBeGreaterThan(0);
 
     await broker.closePosition('SOLUSDT', ROUND_TRIP_ID);
-    expect(
-      Math.abs(PositionService.getInstance().getSnapshot(spec.symbol).currentPositionQty),
-    ).toBeLessThan(1e-9);
+    expect(Math.abs(pm.getSnapshot(spec.symbol).currentPositionQty)).toBeLessThan(1e-9);
   });
 
   it('closePosition uses strategy price when provided (not last bar close)', async () => {
@@ -160,14 +150,14 @@ describe('TestBroker', () => {
     };
 
     const instExplicit = mkInstrument();
-    wirePm();
+    const pmExplicit = newPositionBook();
     const brokerExplicit = new TestBroker({
       logger: noopLogger,
       store: storeA,
       category: 'linear',
       feeRate: 0.001,
       getInstrument: () => instExplicit,
-      getPositionBook: () => PositionService.getInstance(),
+      getPositionBook: () => pmExplicit,
     });
     await brokerExplicit.placeOrder({
       instrument: instExplicit,
@@ -178,18 +168,17 @@ describe('TestBroker', () => {
       deploymentId: DEPLOYMENT_ID,
     });
     await brokerExplicit.closePosition('SOLUSDT', ROUND_TRIP_ID, undefined, 96);
-    const capExplicit = PositionService.getInstance().getSnapshot(spec.symbol).availableCapital;
+    const capExplicit = pmExplicit.getSnapshot(spec.symbol).availableCapital;
 
     const instBarClose = mkInstrument();
-    PositionService.resetForTests();
-    wirePm();
+    const pmBarClose = newPositionBook();
     const brokerBarClose = new TestBroker({
       logger: noopLogger,
       store: storeB,
       category: 'linear',
       feeRate: 0.001,
       getInstrument: () => instBarClose,
-      getPositionBook: () => PositionService.getInstance(),
+      getPositionBook: () => pmBarClose,
     });
     await brokerBarClose.placeOrder({
       instrument: instBarClose,
@@ -200,7 +189,7 @@ describe('TestBroker', () => {
       deploymentId: DEPLOYMENT_ID,
     });
     await brokerBarClose.closePosition('SOLUSDT', ROUND_TRIP_ID);
-    const capBarClose = PositionService.getInstance().getSnapshot(spec.symbol).availableCapital;
+    const capBarClose = pmBarClose.getSnapshot(spec.symbol).availableCapital;
 
     expect(capExplicit).not.toBe(capBarClose);
   });
@@ -218,7 +207,7 @@ describe('TestBroker', () => {
       volume: 1,
     });
 
-    wirePm();
+    const pm = newPositionBook();
 
     const broker = new TestBroker({
       logger: noopLogger,
@@ -226,7 +215,7 @@ describe('TestBroker', () => {
       category: 'linear',
       feeRate: 0.001,
       getInstrument: () => inst,
-      getPositionBook: () => PositionService.getInstance(),
+      getPositionBook: () => pm,
     });
 
     const rt = 'rt-single-id';

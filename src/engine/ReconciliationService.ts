@@ -37,7 +37,6 @@ export class ReconciliationService {
   private readonly getInstrument: (symbol: string) => Instrument | undefined;
   private readonly tradingContext: ITradingContextProvider;
   private readonly symbolMutex: PerSymbolMutex;
-  private timer: ReturnType<typeof setInterval> | undefined;
   private reconcileRunning = false;
 
   constructor(deps: ReconciliationServiceDeps) {
@@ -61,24 +60,9 @@ export class ReconciliationService {
     }
   }
 
-  start(intervalMs: number): void {
-    if (intervalMs <= 0 || this.timer) return;
-    if (typeof this.broker.syncPositionFromVenue !== 'function') {
-      this.logger.warn('DEBUG:: ReconciliationService not started — broker has no syncPositionFromVenue', {});
-      return;
-    }
-    this.timer = setInterval(() => {
-      void this.reconcileLoop();
-    }, intervalMs);
-    this.logger.info('DEBUG:: ReconciliationService started', { intervalMs });
-  }
-
-  stop(): void {
-    if (this.timer) {
-      clearInterval(this.timer);
-      this.timer = undefined;
-    }
-    this.logger.info('DEBUG:: ReconciliationService stopped', {});
+  /** Invoked on each `ReconcileTick` from the engine event bus (live periodic venue sync). */
+  async runScheduledReconcile(): Promise<void> {
+    await this.reconcileLoop();
   }
 
   /**

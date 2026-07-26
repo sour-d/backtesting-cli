@@ -1,6 +1,6 @@
 import type { Server } from 'node:http';
 import { createHttpApp, listenHttp, stopLiveUrlPing } from '../api/httpServer.js';
-import { PositionService } from '../position/PositionService.js';
+import { EventBus } from './events/EventBus.js';
 import type { LiveEngineConfig } from './liveConfig.js';
 import { createLiveEngine } from './createLiveEngine.js';
 import { RuntimeController } from './RuntimeController.js';
@@ -34,10 +34,10 @@ export async function runLiveLoop(config: LiveEngineConfig): Promise<RunLiveLoop
       envPositiveInt('BROKER_PAUSE_COOLDOWN_MS'),
   };
 
-  const { bot, broker, marketRuntime, logger, store, strategies } =
+  const { bot, broker, marketRuntime, logger, store, strategies, positionService } =
     createLiveEngine(effective);
 
-  const positionService = PositionService.getInstance();
+  const bus = new EventBus(logger);
   const reconciliationService = bot.reconciliationService;
   const reconcileIntervalMs = effective.reconcileIntervalMs ?? 30_000;
 
@@ -45,6 +45,7 @@ export async function runLiveLoop(config: LiveEngineConfig): Promise<RunLiveLoop
     marketRuntime,
     broker,
     bot,
+    bus,
     positionService,
     reconciliationService,
     logger,

@@ -15,11 +15,9 @@ interface RegistryEntry {
   readonly klineInterval: string;
 }
 
-let singleton: PositionService | undefined;
-
 /**
- * Singleton position book: runtime qty/capital per symbol + open-position registry (symbol → row id).
- * Execution and persistence live in `TradeEngine`.
+ * Position book: runtime qty/capital per symbol + open-position registry (symbol → row id).
+ * Execution and persistence live in `TradeEngine`. Construct one instance per engine in the composition root.
  */
 export class PositionService implements IPositionBook {
   private readonly defaultFeeRate: number;
@@ -28,7 +26,7 @@ export class PositionService implements IPositionBook {
   private readonly bySymbol = new Map<string, RegistryEntry>();
   private readonly runtimes = new Map<string, PositionRuntime>();
 
-  private constructor(deps: PositionServiceDeps) {
+  constructor(deps: PositionServiceDeps) {
     this.defaultFeeRate = deps.feeRate;
   }
 
@@ -44,22 +42,6 @@ export class PositionService implements IPositionBook {
 
   private effectiveFeeRate(symbol: string): number {
     return this.symbolFeeOverrides.get(symbol) ?? this.defaultFeeRate;
-  }
-
-  static configure(deps: PositionServiceDeps): void {
-    singleton = new PositionService(deps);
-  }
-
-  static getInstance(): PositionService {
-    if (!singleton) {
-      throw new Error('PositionService.configure() must be called before getInstance()');
-    }
-    return singleton;
-  }
-
-  /** Test isolation — clears singleton and registry. */
-  static resetForTests(): void {
-    singleton = undefined;
   }
 
   registerOpenPosition(

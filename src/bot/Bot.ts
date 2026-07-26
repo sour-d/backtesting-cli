@@ -39,6 +39,7 @@ export interface BotDeps {
   readonly broker: IBroker;
   readonly marketRuntime: IMarketRuntime;
   readonly strategies: StrategyRegistry;
+  readonly positionService: PositionService;
   /** When set (e.g. backtest), used for `TradeRecord.fee` in {@link TradeEngine}. */
   readonly feeRate?: number;
   /** Raw interval string (e.g. from `KLINE_INTERVAL` / `--interval` / quantlab config). */
@@ -64,6 +65,7 @@ export class Bot implements ITradingContextProvider {
   private readonly registry: StrategyRegistry;
   private readonly feeRate: number;
   private readonly defaultKlineInterval: string;
+  private readonly positionService: PositionService;
   /** In-memory routing: strategy + deployment + kline interval per symbol (persisted deployments are source of truth). */
   private readonly activeDeployments = new Map<
     string,
@@ -83,16 +85,12 @@ export class Bot implements ITradingContextProvider {
     this.registry = deps.strategies;
     this.feeRate = deps.feeRate ?? 0;
     this.defaultKlineInterval = deps.defaultKlineInterval;
-
-    PositionService.configure({
-      feeRate: this.feeRate,
-    });
-    const positionService = PositionService.getInstance();
+    this.positionService = deps.positionService;
     const getInstrument = (symbol: string) => deps.marketRuntime.getInstrument(symbol);
 
     this.reconciliationService = new ReconciliationService({
       broker: deps.broker,
-      positionService,
+      positionService: deps.positionService,
       store: deps.store,
       logger: deps.logger,
       defaultFeeRate: this.feeRate,
@@ -102,7 +100,7 @@ export class Bot implements ITradingContextProvider {
     });
     this.tradeEngine = new TradeEngine({
       broker: deps.broker,
-      positionService,
+      positionService: deps.positionService,
       store: deps.store,
       logger: deps.logger,
       defaultFeeRate: this.feeRate,
@@ -135,7 +133,7 @@ export class Bot implements ITradingContextProvider {
 
     const spec = await this.marketRuntime.fetchInstrumentStatic(req.symbol);
     const instrument = new Instrument(spec, strategy.getIndicators() ?? []);
-    PositionService.getInstance().setCapitalAllocation(
+    this.positionService.setCapitalAllocation(
       req.symbol,
       req.capital,
       req.capital,
@@ -177,7 +175,7 @@ export class Bot implements ITradingContextProvider {
       throw new Error(`Deployment not found: ${id}`);
     }
 
-    const pm = PositionService.getInstance();
+    const pm = this.positionService;
     const openQty = Math.abs(pm.getSnapshot(d.symbol).currentPositionQty);
     if (openQty >= 1e-12) {
       throw new Error(
@@ -196,7 +194,7 @@ export class Bot implements ITradingContextProvider {
     const rows = await this.store.loadDeployments();
     const live = rows.filter((r) => r.status === "active");
     this.logger.info("Restoring deployments", { count: live.length });
-    const pm = PositionService.getInstance();
+    const pm = this.positionService;
     for (const d of live) {
       const strategy = this.registry.resolve(d.strategyId);
       if (!strategy) {
@@ -271,7 +269,7 @@ export class Bot implements ITradingContextProvider {
     }
 
     await this.symbolMutex.runExclusive(instrument.symbol, async () => {
-      const pm = PositionService.getInstance();
+      const pm = this.positionService;
       const fr = await resolveBrokerFeeRate(
         this.broker,
         instrument.symbol,

@@ -6,9 +6,8 @@ import { parseKlineInterval } from "../config/klineInterval.js";
 import { createLogger } from "../logger/createLogger.js";
 import { createMarketRuntime } from "../market-runtime/createMarketRuntime.js";
 import { createStore } from "../store/createStore.js";
-import { NoopStrategy } from "../strategy/builtin/NoopStrategy.js";
-import { MovingAverageV2Strategy } from "../strategy/mav2/MovingAverageV2Strategy.js";
-import { StrategyRegistry } from "../strategy/StrategyRegistry.js";
+import type { StrategyRegistry } from "../strategy/StrategyRegistry.js";
+import { createStrategyRegistry } from "./createStrategyRegistry.js";
 import type { LiveEngineConfig } from "./liveConfig.js";
 
 const MODE = "live" as const;
@@ -20,6 +19,7 @@ export interface LiveEngineHandles {
   readonly broker: ReturnType<typeof createBroker>;
   readonly bot: ReturnType<typeof createBot>;
   readonly strategies: StrategyRegistry;
+  readonly positionService: PositionService;
 }
 
 /**
@@ -46,10 +46,8 @@ export function createLiveEngine(config: LiveEngineConfig): LiveEngineHandles {
     store: logTargets.includes("db") ? store : undefined,
   });
 
-  const strategies = new StrategyRegistry();
-  const mav2 = new MovingAverageV2Strategy();
-  strategies.register("mav2", mav2);
-  strategies.register("MovingAverage_v2", mav2);
+  const strategies = createStrategyRegistry({ mode: MODE });
+  const positionService = new PositionService({ feeRate: 0 });
 
   const marketRuntime = createMarketRuntime({
     mode: MODE,
@@ -75,7 +73,7 @@ export function createLiveEngine(config: LiveEngineConfig): LiveEngineHandles {
     demoTrading: config.demoTrading,
     venueSyncMinIntervalMs: config.venueSyncMinIntervalMs,
     getInstrument: (symbol) => marketRuntime.getInstrument(symbol),
-    getPositionBook: () => PositionService.getInstance(),
+    getPositionBook: () => positionService,
   });
 
   const bot = createBot(MODE, {
@@ -84,12 +82,13 @@ export function createLiveEngine(config: LiveEngineConfig): LiveEngineHandles {
     broker,
     marketRuntime,
     strategies,
+    positionService,
     defaultKlineInterval: config.klineInterval,
     brokerFailureThreshold: config.brokerFailureThreshold,
     brokerPauseCooldownMs: config.brokerPauseCooldownMs,
   });
 
-  return { store, logger, marketRuntime, broker, bot, strategies };
+  return { store, logger, marketRuntime, broker, bot, strategies, positionService };
 }
 
 /** Alias — composition root factory for the live engine. */
